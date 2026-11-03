@@ -1,6 +1,6 @@
 # HOPE onboard node architecture
 
-This consolidation is based on `main` at `d341a208`. It retains failed-START
+The native operations port is based on `main` at `7f2d7703`. It retains failed-START
 recovery and late DDS discovery from PR #71, the HOME/hit-speed/connection
 controls integrated by PR #76, and the measured policy-handoff tolerances from
 PR #74. It changes process ownership and transport, not Runner motion policy.
@@ -21,7 +21,7 @@ Opt-in rosbag recording adds recorder nodes beyond this steady deployment count.
 | HDU | Attended Foxglove bridge, port 8766 | Persistent fixed operator service surface |
 | HDU | `hope_monitor` | Persistent health, scene and independent safety endpoints |
 | HDU | `hope_imu_telemetry` | Persistent native IMU reception and clock telemetry |
-| HDU | `hope_operations` | One persistent Python node containing lifecycle, command proxy and observer modules |
+| HDU | `hope_operations` | One persistent C++ node; non-ROS Python child retains lifecycle and command orchestration |
 | HDU | `hope_time_calibration` | Separate privileged maintenance process, with the existing hardware-operation interlock |
 | HDU | C++ Planner | Managed session process; omitted in KERNEL mode |
 | HDU | `hope_base_pose_transport_relay` | Independent native base relay, started before Planner/HAL; omitted in KERNEL mode |
@@ -35,11 +35,23 @@ the base relay; all eight Runner gateway routes remain available.
 
 ## Operations ownership and scheduling
 
-`hope_operations.py` owns one ROS node. The existing observer, command-proxy
-and lifecycle implementations are modules on that node. Runner state and base
-pose are decoded once into shared snapshots, then delivered directly to their
-consumers. Field status also uses direct local fanout. Public ROS topics and
-services remain available for external consumers.
+`hope-operations` owns one ROS node. It decodes Runner/base wires, tracks raw
+player eligibility and ball receipts, publishes observer outputs, and executes
+fixed Runner requests/ACK tracking in C++.
+The existing command-proxy and lifecycle modules run in a non-ROS Python worker
+and request original timestamped snapshots when needed. Generation-based waits
+deliver new evidence without a continuous sensor stream to Python. Field status
+still uses direct local fanout inside the worker. Public topics/services remain
+unchanged; `/hope/operations/metrics` adds read-only diagnostics. Optional samples
+use a separate socket with native pre-serialization coalescing. The native
+emergency-passive executor bypasses Python/IPC; ordinary command admission still
+shares Python's calibration/action lock. Same-boot recovery receipts enable
+identity-verified explicit cleanup after owner restart, never automatic resume.
+If Runner identity is unavailable, attended offline cleanup uses the saved
+session and existing STOP helpers under the hardware interlock, not blind
+receipt deletion. Native emergency ACK/reply delivery also participates in
+idle-reconnect and failed-worker drain decisions.
+See the [native port contract, tests and installation](../../foxglove/a3/native/README.md).
 
 The shared Runner and base readers use reliable, volatile QoS at depth 10.
 Each has its own mutually exclusive callback group, separate from telemetry
@@ -88,7 +100,7 @@ performance claims.
 
 The canonical service remains `hope-lifecycle-supervisor.service`, preserving
 its state directory, hardware lock and venue-specific systemd drop-ins. It now
-runs `hope_operations.py`. The old `hope-observer.service` and
+runs `/usr/local/libexec/hope-operations` with one Python orchestration child. The old `hope-observer.service` and
 `hope-command-proxy.service` files are compatibility oneshot units that run
 `/usr/bin/true` and require the canonical service. They create no ROS process
 and are not normally enabled. Their old Python entry points remain compatibility
@@ -109,7 +121,7 @@ original snapshot once and does not invent cached heartbeats.
 
 | Component | Scheduling and freshness behavior |
 | --- | --- |
-| Operations executor | Five threads; the observer snapshot timer has its own mutually exclusive group. Command state and ball receipts are copied under a short lock before formatting and publishing. |
+| Operations executor | Six native executor threads; Runner/base have separate mutually exclusive source groups. Observer snapshots copy state under a short lock before formatting/publishing. The Python worker uses bounded action lanes and low-rate timers. |
 | Monitor probes | CPU reads and delta calculation run together in a worker; interface reads also use the probe pool. Five workers serve at most one pending probe per source. The collecting timer propagates deliberate reconnect exceptions. |
 | Observer cache | Successful filesystem snapshots wait half of their maximum-age budget before another refresh. Initial reads and failed reads retry promptly. Network and field-status caches retain their existing polling behavior. |
 | Gateway graph and readiness | Graph queries refresh at nominal 1 Hz; the 500 ms readiness timer and all eight forwarding callbacks stay serialized. An overdue graph snapshot is refreshed before use. Initial `HEALTHY` requires two eligible reports and an additional forwarded Runner sample between them. An unhealthy report resets the gate. |
@@ -160,7 +172,13 @@ CPU probe collection clears a completed future before retrieving its result,
 so a caller that recovers from a probe exception can submit a fresh probe on
 its next poll. The deliberate interface-reconnect exception path is unchanged.
 
-## Reconnect verification required before deployment
+## Retained Python reference and reconnect verification
+
+The following describes the retained reference entry point. The deployed native
+owner instead uses `IdleNetworkReconnect` in the non-ROS worker and the drain
+receipt protocol. Run `test_native_operations_ros.py` and
+`test_operations_network.py` for its real C++/worker reconnect and ownership
+coverage, then perform the attended deployment checks in the native guide.
 
 The HDU unit explicitly sources `/opt/ros/jazzy/setup.bash`. Operations relies
 on that `rclpy` runtime propagating a timer callback exception through

@@ -37,6 +37,60 @@ def execute(n):
     module.HopeLifecycleSupervisor._run_start(n, *args[1:])
 
 
+def test_native_player_check_does_not_hold_lifecycle_lock(node):
+    node._player_positions.status_threadsafe = True
+    def check(*_):
+        assert node._lock.acquire(blocking=False), "native player IPC must not hold lifecycle lock"
+        node._lock.release()
+    node._player_positions.require.side_effect = check
+    assert accept(node).success
+    execute(node)
+    node._player_positions.require.assert_called_once()
+
+
+@pytest.mark.parametrize("equals", [False, True])
+def test_attended_recovery_cli_never_initializes_ros(monkeypatch, equals, capsys):
+    import os
+    import pwd
+    import hope_operations_recovery
+    session = "model21800_20261029T110000Z"
+    args = ["--recover-session=" + session] if equals else ["--recover-session", session]
+    monkeypatch.setattr(sys, "argv", ["hope_lifecycle_supervisor.py", *args,
+        "--confirm-supported-stopped-wired-estop", "--confirm-vendor-restore"])
+    monkeypatch.setattr(pwd, "getpwnam", lambda _: SimpleNamespace(pw_uid=os.geteuid()))
+    recover = Mock(return_value=Path("/isolated/archived.json"))
+    monkeypatch.setattr(hope_operations_recovery, "recover_stopped_session", recover)
+    run_node = Mock(side_effect=AssertionError("offline recovery must not create a ROS owner"))
+    monkeypatch.setattr(module, "run_node", run_node)
+    module.main()
+    run_node.assert_not_called()
+    assert recover.call_args.args[:2] == (module.CONFIG_PATH, session)
+    assert recover.call_args.kwargs["confirmed"] is True
+    assert "receipt archived" in capsys.readouterr().out
+
+
+def test_incomplete_recovery_cli_cannot_fall_back_to_starting_ros(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["hope_lifecycle_supervisor.py", "--confirm-vendor-restore"])
+    run_node = Mock()
+    monkeypatch.setattr(module, "run_node", run_node)
+    with pytest.raises(SystemExit):module.main()
+    run_node.assert_not_called()
+
+
+@pytest.mark.parametrize("fresh_matching", [False, True])
+def test_receipt_only_records_verified_runner_boot_without_new_start_gate(node, fresh_matching):
+    from hope_operations_core import WireSnapshot
+    from hope_runner_control_core import runner_session_fingerprint
+    node._session_receipt = Mock()
+    node._recovery_runner = SimpleNamespace(snapshot=lambda: WireSnapshot(
+        SimpleNamespace(boot_id=42, session_fingerprint=runner_session_fingerprint(
+            node._session_id) if fresh_matching else 123), module.time.monotonic_ns()))
+    assert accept(node).success
+    execute(node)
+    assert node._state == "RUNNING"
+    assert node._session_receipt.record.call_args.args[3] == (42 if fresh_matching else None)
+
+
 def test_failed_start_reuses_lock_cleans_old_session_then_starts_once(node):
     old=node._session_id; lock=node._hardware_operation_lock; order=[]
     node._backend.kill_all_and_collect.side_effect=lambda *a:order.append(("clean",a[1]))

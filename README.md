@@ -35,6 +35,11 @@ automatic vendor `Manual`/joint-control activation. Until handheld E-stop is
 qualified during HOPE play, credit only a verified wired E-stop in HOPE sessions.
 Follow the matched-component installation and hardware validation requirements
 in those guides before deployment.
+The local [native operations port](foxglove/a3/native/README.md) moves ROS sensor
+processing, observer output and fixed Runner dispatch/ACK tracking to C++ while
+retaining Python hardware orchestration. It isolates diagnostic traffic, adds
+explicit same-boot session recovery and exposes latency/queue metrics. Its guide
+covers parity tests, CPU measurement and attended deployment qualification.
 
 Current deployment: [build and deployment](docs/operations/deploy_and_gate3.md#model17400-pr87-runtime-alignment),
 [shared ball physics](docs/operations/ball_physics_calibration.md),
