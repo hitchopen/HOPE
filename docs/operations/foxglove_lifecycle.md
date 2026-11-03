@@ -57,7 +57,16 @@ authorize a new shot. Live joint/IMU inputs remain live. The original real-sampl
 age continues increasing; reuse cannot postpone the 1 s rescue deadline.
 This runtime held-pose rescue window is independent of exported observation-age
 normalization; the policy metadata and real-sample timestamp remain unchanged. Explicit invalid packets
-still trigger recovery immediately. This continuity measure is not proof of
+still trigger recovery immediately. The laptop base relay distinguishes delayed
+packets from invalid poses: with `source_stamp_mode=input_header`, structurally
+valid packets older than `max_source_age_s` (100 ms by default) are dropped, with
+no base/pelvis publication and no freshness renewal. `stale_dropped` is included
+in relay health logs. Repeated old packets therefore cannot postpone the MDU's
+existing 1 s monotonic deadline. Missing calibration, wrong frames, nonfinite or
+invalid poses and future timestamps remain explicit invalidations. This handles
+short delivery backlogs; it does not correct their timing or fix the upstream
+stall. Qualify actual supported-robot behavior separately after deployment.
+This continuity measure is not proof of
 physical stability and cannot repair loss of local feedback or motor transport.
 HELD telemetry is not a separate 20 ms mode-admission gate: entering play and
 normal serve completion use the real observation/rescue deadline. An expired
