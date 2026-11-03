@@ -1,6 +1,6 @@
 # HOPE A3 Console
 
-Console 1.9.3 displays the operator computer's five ball-flight states beside
+Console 1.9.13 displays the operator computer's five ball-flight states beside
 Runner status, including forwarding eligibility and separate forecast advisories.
 It reads the local C++ packetizer at `http://127.0.0.1:8768/ball-state`; state
 labels are not sent to A3. Install the matching packetizer with this Console.
@@ -11,8 +11,9 @@ websites cannot read status or send local intents.
 
 Explicit local Ready arms `OPPONENT_SERVE` before ball data; Prepare Serve / Ready
 to Serve arms `SERVE`. Stand/Stop (also Passive/E-stop) holds `INVALID` until
-another local Ready/Serve. After an ego serve is held, automatic new opponent
-serves are blocked, but an explicit Ready may directly enter OPPONENT_SERVE.
+another local Ready/Serve. After an ego serve is held, a fresh ballistic launch
+can establish a new flight with or without Ready. Observation loss preserves
+the displayed state while pausing forwarding; a qualified fresh arc resumes it.
 These local HTTP intents run independently of the
 same buttons' existing robot requests: A3 acknowledgement, rejection, mode,
 serve phase and lifecycle never alter the classifier. Automatic A3 Stand does
@@ -25,7 +26,7 @@ and filtering runs in C++ regardless of panel rendering. Both Ubuntu and macOS
 use the same classifier after P1/P2 conversion; see
 [state rules, installation and verification](../../../docs/operations/laptop_ball_states.md).
 
-Download `hopeopen.hope-a3-console-1.9.3.foxe` from this directory and open it in
+Download `hopeopen.hope-a3-console-1.9.13.foxe` from this directory and open it in
 Foxglove Desktop's Extensions screen to install the console. No Node.js build is
 needed for this prebuilt release. Import
 [`model21800_console.json`](../../layouts/model21800_console.json) and connect to
@@ -270,7 +271,7 @@ ROS 2 message-latency card.
 ## Public release
 
 The current installer is
-[Console 1.9.3](hopeopen.hope-a3-console-1.9.3.foxe), built from this directory's
+[Console 1.9.13](hopeopen.hope-a3-console-1.9.13.foxe), built from this directory's
 source. Install its matching HDU/MDU services and relays, then confirm the
 operator profile and model17400/PPQ004 selections before START.
 

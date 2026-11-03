@@ -47,11 +47,11 @@ configured base topic), and the HDU base transport is unchanged.
 
 | State | Evidence / route | Send ball data to A3? |
 |---|---|---|
-| `INVALID` | Startup, explicit Stand/STOP reset, confirmed ball loss or sustained low rally speed; unqualified or illegal incoming flight | No |
-| `RALLY` | Qualified ego +X shot; retained while visible unless measured near-stationary | No |
-| `SERVE` | Ego +X serve or local Serve button intent; retained while visible or awaiting its first ball | No |
-| `OPPONENT_RALLY` | Qualified -X shot, or confirmed in-table incoming return from ego RALLY/SERVE | With pre-net history or an observed return handover |
-| `OPPONENT_SERVE` | Local Ready button intent, or -X shot with one observed opponent-side contact before the net | Fresh usable poses immediately when Ready-armed; qualified flight packets with known pre-net history |
+| `INVALID` | Startup, explicit Stand/STOP reset, observed held/near-stationary ball or an explicitly observed incoming violation | No |
+| `RALLY` | Qualified ego +X shot; retained across observation loss unless measured near-stationary | No |
+| `SERVE` | Ego +X serve or local Serve button intent; retained across observation loss or while awaiting its first ball | No |
+| `OPPONENT_RALLY` | Qualified -X shot, or confirmed in-table incoming return from ego RALLY/SERVE | Fresh qualified incoming arc; missing pre-net history is not a veto |
+| `OPPONENT_SERVE` | Local Ready button intent, or -X shot with one observed opponent-side contact before the net | Fresh usable poses immediately when Ready-armed; flight packets still require their normal estimator qualification |
 
 The ball classifier and Runner state machines are independent. **No Runner
 mode, serve phase, boot, heartbeat, action acknowledgement or lifecycle feedback
@@ -75,21 +75,26 @@ decisions.
 
 ### Conservative ego flight and incoming handover
 
-**Ego `RALLY` and `SERVE` are retained until
-confirmed loss of the tracked ball, with one measured low-speed exception for
-`RALLY` described below**. A predicted miss, net collision, additional bounce or
-visible excursion outside/below the table does not invalidate these outgoing
-states. A visible held ego serve remains `SERVE`. Both outgoing states suppress
-the A3-bound ball channels. This replaces the earlier rule that invalidated an
-ego return on its second opponent-side bounce.
+**Logical ball state and observation availability are independent.** Loss,
+late visibility, missing pre-net history, bad coordinates and source timestamp
+faults do not prove an invalid ball. All four established flight labels survive
+these conditions. `observation_missing=true` separately pauses forwarding.
+The local Console retains the state title and displays the missing observation.
 
-Disappearance means more than 100 ms without a fresh, finite, advancing position
-sample. A missing pose, NaN/Inf position, duplicate, stale source timestamp, or
-rejected discontinuity does not refresh that timer; one such exposure alone does
-not invalidate ego play. A source gap over 100 ms also ends the old track. Once
-lost, history/fit/retries are cleared. Invalid orientation alone is not ball loss.
-A locally armed ego serve awaiting its first tracked ball has no disappearance to
-verify and remains armed; explicit local Stand/Stop still resets it immediately.
+A gap over 20 ms clears fitting/contact windows; 100 ms without an accepted
+exposure pauses output. Cached fits and pending retries are cancelled on the
+first pause. Another gap during reacquisition discards that partial window too.
+Neither timeout sets `INVALID`. Fresh direction and ballistic evidence (60 ms)
+reacquires automatically, without another Ready/Serve press. Contacts across a
+gap are not inferred, and old samples cannot enter the new fit. Invalid
+orientation alone does not reject valid XYZ. Duplicate or sub-1-ms source
+exposures are dropped without renewing freshness or poisoning the logical shot.
+The 35 m/s discontinuity threshold is unchanged: an outlier pauses observation,
+it does not declare the ball illegal.
+
+Outgoing states suppress A3-bound ball channels. Predicted misses, additional
+outgoing bounces and visible excursions outside/below the table remain advisory.
+Explicit local Stand/Stop still closes the gate until Ready/Serve.
 
 Without an intervening confirmed hold, `RALLY` or `SERVE` changes to
 `OPPONENT_RALLY` when observed -X velocity exceeds
@@ -102,35 +107,28 @@ not rotated again.
 
 The handover starts a new generation and retains only samples at/after the
 observed X turnaround. Fits, spin estimation and queued retries from the outgoing
-shot are cleared. An observed return can admit fresh ball poses even if it is
-first confirmed on our half; `return_confirmed=true` records this evidence while
-`history_known=false` preserves genuinely missing pre-net history. It does not
-invent a net crossing or a bounce. Flight-packet production still requires the
-existing trajectory estimator's qualification; early pose forwarding is separate.
+shot are cleared. A qualified incoming arc can pass even when first seen on
+our half, with `history_known=false`. `return_confirmed` is asserted only when
+the preceding observed net/contact ledger supports the return; direction alone
+does not fabricate that history. Flight packets still require the estimator's
+normal qualification, separately from pose forwarding.
 
-**A confirmed hold ends automatic handover from an ego serve.** A visible,
-launched `SERVE` that is caught/held keeps its `SERVE` label, clears the old
-shot history/fit/retries, and reports `serve_held_waiting_for_local_intent`.
-A subsequent opponent launch cannot automatically become `OPPONENT_SERVE` or
-be treated as a return of that old serve. Both ball channels remain closed.
-The operator may press **Ready directly** to initialize `OPPONENT_SERVE`; an
-intervening Stand is not required for this explicit intent. Stand/Stop instead
-sets `INVALID`, and Serve initializes another ego serve. These buttons start
-clean histories. A real input outage still sets `INVALID`, but does not release
-the held-serve block without local intent. Source-clock recovery also preserves it.
+A caught/held ego serve keeps `SERVE`, clears old fits/retries and reports
+`serve_held_waiting_for_launch`. A new ballistic launch can establish a new
+flight with or without a Ready press. Translating a held ball by hand still does
+not qualify. The former indefinite held-serve intent latch is removed.
 
-Without a confirmed hold, an observed in-table opponent return still changes
-`SERVE` to `OPPONENT_RALLY`, independently of Runner mode. The conservative
-handover does not require complete outgoing bounce proof. A held ball before
-the first ego launch keeps the armed serve intent; carrying it does not qualify
-as a launch. The rally-only low-speed rule is unchanged.
+An explicit violation belongs to its observed shot. A new qualified opposite
+flight, or sustained non-flight/neutral-X preparation followed by a fresh
+ballistic directional launch, establishes a new shot. A single later sample
+cannot reopen the rejected trajectory. Local STOP is never released this way.
 
 ### Measured near-stationary rally
 
 `RALLY` and `OPPONENT_RALLY` become `INVALID` when measured **3D speed remains
 strictly below 0.10 m/s (10 cm/s) for 100 ms**, after a complete 40 ms measurement
 window. `SERVE` and `OPPONENT_SERVE` do not use this new rule; their existing
-loss/contact/held-ball rules are unchanged. The 0.25 m/s X direction deadband is
+contact/held-ball rules still apply. The 0.25 m/s X direction deadband is
 separate and is not a minimum total flight speed.
 
 There is no positive universal minimum instantaneous speed: a nearly vertical
@@ -154,7 +152,7 @@ about 140--153 ms later, including window warm-up and sample quantization.
 A speed at/above the threshold, an unusable exposure, an exposure gap over
 20 ms, a confirmed contact, or a new shot resets confirmation. Duplicates,
 reordered packets and timer ticks cannot advance it. Sparse data cannot prove
-sustained low speed; the independent 100 ms real-input-loss check still applies.
+sustained low speed; the independent 100 ms observation pause still applies.
 Rejection reports `rally_speed_below_threshold` in the local Console, increments
 the shot generation and clears the shot history, candidate samples, fit/spin and
 queued retries. Continuous slow data cannot rearm the shot; explicit local button intent
@@ -163,28 +161,25 @@ outside this gate, and no classifier state is sent to A3.
 
 ### Incoming serve, return and miss
 
-Incoming validation remains active. `OPPONENT_SERVE -> RALLY` requires known
-serve history, one observed opponent-side bounce, a legal net crossing, one
-observed own-side bounce, and a confirmed +X racket-height reversal on our half.
-Contacts are recorded before this reversal. A table-induced reversal is not an
-A3 racket hit. The new outgoing RALLY then follows the conservative ego policy.
+Incoming rejection requires an observed event: a repeated same-side table
+contact, a measured net-height crossing within the net width, an observed miss
+at table height, a below-table ball, or a serve volley with continuous evidence
+of the first bounce and crossing. A trajectory merely beside the table, an
+ambiguous net contact, a missing bounce/crossing, or an unconfirmed reversal is
+not proof of invalidity. Unconfirmed reversals pause old incoming output while
+new direction evidence is collected; they do not invent a racket contact.
 
-An incoming serve becomes `INVALID` on a wrong contact order, an extra bounce,
-net collision, lateral exit, missed table/return or lost input. Incoming rallies
-allow at most one receiving-side bounce; a second remains invalid even after
-crossing the robot hit plane. An observed return whose pre-net segment is unknown
-counts real receiving-side contacts without pretending the net crossing was seen.
-A confirmed incoming rules violation cannot be resurrected by a late swing.
-New local Ready/Serve intent or a qualified new observed launch can establish a new point. A previously
-held ego serve specifically requires explicit local intent as described above.
+Two receiving-side bounces still reject the same incoming shot, including after
+the hit plane. Contacts are counted from continuous observations only. A new
+shot clears the previous shot's rejection and contact ledger.
 
 Qualified incoming fits use the shared drag/Magnus/contact equations to report
 **forecast advisories only in v1**. No predicted violation can change the state,
 forwarding, generation, retained samples, observed contact counts or queued
 retransmissions. This also applies to repeated agreeing forecasts and forecasts
 with a spin estimate: this implementation does not establish a bound on every
-relevant source of uncertainty. Observed contacts/violations, real-input loss and
-explicit local Stand/Stop and local input resets remain the validity authority.
+relevant source of uncertainty. Observed contacts/violations and explicit local Stand/Stop remain the validity
+authority; observation loss only pauses usable data.
 
 Missing spin uses a position-only hypothesis without Magnus force; that is not
 proof of measured zero spin. A heavy topspin ball may land legally even when
@@ -205,9 +200,9 @@ An invalid/new shot clears the fit, incoming packet window and queued retries.
 The rejected-shot direction is retained separately; another negative-X sample
 does not re-arm that shot. A new qualified return away from the net/table, a
 held-to-launch boundary, or an explicit local Ready/Serve intent can establish a clean shot.
-Without Ready initialization, first observation after the net remains provisional
-and is not forwarded. Ready initialization permits early pose forwarding but
-does not invent missing contacts or authorize an incomplete flight packet.
+First visibility after the net can qualify from a fresh incoming arc without
+Ready. Ready permits earlier pose forwarding but does not invent missing
+contacts or authorize an incomplete flight packet.
 Out-of-order/duplicate timestamps cannot refresh the input watchdog. Source
 exposures older than 100 ms or over 50 ms in the future close the gate; reception
 of queued old packets cannot make a stale ball fresh. A vertical
@@ -252,8 +247,8 @@ While Ready-armed, the first fresh, finite, above-floor ball pose can reach A3
 without waiting for the 60 ms launch fit or a bounce. Duplicate/stale/invalid
 exposures, held balls and known outgoing motion are not forwarded. Flight packets
 still require the normal fit and history; Ready invents no velocity, spin, bounce
-or target. Once the incoming launch qualifies, normal serve-route validation
-and the 100 ms real-ball-loss watchdog apply. Waiting for the first serve does
+or target. Once the incoming launch qualifies, normal observed-event validation and the observation watchdog apply. Ready
+is reception intent, not proof of an opponent serve or its missing first bounce. Waiting for the first serve does
 not time out due to absent robot feedback. A local Serve similarly waits for
 its first ball and then tracks continuously, regardless of Runner mode.
 
@@ -261,7 +256,7 @@ its first ball and then tracks continuously, regardless of Runner mode.
 No ball-state DDS topic is created and no state enum is appended to A3 packets.
 The Console reads `http://127.0.0.1:8768/ball-state` directly. Schema-2 JSON includes
 producer identity, applied intent revision, local-stop flag, state, reason,
-forecast advisory, generation, forwarding, history/return evidence, arming flags
+forecast advisory, generation, forwarding, `observation_missing`, history/return evidence, arming flags
 and contact counts. Decimal strings preserve 64-bit identifiers. Session ID is
 packet audit metadata, not a match against robot lifecycle state.
 
@@ -409,7 +404,9 @@ Maintained regression suites cover:
 | Classifier | Five states at 150/300 Hz and mirrored P1/P2; contacts, handovers, invalid incoming flights, conservative ego retention, unknown spin, low-speed exception, source-clock recovery |
 | Local intent | Ready before the first ball; unusable/duplicate rejection; Stand/Stop holds closed despite qualifying incoming data; Ready/Serve explicitly release it |
 | Independence | Real ROS replays at 150/300 Hz, fixed/adaptive schedulers, robot modes 0/1/3/5/6, boot changes, repeated terminal serve states and lifecycle STOPPED/RUNNING; no subscriptions to these topics and no new robot-control/state publisher |
-| Held ball | Ego serve → one-second hold blocks automatic next opponent serve; explicit local Ready directly permits the new serve and both channels; no old-shot samples; real loss does not authorize restart |
+| Held ball | Ego serve → one-second hold → fresh ballistic launch with or without Ready; both incoming channels recover without old-shot samples; hand translation does not qualify |
+| Observation loss | Labels survive missing exposures and clock faults; forwarding pauses, fits/retries clear, and fresh ballistic observations recover automatically; local Stop remains latched |
+| Recorded input | Captured launch with timestamp bursts remains eligible; captured second receiver bounce still rejects with an explicit reason |
 | Local HTTP / Console | Producer/revision matching, stale/conflicting/duplicate requests, bounded queue, origin rejection, Desktop key checks/persistence, stalled reader, freshness, local button mapping and confirmation independent of robot acknowledgement |
 | Ball transport | Invalid/ego suppression, incoming packets, immutable retransmissions, cancellation across invalidation and source epoch changes |
 | Acquisition relays | Existing P1/P2/orientation conversion and immediate pelvis callback bypass |
@@ -429,7 +426,8 @@ Before venue deployment:
 2. Exercise local Ready/Serve/Stand/Stop and local endpoint failure. Verify robot
    feedback, command rejection and automatic mode changes never alter the local
    classifier; a local Stop persists until explicit Ready/Serve. Confirm held ego
-   serves require explicit Ready before a new opponent serve can pass.
+   serves admit a fresh ballistic launch with or without Ready while hand-carried
+   motion remains blocked.
 3. Confirm observation and both eligible incoming channels continue during A3
    serve follow-through, while local ego flights stay suppressed. Verify pelvis,
    heartbeats and E-stop traffic retain their independent paths.

@@ -10,6 +10,7 @@ export type BallPlayState = {
   generation: string;
   forwarding: boolean;
   history_known: boolean;
+  observation_missing?: boolean;
   return_confirmed?: boolean;
   serve_armed: boolean;
   receive_armed?: boolean;
@@ -30,6 +31,7 @@ export function decodeBallPlayState(value: unknown): BallPlayState | undefined {
         (p.local_stopped && (p.state !== "INVALID" || p.forwarding || p.serve_armed || p.receive_armed)) ||
         typeof p.state !== "string" || !["INVALID", "OPPONENT_RALLY", "RALLY", "OPPONENT_SERVE", "SERVE"].includes(p.state) ||
         (p.forecast_advisory != undefined && typeof p.forecast_advisory !== "string") ||
+        (p.observation_missing != undefined && typeof p.observation_missing !== "boolean") ||
         typeof p.reason !== "string" || typeof p.generation !== "string" || !/^\d+$/.test(p.generation) ||
         typeof p.forwarding !== "boolean" || typeof p.history_known !== "boolean" || typeof p.serve_armed !== "boolean" ||
         (p.return_confirmed != undefined && typeof p.return_confirmed !== "boolean") ||
@@ -37,7 +39,7 @@ export function decodeBallPlayState(value: unknown): BallPlayState | undefined {
         (p.receive_armed != undefined && typeof p.receive_armed !== "boolean") ||
         (p.receive_armed === true && (p.state !== "OPPONENT_SERVE" || p.serve_armed)) ||
         ![p.striker_bounces, p.receiver_bounces].every((n) => typeof n === "number" && Number.isSafeInteger(n) && n >= 0) ||
-        (p.forwarding && ((!p.history_known && p.receive_armed !== true && p.return_confirmed !== true) || p.serve_armed || !["OPPONENT_RALLY", "OPPONENT_SERVE"].includes(p.state)))) {
+        (p.forwarding && (p.observation_missing === true || p.serve_armed || !["OPPONENT_RALLY", "OPPONENT_SERVE"].includes(p.state)))) {
       return undefined;
     }
     return p as BallPlayState;

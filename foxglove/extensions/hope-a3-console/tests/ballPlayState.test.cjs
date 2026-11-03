@@ -9,7 +9,7 @@ test('five states, conservative forwarding and integer identity', () => {
     const p = {...status,state,forwarding:state.startsWith('OPPONENT_')};
     assert.deepEqual(JSON.parse(JSON.stringify(decodeBallPlayState(JSON.stringify(p)))),p);
   }
-  for (const p of [{...status,state:'INVALID'}, {...status,history_known:false},
+  for (const p of [{...status,state:'INVALID'}, {...status,observation_missing:true},
     {...status,serve_armed:true}, {...status,striker_bounces:-1}, {...status,schema:1}]) {
     assert.equal(decodeBallPlayState(JSON.stringify(p)),undefined);
   }
@@ -54,7 +54,7 @@ test('observed incoming return can forward while pre-net bounce history stays un
   const value = {...status, history_known:false, return_confirmed:true};
   assert.equal(decodeBallPlayState(JSON.stringify(value)).return_confirmed,true);
   for(const patch of [{state:'RALLY'}, {state:'SERVE'}, {state:'OPPONENT_SERVE'},
-    {state:'INVALID'}, {return_confirmed:'true'}, {return_confirmed:false}])
+    {state:'INVALID'}, {return_confirmed:'true'}])
     assert.equal(decodeBallPlayState(JSON.stringify({...value,...patch})),undefined);
 });
 
@@ -114,4 +114,10 @@ test('Console sends local intent independently and has no robot-conditioned ball
   assert.equal((invoke.match(/applyLocalButton\(key\)/g)||[]).length,1);
   assert.ok(!source.includes('currentBallPlayState(localBall?.state, snapshot.lifecycleSession'));
   assert.ok(!source.includes('ballServeRequested'));
+});
+
+test('missing prehistory is accepted; absent observations cannot forward',()=>{
+ assert.ok(decodeBallPlayState(JSON.stringify({...status,history_known:false})));
+ assert.ok(decodeBallPlayState(JSON.stringify({...status,observation_missing:true,forwarding:false})));
+ assert.equal(decodeBallPlayState(JSON.stringify({...status,observation_missing:'false'})),undefined);
 });

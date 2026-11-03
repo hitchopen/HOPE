@@ -121,7 +121,7 @@ INSTANTIATE_TEST_SUITE_P(RatesModesAndSchedulers,IndependentBallGate,
 
 class HeldServeRestart : public IndependentBallGate {};
 
-TEST_P(HeldServeRestart, HeldServeBlocksAutomaticRestartButExplicitReadyOpensBothChannels) {
+TEST_P(HeldServeRestart, HeldServeNewBallisticLaunchOpensBothChannelsWithOrWithoutReady) {
   for(bool manual_ready:{false,true}) {
     forwarded.clear();packets.clear();
     ASSERT_NE(local_intent(node->local_status_port(),"SERVE").find("202 Accepted"),std::string::npos);spin(10);
@@ -149,11 +149,11 @@ TEST_P(HeldServeRestart, HeldServeBlocksAutomaticRestartButExplicitReadyOpensBot
       m.header.stamp=rclcpp::Time(start+std::llround(t*1e9));m.header.frame_id="world";
       m.poses.resize(1);m.poses[0].position.x=p.x();m.poses[0].position.y=p.y();m.poses[0].position.z=p.z();
       input->publish(m);spin(1);
-      if(!manual_ready && t>=launch_at) {
+      if(!manual_ready && t>=launch_at && t<launch_at+.05) {
         const auto s=status();EXPECT_NE(s.find("\"state\":\"SERVE\""),std::string::npos)<<s;
         EXPECT_TRUE(forwarded.empty());EXPECT_TRUE(packets.empty());
       }
-      if(manual_ready && t>=launch_at+.20) {
+      if(t>=launch_at+.20) {
         const auto s=status();
         ASSERT_NE(s.find("\"state\":\"OPPONENT_SERVE\""),std::string::npos)<<s;
         EXPECT_NE(s.find("\"forwarding\":true"),std::string::npos)<<s;
@@ -170,9 +170,7 @@ TEST_P(HeldServeRestart, HeldServeBlocksAutomaticRestartButExplicitReadyOpensBot
       p+=v*remaining+Vec3(0,0,-4.905*remaining*remaining);v.z()-=9.81*remaining;
     }
     spin(20);
-    if(!manual_ready) {
-      EXPECT_TRUE(forwarded.empty());EXPECT_TRUE(packets.empty());continue;
-    }
+
     ASSERT_FALSE(forwarded.empty());ASSERT_EQ(packets.size(),3U);
     EXPECT_GE(rclcpp::Time(forwarded.back().header.stamp).nanoseconds(),start+std::llround((launch_at+.80)*1e9));
     for(const auto& m:forwarded)EXPECT_GE(rclcpp::Time(m.header.stamp).nanoseconds(),start+std::llround(launch_at*1e9));
@@ -187,6 +185,51 @@ TEST_P(HeldServeRestart, HeldServeBlocksAutomaticRestartButExplicitReadyOpensBot
 }
 
 INSTANTIATE_TEST_SUITE_P(RatesAndSchedulers,HeldServeRestart,::testing::Values(
+    std::make_tuple(150,1,false),std::make_tuple(300,5,false),
+    std::make_tuple(150,1,true),std::make_tuple(300,5,true)));
+
+class OccludedBallGate : public IndependentBallGate {};
+
+TEST_P(OccludedBallGate, PrelaunchWaitAndShortIncomingLossRecoverFromFreshObservations) {
+  geometry_msgs::msg::PoseArray held;held.header.frame_id="world";held.header.stamp=io->now();
+  held.poses.resize(1);held.poses[0].position.x=.3;held.poses[0].position.y=-.7;held.poses[0].position.z=.6;
+  input->publish(held);spin(10);
+  geometry_msgs::msg::PoseArray missing;input->publish(missing);spin(150);
+  auto s=status();ASSERT_NE(s.find("\"serve_armed\":true"),std::string::npos)<<s;
+  EXPECT_TRUE(forwarded.empty());EXPECT_TRUE(packets.empty());
+  ASSERT_NE(local_intent(node->local_status_port(),"READY").find("202 Accepted"),std::string::npos);spin(5);
+  const int hz=std::get<0>(GetParam());const double dt=1./hz;
+  const auto start=io->now().nanoseconds();const auto wall=std::chrono::steady_clock::now();
+  std::int64_t resumed_at=0;bool paused=false,resumed=false;
+  for(int i=0;i<=std::lround(.85*hz);++i) {
+    const double t=i*dt;const auto due=wall+std::chrono::nanoseconds(std::llround(t*1e9));
+    while(std::chrono::steady_clock::now()<due){ex->spin_some();std::this_thread::sleep_for(1ms);}
+    if(t>=.08 && t<.12) {
+      input->publish(missing);spin(1);
+      if(!paused) {
+        spin(2);s=status();ASSERT_NE(s.find("\"state\":\"OPPONENT_RALLY\""),std::string::npos)<<s;
+        ASSERT_NE(s.find("\"forwarding\":false"),std::string::npos)<<s;
+        forwarded.clear();paused=true;
+      }
+      EXPECT_TRUE(forwarded.empty());EXPECT_TRUE(packets.empty());continue;
+    }
+    if(paused && !resumed){resumed=true;resumed_at=start+std::llround(t*1e9);}
+    geometry_msgs::msg::PoseArray m;m.header.frame_id="world";
+    m.header.stamp=rclcpp::Time(start+std::llround(t*1e9));m.poses.resize(1);
+    auto& p=m.poses[0].position;p.x=2.7-3*t;p.y=-.7;
+    const double contact=(-2+std::sqrt(4+19.62*(.4-.02)))/9.81,after=t-contact;
+    p.z=t<=contact?.4-2*t-4.905*t*t:.02+(2+9.81*contact)*.9*after-4.905*after*after;
+    input->publish(m);spin(1);
+  }
+  spin(20);ASSERT_TRUE(resumed);ASSERT_FALSE(forwarded.empty());ASSERT_FALSE(packets.empty());
+  for(const auto& m:forwarded)EXPECT_GE(rclcpp::Time(m.header.stamp).nanoseconds(),resumed_at);
+  for(const auto& packet:packets) {
+    EXPECT_GE(packet.segment_start_exposure_unix_ns,resumed_at-1000);
+    for(const auto& sample:packet.samples)EXPECT_GE(sample.exposure_unix_stamp_ns,resumed_at);
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(RatesAndSchedulers,OccludedBallGate,::testing::Values(
     std::make_tuple(150,1,false),std::make_tuple(300,5,false),
     std::make_tuple(150,1,true),std::make_tuple(300,5,true)));
 
@@ -264,7 +307,7 @@ TEST(LaptopStateGate, GatesBothBallChannelsAndSynchronizesOnlyLocalIntent) {
   poses->publish(stale); spin(30);
   EXPECT_NE(state.find("\"state\":\"SERVE\""),std::string::npos) << state;
   spin(110);
-  EXPECT_NE(state.find("ball_input_stale"),std::string::npos) << state;
+  EXPECT_NE(state.find("ball_observation_missing"),std::string::npos) << state;
   EXPECT_EQ(packets,packet_before); EXPECT_EQ(count,before);
   ex.remove_node(node); ex.remove_node(io); rclcpp::shutdown();
 }
@@ -356,7 +399,7 @@ TEST(LaptopStateGate, EgoFlightStaysSuppressedUntilObservedIncomingReturn) {
     spin(20);
     auto state=local_status_get(node->local_status_port());
     EXPECT_NE(state.find("\"state\":\"OPPONENT_RALLY\""),std::string::npos) << state;
-    EXPECT_NE(state.find("\"return_confirmed\":true"),std::string::npos) << state;
+    EXPECT_NE(state.find("\"return_confirmed\":false"),std::string::npos) << state;
     EXPECT_GT(poses,0);EXPECT_GT(packets,0);
     ex.remove_node(node);ex.remove_node(io);
   }
@@ -399,7 +442,8 @@ TEST(LaptopStateGate, ForecastAdvisoryDoesNotClosePositionOnlyIncomingPoseStream
     EXPECT_NE(status.find("\"forwarding\":true"),std::string::npos) << status;
     EXPECT_GE(forwarded_stamp,start+190'000'000LL); // Frames after the warning still pass.
     spin(120);status=local_status_get(node->local_status_port());
-    EXPECT_NE(status.find("\"state\":\"INVALID\""),std::string::npos); // Actual loss still closes it.
+    EXPECT_NE(status.find("\"state\":\"OPPONENT_RALLY\""),std::string::npos);
+    EXPECT_NE(status.find("\"forwarding\":false"),std::string::npos); // Loss pauses output, retains state.
     EXPECT_NE(status.find("\"forecast_advisory\":\"\""),std::string::npos);
     ex.remove_node(node);ex.remove_node(io);
   }
@@ -522,7 +566,8 @@ TEST(LaptopStateGate, BackwardClockRecoversWithoutRestartAndStatusHeartbeatStays
     // A clock that is still unsynchronised remains blocked by absolute age.
     feed(std::lround(.2*hz),-2'000'000'000LL,true);
     EXPECT_EQ(packets.size(),count_after_recovery);
-    EXPECT_NE(local_status_get(node->local_status_port()).find("\"state\":\"INVALID\""),std::string::npos);
+    EXPECT_NE(local_status_get(node->local_status_port()).find("\"state\":\"OPPONENT_RALLY\""),std::string::npos);
+    EXPECT_NE(local_status_get(node->local_status_port()).find("\"forwarding\":false"),std::string::npos);
     ex.remove_node(node);ex.remove_node(io);
   }
   rclcpp::shutdown();

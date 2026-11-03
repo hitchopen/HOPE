@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.9.13
+
+- Accept qualified incoming observations without invented pre-net history.
+- Preserve the logical ball state across missing observations; show the pause
+  reason and reject status that claims forwarding while observations are missing.
+- Pair with the packetizer update that clears old fits/retries on observation
+  loss and recovers from a fresh ballistic arc without another Ready/Serve press.
+- A held ego serve can start a fresh observed flight with or without Ready;
+  local Stop remains latched until explicit Ready/Serve.
+- This release contains the ball-state refinements only; field-only telemetry,
+  policy selection and network QoS changes are not included.
+
 ## 1.9.3
 
 - Display the operator-local C++ five-state classifier, forwarding eligibility

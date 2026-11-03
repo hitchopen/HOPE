@@ -56,6 +56,8 @@ class LaptopPlayState {
   bool serve_armed() const { return serve_armed_; }
   bool receive_armed() const { return receive_armed_; }
   bool waiting_for_launch() const { return serve_armed_ || receive_armed_; }
+  const char* sample_rejection_reason() const { return sample_rejection_reason_; }
+  bool observation_missing() const { return input_missing_; }
   bool sample_usable() const { return sample_usable_; }
   int striker_bounces() const { return striker_bounces_; }
   int receiver_bounces() const { return receiver_bounces_; }
@@ -84,6 +86,7 @@ class LaptopPlayState {
   bool accept_source_time(const BallSample& sample);
   void clear_clock_probe();
   void clear_shot();
+  void pause_observations(const char* reason);
 
   PlayStateConfig config_;
   PlayState state_ = PlayState::INVALID;
@@ -95,9 +98,13 @@ class LaptopPlayState {
   int striker_bounces_ = 0, receiver_bounces_ = 0;
   bool crossed_net_ = false, history_known_ = false, target_reached_ = false;
   bool return_flight_ = false, point_ended_ = false;
+  double nonflight_since_ = std::numeric_limits<double>::quiet_NaN();
   bool serve_armed_ = false;
   bool receive_armed_ = false, sample_usable_ = false;
   bool local_stopped_ = false;
+  bool input_missing_ = false;
+  bool reacquiring_ = false;
+  const char* sample_rejection_reason_ = "";
   bool held_serve_waiting_for_intent_ = false;
   bool neutral_seen_ = false;
   double candidate_since_ = 0, boundary_time_ = 0, last_source_ = 0;

@@ -1361,7 +1361,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       <fieldset className="robot-controls" disabled={Boolean(pendingTarget)}>
       <div className="source-row">
         <div className="source-block">
-          <div className="eyebrow">{t("hopeA3Console.version", { version: "1.9.3" })}</div>
+          <div className="eyebrow">{t("hopeA3Console.version", { version: "1.9.13" })}</div>
           <div className="source-value">
             <span>{context.dataSourceProfile?.toUpperCase() ?? t("hopeA3Console.ros2")} {t("hopeA3Console.control8766")}</span>
             <span

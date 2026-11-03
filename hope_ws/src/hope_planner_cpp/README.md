@@ -19,15 +19,18 @@ feedback have no effect: this process has no subscriptions to them. Eligible
 incoming data passes even while Runner is standing or completing a serve; A3's
 existing controls decide how to use it. No robot state command is added.
 
-After a confirmed hold of an ego serve, automatic restart stays blocked.
-Explicit local Ready may directly initialize a new opponent serve; Stand is
-not required for this manual choice. Uninterrupted returns become OPPONENT_RALLY.
+After a confirmed hold of an ego serve, a fresh ballistic launch can establish
+a new flight with or without Ready. Hand-carried motion does not qualify.
+Uninterrupted incoming returns become OPPONENT_RALLY; missing pre-net history
+does not block a qualified incoming arc or fabricate a contact ledger.
 The same classifier runs on Ubuntu and in the macOS operator container. Its
-local HTTP endpoint supplies Console 1.9.3 and accepts local button intents,
+local HTTP endpoint supplies Console 1.9.13 and accepts local button intents,
 with exact web-origin checks, private Desktop pairing and producer/revision
 checks preventing stale requests from reopening a newer Stop. Neither initialization nor display waits for robot acknowledgement.
-Forecast warnings remain advisory. Observed incoming violations, ball loss and
-sustained measured low rally speed determine invalidity. Source-clock recovery
+Forecast warnings remain advisory. Observed incoming violations and sustained
+measured low rally speed determine invalidity. Observation loss preserves the
+logical state, pauses forwarding and clears old fits/retries. Fresh qualified
+observations resume output without another button press. Source-clock recovery
 starts fresh history without releasing local Stop or inventing Ready intent.
 See [state semantics, thresholds, installation and verification](../../../docs/operations/laptop_ball_states.md).
 
