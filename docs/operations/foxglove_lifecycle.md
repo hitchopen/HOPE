@@ -1224,3 +1224,7 @@ while idle; frame 44 was a trial, not the retained default. These parameters do
 not identify the physical command-to-detachment delay. The v20 CSV asset was
 added separately in #53; these runtime changes do not select a new serve CSV.
 Retain the previous asset for rollback when changing an installed selection.
+
+## Host display and role-specific recording
+
+See [Host display and role-specific recording](host_display_and_recording.md) for the optional loopback bridge, full-rate Host acquisition and reduced HDU recording subscriptions.

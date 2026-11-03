@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Read-only visualization sidecar, independent of robot lifecycle/control.
+set -eo pipefail
+source "$HOME/.config/hope-foxglove/laptop-runtime.env"
+source /opt/ros/jazzy/setup.bash
+source "$HOPE_LIFECYCLE_ROOT/hope_ws/install/local_setup.bash"
+set -u
+export OPENBLAS_NUM_THREADS=1
+export OMP_NUM_THREADS=1
+exec "$HOPE_LIFECYCLE_ROOT/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh" \
+  --domain-id 232 --peer "$HOPE_LIFECYCLE_HDU_IP" --peer 127.0.0.1 -- \
+  nice -n 10 python3 "$HOPE_LIFECYCLE_ROOT/foxglove/a3/hope_live_scene.py" \
+  --root "$HOPE_LIFECYCLE_ROOT" \
+  --mdu-host "${HOPE_LIVE_MDU_HOST:?set HOPE_LIVE_MDU_HOST to the selected robot MDU SSH host}" \
+  --scene-hz 20 --telemetry-hz 5 \
+  --log-dir "$HOPE_LIFECYCLE_ROOT/real_logs/$HOPE_LIFECYCLE_SESSION_ID/laptop/live_scene"

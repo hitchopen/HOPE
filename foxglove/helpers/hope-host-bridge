@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Local Foxglove endpoint: native ROS service/heartbeat bridge plus Host scene.
+set -eo pipefail
+source "$HOME/.config/hope-foxglove/laptop-runtime.env"
+source /opt/ros/jazzy/setup.bash
+source "$HOPE_LIFECYCLE_ROOT/hope_ws/install/local_setup.bash"
+set -u
+runtime_dir="${XDG_RUNTIME_DIR:-/tmp/hope-host-bridge-$UID}/hope-host-bridge"
+mkdir -p "$runtime_dir"
+chmod 700 "$runtime_dir"
+python3 "$HOPE_LIFECYCLE_ROOT/foxglove/laptop/host_bridge_config.py" \
+  "$HOPE_LIFECYCLE_ROOT/foxglove/a3/bridge_params_control.yaml" "$runtime_dir/params.yaml"
+exec "$HOPE_LIFECYCLE_ROOT/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh" \
+  --domain-id 232 --peer "$HOPE_LIFECYCLE_HDU_IP" --peer 127.0.0.1 -- \
+  ros2 run foxglove_bridge foxglove_bridge --ros-args \
+    --params-file "$runtime_dir/params.yaml" -r __node:=hope_host_foxglove_bridge

@@ -160,7 +160,7 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
 
     def test_observer_reuses_existing_read_only_bridge_allowlist(self):
         bridge = (FOXGLOVE_DIR / "a3/bridge_params.yaml").read_text()
-        self.assertIn('"^/hope/.*"', bridge)
+        self.assertIn('"^/hope/(?!live/).*"', bridge)
         self.assertIn('client_topic_whitelist: ["(?!)"]', bridge)
         self.assertIn('service_whitelist:', bridge)
         self.assertIn('- "^/hope/safety/trigger_estop$"', bridge)

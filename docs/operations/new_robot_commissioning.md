@@ -420,3 +420,7 @@ session 一致；不要发送 Stand、Policy、Prepare 或 Serve 来证明安装
   夹爪资产、profile wire 与启动 bridge 就绪均已核对，启动没有发送手部命令。
 - 该记录证明受管 START 到 PASSIVE 已走通，不证明实体急停、夹爪动作、发球、击球
   或完整动捕时间验收。后续操作者切换 PD_STAND/Serve 的回执另行记录，不能覆盖启动证据。
+
+## Host display and recording
+
+Use [Host display and role-specific recording](host_display_and_recording.md) for the local Foxglove endpoint, complete Host acquisition logs, and independent vendor display/voice controls.
