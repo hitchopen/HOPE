@@ -42,3 +42,5 @@
     validate_expected_vrpn_min_age: false
     expected_vrpn_min_age_ms: 0.0
     max_expected_vrpn_min_age_error_ms: 5.0
+    # Diagnostic summaries only; existing pose gates and output rate are unchanged.
+    timing_publish_hz: 5.0

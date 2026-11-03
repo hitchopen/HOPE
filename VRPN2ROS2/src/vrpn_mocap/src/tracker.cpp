@@ -83,6 +83,7 @@ namespace vrpn_mocap
             declare_parameter("max_expected_vrpn_min_age_error_ms", 5.0)),
         vrpn_tracker_(name_.c_str())
   {
+    timing_publish_hz_ = declare_parameter("timing_publish_hz", 5.0);
     Init();
 
     // start main loop when instantiated as a standalone node
@@ -120,6 +121,7 @@ namespace vrpn_mocap
             base_node.get_parameter("max_expected_vrpn_min_age_error_ms").as_double()),
         vrpn_tracker_(name_.c_str(), connection.get())
   {
+    timing_publish_hz_ = base_node.get_parameter("timing_publish_hz").as_double();
     Init();
   }
 
@@ -134,6 +136,12 @@ namespace vrpn_mocap
 
   void Tracker::Init()
   {
+    if (!std::isfinite(timing_publish_hz_) || timing_publish_hz_ < 0 || timing_publish_hz_ > 50) {
+      throw std::invalid_argument("timing_publish_hz must be in [0, 50]");
+    }
+    if (timing_publish_hz_ > 0) {
+      timing_pub_ = create_publisher<std_msgs::msg::Float64MultiArray>("timing", rclcpp::SensorDataQoS().keep_last(1));
+    }
     constexpr double kLargestConvertibleMilliseconds =
         static_cast<double>(std::numeric_limits<int64_t>::max()) / 1000000.0;
     if (!std::isfinite(output_rate_hz_) ||
@@ -334,18 +342,28 @@ namespace vrpn_mocap
   {
     Tracker *tracker = static_cast<Tracker *>(data);
 
+    const auto receipt = tracker->system_clock_.now();
+    const auto steady_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
     size_t sensor_idx = 0;
     if (!tracker->ResolveSensorIndex(tracker_pose.sensor, &sensor_idx))
     {
       return;
     }
 
+    if (tracker->timing_pub_) {
+      tracker->timing_states_[tracker_pose.sensor].timing.Receive(
+          tracker_pose.msg_time.tv_sec, tracker_pose.msg_time.tv_usec, receipt.nanoseconds(), steady_ns);
+      // Diagnostics include frames rejected by the existing timestamp/rate gates.
+      tracker->PublishTiming(tracker_pose.sensor, steady_ns);
+    }
     rclcpp::Time stamp;
     if (!tracker->ResolveStamp(tracker_pose.msg_time, &stamp))
     {
       return;
     }
 
+    if (!tracker->use_vrpn_timestamps_) stamp = receipt;
     if (!tracker->ShouldPublish(sensor_idx, &tracker->pose_output_limiters_))
     {
       return;
@@ -369,6 +387,29 @@ namespace vrpn_mocap
     msg.pose.orientation.w = tracker_pose.quat[3];
 
     pub->publish(msg);
+    if (tracker->timing_pub_) {
+      tracker->timing_states_.at(tracker_pose.sensor).timing.Published(
+          std::chrono::duration_cast<std::chrono::nanoseconds>(
+              std::chrono::steady_clock::now().time_since_epoch()).count());
+    }
+  }
+
+  void Tracker::PublishTiming(int sensor, std::int64_t steady_ns)
+  {
+    if (!timing_pub_) return;
+    auto &state = timing_states_.at(sensor);
+    if (state.last_emit_ns == 0) {
+      state.last_emit_ns = steady_ns;
+      return;
+    }
+    if ((steady_ns - state.last_emit_ns) * 1e-9 < 1.0 / timing_publish_hz_) return;
+    state.last_emit_ns = steady_ns;
+    const auto values = state.timing.Snapshot(sensor);
+    if (timing_pub_->get_subscription_count() == 0 &&
+        timing_pub_->get_intra_process_subscription_count() == 0) return;
+    std_msgs::msg::Float64MultiArray msg;
+    msg.data.assign(values.begin(), values.end());
+    timing_pub_->publish(msg);
   }
 
   void VRPN_CALLBACK Tracker::HandleTwist(void *data, const vrpn_TRACKERVELCB tracker_twist)

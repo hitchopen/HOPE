@@ -48,6 +48,9 @@ install(PROGRAMS
 
 if(BUILD_TESTING)
   enable_testing()
+  add_executable(test_pose_timing test/test_pose_timing.cpp)
+  target_include_directories(test_pose_timing PRIVATE include)
+  add_test(NAME pose_timing COMMAND test_pose_timing)
   add_executable(test_vrpn_timestamp test/test_vrpn_timestamp.cpp)
   target_include_directories(test_vrpn_timestamp PRIVATE include)
   add_test(NAME test_vrpn_timestamp COMMAND test_vrpn_timestamp)

@@ -28,6 +28,9 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <unordered_map>
+#include "vrpn_mocap/pose_timing.hpp"
+#include "std_msgs/msg/float64_multi_array.hpp"
 
 #include "vrpn_Connection.h"
 #include "vrpn_Tracker.h"
@@ -94,6 +97,7 @@ namespace vrpn_mocap
     }
 
     void Init();
+    void PublishTiming(int sensor, std::int64_t steady_ns);
 
     void MainLoop();
 
@@ -127,6 +131,13 @@ namespace vrpn_mocap
     const std::shared_ptr<vrpn_Connection> connection_;
 
     vrpn_Tracker_Remote vrpn_tracker_;
+    double timing_publish_hz_ = 5.0;
+    struct TimingState {
+      PoseTiming timing;
+      std::int64_t last_emit_ns = 0;
+    };
+    std::unordered_map<int, TimingState> timing_states_;
+    PublisherT<std_msgs::msg::Float64MultiArray>::SharedPtr timing_pub_;
 
     std::vector<PublisherT<geometry_msgs::msg::PoseStamped>::SharedPtr> pose_pubs_;
     std::vector<PublisherT<geometry_msgs::msg::TwistStamped>::SharedPtr> twist_pubs_;

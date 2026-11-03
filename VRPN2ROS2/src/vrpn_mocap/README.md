@@ -107,3 +107,50 @@ Launch this client independently. `hope_bringup` starts only the downstream
 ## License
 
 See [LICENSE](LICENSE).
+
+## Receipt time and source timing audit
+
+`PoseStamped.header.stamp` retains the existing server timestamp and validation
+when `use_vrpn_timestamps=true`. In receipt mode only, it uses wall time captured
+at callback entry before publisher/DDS work; it is not camera exposure time. The raw VRPN `msg_time` uses an unqualified clock domain;
+never substitute it into Planner timestamps or subtract an estimated phase lag
+without verifying that clock domain and the device timestamp semantics.
+
+`timing_publish_hz` (double, default 5; 0 disables; maximum 50) emits
+`/vrpn_mocap/<tracker>/timing` as `std_msgs/Float64MultiArray`. There is one summary
+per active sensor at this rate, with no heartbeat after source loss. All pose
+callbacks contribute to counters/maxima even though summaries are throttled.
+Record these diagnostics on the Host only; no HDU subscription is added here. Existing output-rate limits, source-time validation, minimum-age monitoring and
+coordinates are unchanged. Set `output_rate_hz=0` in a qualified acquisition profile
+to retain every accepted report; the timing summary rate does not control pose rate.
+Counters include frames rejected by existing gates, and therefore measure callback
+rate, not accepted publication rate. Callback-to-publication duration is reported
+in the next summary.
+
+Schema 1 indices:
+
+| Index | Value |
+| --- | --- |
+| 0–3 | schema=1, sensor id, lifetime callback count, window callback count |
+| 4–5 | window receive interval sum (steady seconds), measured callback Hz |
+| 6–7 | last raw VRPN seconds, microseconds |
+| 8–9 | last callback ROS seconds, nanoseconds; matches pose header only in receipt mode |
+| 10 | last callback steady-clock seconds (local process only) |
+| 11–13 | last/min/max receipt-minus-raw time in ms; includes UNKNOWN clock offset |
+| 14–15 | maximum receive/source interval in ms, including gaps across summaries |
+| 16–17 | duplicate/backward source stamp count, invalid source stamp count |
+| 18–19 | positive source interval count, source stamp interval rate in Hz |
+| 20 | maximum callback entry-to-pose-publication-return duration in ms |
+| 21 | source clock qualified=0; this receiver does not certify exposure latency |
+| 22 | receive interval count |
+
+Negative receipt-minus-source values are retained, not clamped or relabeled as
+low latency. A configured 300 Hz, low NTP offset, or a fresh pose header is not
+proof of low measurement latency. Compare the raw/source rate, callback rate,
+HDU relay timings, Runner cadence, and independently aligned body mocap/IMU motion.
+A single summary may contain a long pause: do not inspect only the last frame.
+
+Validation: `ctest --test-dir <build>/vrpn_mocap -R '^pose_timing$' --output-on-failure`.
+Build separately before replacing a live receiver. A source-only build does not
+change the running acquisition process; physical timing acceptance requires new
+measured motion after the device/output issue has been corrected.
