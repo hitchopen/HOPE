@@ -1,5 +1,43 @@
 # Changelog
 
+## 1.9.13
+
+- Accept qualified incoming observations without invented pre-net history.
+- Preserve the logical ball state across missing observations; show the pause
+  reason and reject status that claims forwarding while observations are missing.
+- Pair with the packetizer update that clears old fits/retries on observation
+  loss and recovers from a fresh ballistic arc without another Ready/Serve press.
+- A held ego serve can start a fresh observed flight with or without Ready;
+  local Stop remains latched until explicit Ready/Serve.
+- This release contains the ball-state refinements only; field-only telemetry,
+  policy selection and network QoS changes are not included.
+
+## 1.9.3
+
+- Display the operator-local C++ five-state classifier, forwarding eligibility
+  and separate forecast advisories through a local HTTP endpoint. No state
+  topic is sent to A3; panel rendering does not control ball filtering.
+- Initialize from local button intent only: Ready → OPPONENT_SERVE, Prepare /
+  Ready to Serve → SERVE, Stand/Stop/Passive/E-stop → INVALID until another local
+  Ready/Serve. Existing robot requests and their results remain independent.
+- Remove Runner mode, serve phase, boot and lifecycle feedback coupling. Keep
+  observing and forwarding eligible returns regardless of Runner state.
+- Retain visible ego flights; a confirmed hold blocks automatic restart from
+  SERVE. Explicit local Ready may directly initialize a new OPPONENT_SERVE.
+  Observed in-table incoming returns start OPPONENT_RALLY.
+- Reject foreign web origins server-side. Desktop uses a private local pairing
+  file because its null origin cannot uniquely identify it. No key is sent over
+  ROS, returned by HTTP, or stored in shared layouts.
+- Scope local intents to the current producer and revision; reject stale or
+  reordered requests and report local failures separately from robot requests.
+- Pair with the laptop packetizer's advisory-only forecasts, measured 3D rally
+  speed rule (below 0.10 m/s for 100 ms after a 40 ms window), and qualified
+  source-clock recovery. Serve states are exempt from the new speed rule.
+- Keep pelvis/base traffic independent. Support Ubuntu and the macOS operator
+  container; no A3 software or bridge allowlist update is required.
+- Reject missing or stale local status without matching robot lifecycle state. Cached JSON heartbeats
+  avoid rebuilding unchanged status on every packetizer timer tick.
+
 ## 1.8.18
 
 - Verify P1/P2 availability directly from fresh raw player poses before rotation.

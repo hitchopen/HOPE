@@ -79,6 +79,7 @@ target_include_directories(hope_planner_cpp_replay PRIVATE include)
 target_link_libraries(hope_planner_cpp_replay PRIVATE hope_planner_core Eigen3::Eigen)
 
 add_executable(hope_ball_flight_packetizer
+  src/laptop_play_state.cpp
   src/flight_packetizer_node.cpp
   src/flight_packetizer_main.cpp
 )
@@ -114,6 +115,16 @@ install(PROGRAMS
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_local_play_state_status test/test_local_play_state_status.cpp)
+  target_include_directories(test_local_play_state_status PRIVATE include)
+  ament_add_gtest(test_laptop_play_state test/test_laptop_play_state.cpp src/laptop_play_state.cpp)
+  target_link_libraries(test_laptop_play_state hope_planner_core Eigen3::Eigen)
+  # ROS age/watchdog checks require wall-paced trajectories. The rate/scheduler
+  # matrix and one-second inter-point holds need margin on slower CI hosts.
+  ament_add_gtest(test_laptop_state_gate test/test_laptop_state_gate.cpp
+    src/flight_packetizer_node.cpp src/laptop_play_state.cpp TIMEOUT 120)
+  target_link_libraries(test_laptop_state_gate hope_planner_core Eigen3::Eigen rclcpp::rclcpp
+    ${geometry_msgs_TARGETS} ${hope_msgs_TARGETS} ${std_msgs_TARGETS})
   ament_add_gtest(test_ball_y_filter_controls test/test_ball_y_filter_controls.cpp src/planner_node.cpp)
   target_include_directories(test_ball_y_filter_controls PRIVATE include)
   target_link_libraries(test_ball_y_filter_controls hope_planner_core Eigen3::Eigen rclcpp::rclcpp
@@ -219,6 +230,7 @@ if(BUILD_TESTING)
   )
 
   ament_add_gtest(test_flight_packet_pipeline
+    src/laptop_play_state.cpp
     test/test_flight_packet_pipeline.cpp
     src/planner_node.cpp
     src/flight_packetizer_node.cpp

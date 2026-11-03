@@ -6,6 +6,7 @@ The base wire remains invalid until the asset and table-world setup are
 explicitly confirmed. This launch never starts the robot Runner.
 """
 import hashlib
+import os
 from pathlib import Path
 
 from launch import LaunchDescription
@@ -65,6 +66,9 @@ def generate_launch_description():
                  "position_scale": typed("position_scale", float), "pants_profile": arg("pants_profile"),
                  "table_side": arg("table_side"), "follow_lifecycle_config": typed("follow_lifecycle_config", bool),
                  "debug_session_id": arg("debug_session_id"),
+                 # Classifier/gate runs AFTER this relay's table-side transform.
+                 "poses_topic": "/poses/operator_raw",
+                 "ball_point_topic": "/ball/operator_raw_point",
              }]),
         Node(package="hope_bringup", executable="hope_base_pose_flat_relay",
              name="hope_base_pose_flat_relay", output="screen", condition=IfCondition(arg("start_base_pose")),
@@ -81,7 +85,9 @@ def generate_launch_description():
                  PathJoinSubstitution([FindPackageShare("hope_planner_cpp"), "config",
                                        "model21800_flight_packetizer.yaml"]),
                  *ball_overrides,
-                 {"session_id": arg("debug_session_id"), "flight_packet_topic": "/ball/flight_packet"},
+                 {"session_id": arg("debug_session_id"), "flight_packet_topic": "/ball/flight_packet",
+                  "input_pose_topic": "/poses/planner_full", "gated_pose_topic": "/poses",
+                  "play_state_status_bind": os.environ.get("HOPE_BALL_STATUS_BIND", "127.0.0.1")},
              ]),
     ]
     return LaunchDescription(actions)

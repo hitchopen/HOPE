@@ -189,3 +189,22 @@ def test_player_admission_is_capped_at_30hz_without_throttling_base(relay, hz):
         relay._on_frame(msg)
     assert len(relay.raw_players) == 30
     assert len(base) == hz
+
+@pytest.mark.parametrize('hz', [150, 300])
+@pytest.mark.parametrize('ball_kind', ['missing', 'invalid', 'held', 'incoming', 'outgoing'])
+def test_pelvis_callback_is_immediate_and_independent_of_ball(relay, hz, ball_kind):
+    base=[]
+    relay._pose_publishers['UCB_P1'].publish=base.append
+    for i in range(30):
+        msg=frame(i, ball=ball_kind!='missing', hz=hz)
+        if msg.poses:
+            msg.poses[0].pose.position.x=(float('nan') if ball_kind=='invalid' else
+                2.6-i/hz*5 if ball_kind=='incoming' else
+                .2+i/hz*5 if ball_kind=='outgoing' else 1.)
+        player=messages.NamedPose(name='UCB_P1')
+        player.pose.position.x=-.5;player.pose.orientation.w=1.
+        msg.poses.append(player)
+        relay._on_frame(msg)
+        # No executor spin, timer, ball-state feedback or launch classification.
+        assert len(base)==i+1
+        assert base[-1].header.stamp==msg.header.stamp

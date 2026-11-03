@@ -186,3 +186,23 @@ def test_planner_full_stream_preserves_all_300hz_ball_exposures(ros, side):
         assert len(msg.poses) == 1
         assert msg.poses[0].position.x == pytest.approx(2.0 if side == 'P1' else .74)
     relay.destroy_node()
+
+@pytest.mark.parametrize('hz',[150,300])
+@pytest.mark.parametrize('side',['P1','P2'])
+def test_pelvis_flat_publishes_in_same_callback_without_any_ball(ros,hz,side):
+    relay=load('avatar_pro_vrpn_relay').AvatarProVrpnRelay()
+    base=load('hope_base_pose_flat_relay').BasePoseFlatRelay()
+    output=[];base._pub.publish=output.append
+    relay._observation_pub.publish=base._vrpn_pose_cb
+    relay._config_cb(String(data=json.dumps(dict(revision=1,pants_profile='v4',table_side=side,
+        state='STOPPED',busy=False,mocap_source='vrpn',vrpn_ip='192.168.100.99',
+        vrpn_port='3883',vrpn_units='mm'))))
+    try:
+        for i in range(30):
+            source=pose(relay)
+            relay._on_pose('/vrpn_mocap/UCB_'+side+'/pose','UCB_'+side,source)
+            assert len(output)==i+1  # Synchronous end-to-end into flat base wire.
+            assert output[-1].data[1]==1
+            time.sleep(1/hz)
+    finally:
+        relay.destroy_node();base.destroy_node()

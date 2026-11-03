@@ -33,6 +33,7 @@ TEST_P(FlightPacketPipeline, ThreeTransmitsProduceOnePlannerCommand) {
   rclcpp::init(argc, nullptr);
 
   rclcpp::NodeOptions packetizer_options;
+  packetizer_options.append_parameter_override("play_state_status_port",0);
   packetizer_options.append_parameter_override("adaptive_commit_enabled", std::get<0>(GetParam()));
   packetizer_options.append_parameter_override("session_id", "pipeline_test");
   packetizer_options.append_parameter_override(
@@ -59,13 +60,9 @@ TEST_P(FlightPacketPipeline, ThreeTransmitsProduceOnePlannerCommand) {
   std::set<std::string> payload_hashes;
   std::set<std::uint8_t> transmit_indices;
   const auto now = std::chrono::system_clock::now().time_since_epoch();
-  const auto start_ns =
+  auto start_ns =
       std::chrono::duration_cast<std::chrono::nanoseconds>(now).count() + 123;
-  constexpr std::int64_t kStepNs = 2'777'778;
   std::set<std::int64_t> published_source_stamps;
-  for (int index = 0; index < 180; ++index) {
-    published_source_stamps.insert(start_ns + index * kStepNs);
-  }
   auto packet_subscription =
       io_node->create_subscription<hope_msgs::msg::BallFlightPacket>(
           "/ball/flight_packet", rclcpp::QoS(rclcpp::KeepLast(8))
@@ -113,8 +110,13 @@ TEST_P(FlightPacketPipeline, ThreeTransmitsProduceOnePlannerCommand) {
   }
   ASSERT_GT(pose_publisher->get_subscription_count(), 0U);
 
+  start_ns = io_node->now().nanoseconds();
   for (int index = 0; index < 180; ++index) {
-    const auto stamp_ns = start_ns + index * kStepNs;
+    const auto stamp_ns = io_node->now().nanoseconds() + 123;
+    {
+      std::lock_guard<std::mutex> lock(packet_mutex);
+      published_source_stamps.insert(stamp_ns);
+    }
     geometry_msgs::msg::PoseArray message;
     message.header.stamp.sec = static_cast<std::int32_t>(
         stamp_ns / 1'000'000'000LL);
@@ -122,11 +124,14 @@ TEST_P(FlightPacketPipeline, ThreeTransmitsProduceOnePlannerCommand) {
         stamp_ns % 1'000'000'000LL);
     message.header.frame_id = "world";
     geometry_msgs::msg::Pose pose;
-    pose.position.x = 1.70 - 0.006 * index;
+    const double t = (stamp_ns - start_ns) * 1e-9;
+    pose.position.x = 2.0 - 4.0 * t;
     pose.position.y = -0.55 + 0.0002 * index;
-    pose.position.z = 0.45;
-    pose.orientation.w = std::cos(index * kStepNs * 1e-9 * 20.);
-    pose.orientation.y = std::sin(index * kStepNs * 1e-9 * 20.);
+    // A moving held-ball fixture is deliberately no longer admitted. Use a
+    // timestamped free-flight arc for this transport/one-shot regression.
+    pose.position.z = 0.45 + t - 4.905 * t * t;
+    pose.orientation.w = std::cos(t * 20.);
+    pose.orientation.y = std::sin(t * 20.);
     message.poses.push_back(pose);
     geometry_msgs::msg::PoseStamped base;
     base.header = message.header;
@@ -136,7 +141,7 @@ TEST_P(FlightPacketPipeline, ThreeTransmitsProduceOnePlannerCommand) {
     base_publisher->publish(base);
     pose_publisher->publish(message);
     executor.spin_some(5ms);
-    std::this_thread::sleep_for(1ms);
+    std::this_thread::sleep_for(3ms);
   }
 
   const auto drain_deadline = std::chrono::steady_clock::now() + 1s;

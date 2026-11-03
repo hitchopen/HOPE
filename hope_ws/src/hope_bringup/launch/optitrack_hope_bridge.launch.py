@@ -42,6 +42,7 @@ TODO before running on hardware (see docs/operations/run_mocap.md):
 """
 
 import ipaddress
+import os
 from pathlib import Path
 
 import yaml
@@ -413,6 +414,8 @@ def generate_launch_description():
                     "debug_csv_path": debug_csv_path,
                     "debug_session_id": debug_session_id,
                     "table_side": table_side,
+                    "poses_topic": "/poses/operator_raw",
+                    "ball_point_topic": "/ball/operator_raw_point",
                     "table_length_m": ParameterValue(
                         table_length_m, value_type=float
                     ),
@@ -441,6 +444,9 @@ def generate_launch_description():
                 {
                     "session_id": debug_session_id,
                     "flight_packet_topic": flight_packet_topic,
+                    "input_pose_topic": "/poses/planner_full",
+                    "gated_pose_topic": "/poses",
+                  "play_state_status_bind": os.environ.get("HOPE_BALL_STATUS_BIND", "127.0.0.1"),
                     "debug_csv_path": flight_packet_debug_csv_path,
                 },
             ],

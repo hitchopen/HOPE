@@ -18,7 +18,7 @@ import subprocess
 
 CONFIG = Path.home() / ".config/hope-macos"
 CONTRACT_LABEL = "org.hope.operator.contract"
-CONTRACT_VERSION = "3"
+CONTRACT_VERSION = "4"
 
 
 def validate_identity(user, helper):
@@ -129,6 +129,8 @@ def verify_container_contract(config, info):
              and mounts.get(expected_home, {}).get("Name") == "hope-macos-operator-home")
     ports = info.get("HostConfig", {}).get("PortBindings", {}).get("2222/tcp")
     valid = valid and ports == [{"HostIp": "127.0.0.1", "HostPort": str(config["ssh_port"])}]
+    status_ports = info.get("HostConfig", {}).get("PortBindings", {}).get("8768/tcp")
+    valid = valid and status_ports == [{"HostIp": "127.0.0.1", "HostPort": "8768"}]
     if not valid:
         raise RuntimeError("Existing Mac container has an old/different account, helper, checkout or port. "
                            "It was not changed. While STOPPED, select Linux, stop/remove only the named "
@@ -154,6 +156,7 @@ def up(config, *, scheduled=False):
              "-e", f"HOPE_OPERATOR_USER={config['laptop_user']}",
              "-e", f"HOPE_OPERATOR_HELPER={config['laptop_helper']}",
              "--platform", "linux/arm64", "-p", f"127.0.0.1:{config['ssh_port']}:2222",
+             "-p", "127.0.0.1:8768:8768",
              "--mount", f"type=bind,src={config['root']},dst=/work",
              "--mount", f"type=bind,src={CONFIG},dst=/operator-config,readonly",
              "--mount", "type=volume,src=hope-macos-arm64,dst=/opt/hope",
