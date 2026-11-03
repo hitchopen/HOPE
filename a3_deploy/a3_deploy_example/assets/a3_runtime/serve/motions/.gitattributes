@@ -1,0 +1,5 @@
+
+# These CSV bytes are part of policy bundle SHA256 identities.
+v23-13800.csv -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+v23-fusion.csv -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+v23-13800-astra.csv -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
