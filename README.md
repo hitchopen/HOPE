@@ -54,9 +54,9 @@ HOPE is an open platform for humanoid robot table tennis, developed by [Hitch In
 
 This repository contains the full HOPE stack for the Agibot A3: Isaac Lab training for a **unified forehand/backhand whole-body policy** (the deploy-grade 110-D `hitter_pure` rally line, proven on real A3 hardware), a **no-spin planner** in both Python and low-latency C++ (ROS 2), a **MuJoCo/AimRT simulation with a real ball plant** for closed-loop evaluation, and the **native C++ A3 deploy runner** (`a3_pingpong`) — plus the preserved HOPE **reference design documents**, the **challenge rulebooks**, and the A3 source assets, reference software and mounting hardware indexed in [agibot/README.md](agibot/README.md).
 
-The H3002 hand body and cap print separately from the original 45-degree
-flange. The component guides cover the STLs, print orientation, fasteners and
-paddle pose. [H3002 right hand](agibot/right_wrist_hand_unified/README.md) ·
+The H3002 right hand has two body options with a shared cap. The integrated
+wrist and hand mounts to the A3 metal collar. The hand-only body mounts to the
+original 45-degree flange. [H3002 right hand](agibot/right_wrist_hand_unified/README.md) ·
 [Right wrist paddle flange](agibot/right_wrist_paddle_flange/README.md)
 
 The v3 pelvis marker shell guide includes the printable halves and marker
