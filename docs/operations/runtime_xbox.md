@@ -212,8 +212,8 @@ hardware jitter; historical CSVs remain available for comparison.
 The packaged Rockchip profile sends the release command at frame 47; physical jaw
 opening and ball detachment are not confirmed by the software publish receipt.
 
-The [gripper URDF](../../a3_deploy/a3_deploy_example/assets/a3_runtime/robots/A3PingPong-with-gripper/README.md)
-includes relative mesh paths and documents missing collision-mesh fallbacks.
+The [0807 gripper URDF](../../a3_deploy/a3_deploy_example/assets/a3_runtime/robots/A3PingPong-with-gripper/README.md)
+represents the left jaw linkage at its fixed zero pose.
 
 The field panel can upload a replacement CSV. The MDU validates its complete
 schema with the actual Runner before storing it by SHA-256. Load the desired
