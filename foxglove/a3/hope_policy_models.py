@@ -9,13 +9,16 @@ import sys
 from hope_field_assets import atomic_write
 
 LEGACY_MODELS = {'model14600', 'model11999', 'model12600'}
-MODELS = LEGACY_MODELS | {'model17400', 'model12000'}
+MODELS = LEGACY_MODELS | {'model17400', 'model12000', 'model13800', 'modelfusion', 'model13800astra'}
 MOCAP_MODELS = MODELS - {'model14600'}
 SERVE_CSV_NAMES = {
     'model14600': 'a3p_op3_serve025_v23_branch110_model14600.csv',
     'model12600': 'v23-12600.csv',
     'model17400': 'v23-17400.csv',
     'model12000': 'v23-12000.csv',
+    'model13800': 'v23-13800.csv',
+    'modelfusion': 'v23-fusion.csv',
+    'model13800astra': 'v23-13800-astra.csv',
 }
 
 def catalog_installed(root):
@@ -48,7 +51,7 @@ def inspect(root, model=None):
     legacy_receive = name == 'model17400' and entry.get('receive_only') is True
     if legacy_receive and entry.get('serve_csv') is not None:
         raise ValueError('receive-only model17400 must not carry a serve CSV')
-    if name == 'model12000' or (name == 'model17400' and not legacy_receive) or (
+    if name in {'model12000', 'model13800', 'modelfusion', 'model13800astra'} or (name == 'model17400' and not legacy_receive) or (
             name in SERVE_CSV_NAMES and entry.get('receive_only') is False):
         serve = entry.get('serve_csv')
         if (entry.get('required_ball_model') != 'ppq004' or entry.get('receive_only') is not False

@@ -19,6 +19,9 @@ CSV_NAMES = {
     'model12600': 'v23-12600.csv',
     'model17400': 'v23-17400.csv',
     'model12000': 'v23-12000.csv',
+    'model13800': 'v23-13800.csv',
+    'modelfusion': 'v23-fusion.csv',
+    'model13800astra': 'v23-13800-astra.csv',
 }
 LEGACY_14600_PROFILE_SHA = 'ec7e2a5a288e3b573bb1c67456701ac43f34bbbf8490d62e885b38bc032cf955'
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.9.14
+
+- Add original 13800 and separate experimental Fusion/13800 Astra choices.
+- Require each verified policy's own serve CSV; preserve original 13800 artifacts.
+- Keep main's independent local ball-state gating and lifecycle controls.
+
+
 ## 1.9.13
 
 - Accept qualified incoming observations without invented pre-net history.
