@@ -32,7 +32,7 @@ Process presence is not a substitute for physical safety verification.
 | [ntp_sync/](ntp_sync/README.md) | A3 HDU Chrony and supervised HDU-to-MDU PTP clock synchronization; includes installation, verification and recovery procedures. |
 | [mocap_sticker_shell_v3/](mocap_sticker_shell_v3/README.md) | Dual-mode pelvis marker shell: engraved HITCH OPEN and P1/P2 station symbols, printable halves, OpenSCAD preview, instructions, marker-to-`pelvis_link` tables, geometry validation, and OptiTrack/ChingMu asset definitions. |
 | [right_wrist_paddle_flange/](right_wrist_paddle_flange/README.md) | Current 45-degree right wrist paddle flange: hollow connector cavity, smooth exterior reinforcement, printable STL and printing/fit notes. |
-| [right_wrist_hand_unified/](right_wrist_hand_unified/README.md) | V4.4 throat-located hollow wrist/palm/H3002 cradle with a four-screw A3 collar mount, right-facing −Y flat, enclosed wiring pocket and removable lid; final STLs, pose calculation and release notes. |
+| [right_wrist_hand_unified/](right_wrist_hand_unified/README.md) | H3002 cradle for the original 45-degree wrist flange with a solid keyed mount, four hand-side M4 screws and the PR #117 cap. |
 | [agibot_left_gripper_serve_addon.STL](agibot_left_gripper_serve_addon.STL) | Developer-supplied left-gripper serving fixture. **Metre-scale coordinates; see the printing scale warning below.** |
 
 ## Robot models and software boundaries
@@ -99,38 +99,21 @@ with smooth outward reinforcement across the external wall. Import the STL in
 **millimetres at 100% scale**. The component README and linked print notes give
 the dimensions, geometry checks and assembly guidance.
 
-## Unified right wrist hand
+## H3002 right hand
 
-The [V4.4 H3002 integrated hand](right_wrist_hand_unified/README.md) uses A3's
-existing metal collar and exactly four radial M4 screws. No fifth mounting
-screw or hole is required in the printed plug. Its keyed Ø34 mount, circular
-shoulder, curved wrist, palm, thumb contour and paddle cradle form one printed
-body; the removable cover shares its curved fist surface. The back tapers into
-the grip with less bulk, and the exposed side-wing recess is filled with a rounded
-transition. HITCH OPEN is recessed 0.6 mm into the curved back. The lid is
-byte-identical to V4.2/V4.3 and can be reused. The cradle extends to
-two paddle-shoulder locating lands, while 22.5 mm of the handle butt is exposed.
-The release folder contains only the final body STL, lid STL and release README.
-Print both parts with their flat paddle-holding/mating surfaces facing down to
-reduce added support. Rotate the body from its exported upright orientation;
-the lid is already exported flat-side down. Review internal cavities in the slicer.
-Four open-ended M4x0.7 female threads are modeled directly in the printed plug;
-no wrist inserts or internal nuts are required. Printed thread fit and load capacity
-require physical verification. Separately, five grip screws remain M4x20. Three
-enter through the rear hand tunnels and tighten into nuts recessed in the lid's
-outer palm face. Two enter from the palm face through the original underside
-lid nuts and into prepared wood blind holes (12.7 mm nominal engagement, 13 mm
-remaining wood); machine screws are not self-drilling wood screws.
-The nominal URDF red-face datum is unchanged. The shoulder is nominally placed at X=48 mm in
-`right_wrist_yaw_Link`. The plug's sole flat faces right (−Y), opposite the
-unchanged +Y red-face normal; the user visually confirmed the connector orientation.
-A Ø22 opening leads into a curved, enclosed wiring pocket, with a nominal 3 mm
-housing wall. The release notes include the final pose calculation from the
-exported STL's seating surfaces and the H3002/URDF outline differences.
-Physical seating depth, connector envelope and H3002 dimensions remain unmeasured.
-See the release notes for printed-thread allowances, screw-length
-selection, print finishing and assembly limits. The separate
-`right_wrist_paddle_flange/` release remains unchanged.
+The [H3002 hand body and cap](right_wrist_hand_unified/README.md) mount to the
+[original 45-degree flange](right_wrist_paddle_flange/README.md). Print the flange
+separately so its hollow interior remains accessible for support removal and
+wiring. The hand body has a short solid keyed plug with four blind printed
+M4×0.7 threads aligned to the flange's hand-side ring. Use four M4×10 screws
+from outside the ring. The flange uses its original arm-side hardware.
+
+The hand keeps the PR #117 shoulder stops, seating pads, HITCH OPEN engraving
+and cap. Both hand parts are exported with their flat paddle-holding faces
+down. The five grip fasteners remain M4×20. Three close the cap from the back
+of the hand and two locate the wood handle from the palm. The nominal H3002
+red-face datum remains (210.210, 32.078, 32.036) mm in the wrist yaw frame,
+with the red face toward +Y and the handle at 45° in X–Z.
 
 ## Pelvis marker hardware
 
