@@ -1044,6 +1044,11 @@ int main(int argc, char** argv) {
   // --no-imu-yaw reverts to the legacy identity-yaw transform (only sensible for a
   // non-turning model, e.g. p4); --use-imu-yaw is still accepted (now a no-op).
   pcfg.use_imu_yaw_for_targets = !Has(argc, argv, "--no-imu-yaw");
+  if (cfg["policy_target_position_frame"])
+    throw std::invalid_argument("replace position-only policy_target_position_frame with policy_target_frame for position AND velocity");
+  pcfg.target_frame = a3_pingpong::parse_target_frame(
+      cfg["policy_target_frame"]
+          ? cfg["policy_target_frame"].as<std::string>() : "training");
   // Scripted swing direction: default forehand; --backhand mirrors the target to
   // +y and selects the baked backhand clip. Toggle live with f/b. (No live planner.)
   pcfg.start_backhand = Has(argc, argv, "--backhand");

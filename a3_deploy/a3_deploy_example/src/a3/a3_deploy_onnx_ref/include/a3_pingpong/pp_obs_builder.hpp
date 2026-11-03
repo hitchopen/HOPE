@@ -23,7 +23,10 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <string>
+#include <stdexcept>
+#include <optional>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -110,7 +113,110 @@ struct PpRacketTarget {
   double signed_external_reach = 0.0;  // Schema34: reach_level * swing_foot_sign
   double signed_replant_need = 0.0;    // Schema34: signed continuous FK-to-HOME debt
   Eigen::Vector4d footstep_task_errors = Eigen::Vector4d::Zero();  // Schema34v3 origin XY, destination XY
+  // Reserved for a future versioned Planner wire / actor contract. Current
+  // packets carry no normal; absence must stay explicit, never a fake +X pose.
+  std::optional<Vec3> normal_w;
 };
+
+// A coherent body-frame view of the commanded strike, using one base pose.
+// vel_b is the world velocity expressed in body axes, NOT d(pos_b)/dt:
+// no base-velocity or rotating-frame transport terms are subtracted.
+struct PpBodyRacketTarget {
+  Vec3 pos_b;
+  Vec3 vel_b;
+  std::optional<Vec3> normal_b;  // unit face normal, not a complete 3-DOF attitude
+};
+
+// Explicit field override; existing hitter_pure weights keep their original
+// world-axis contract by default. Enabling this does not retrain the weights.
+enum class PpTargetFrame { kTraining, kBody, kBodyOnce };
+
+inline PpTargetFrame parse_target_frame(const std::string& value) {
+  if (value == "training") return PpTargetFrame::kTraining;
+  if (value == "body") return PpTargetFrame::kBody;
+  if (value == "body_once") return PpTargetFrame::kBodyOnce;
+  throw std::invalid_argument("policy_target_frame must be training, body or body_once");
+}
+
+inline PpBodyRacketTarget racket_target_to_body(const PpRobotState& state,
+                                               const PpRacketTarget& target) {
+  const double norm = state.base_quat_w.norm();
+  if (!state.base_quat_w.allFinite() || !std::isfinite(norm) || norm < 1e-6 ||
+      !state.base_pos_w.allFinite() || !target.pos_w.allFinite() || !target.vel_w.allFinite())
+    throw std::invalid_argument("body target requires a finite localized pose, position and velocity");
+  const Mat3 world_to_body = mat_from_quat(state.base_quat_w / norm).transpose();
+  PpBodyRacketTarget body;
+  body.pos_b = world_to_body * (target.pos_w - state.base_pos_w);
+  body.vel_b = world_to_body * target.vel_w;
+  if (target.normal_w) {
+    const double normal_norm = target.normal_w->norm();
+    if (!target.normal_w->allFinite() || !std::isfinite(normal_norm) || normal_norm < 1e-6)
+      throw std::invalid_argument("target face normal must be finite and nonzero when supplied");
+    body.normal_b = world_to_body * (*target.normal_w / normal_norm);
+  }
+  return body;
+}
+
+inline void apply_target_frame(Eigen::VectorXd& obs,
+                               const PpRobotState& state,
+                               const PpRacketTarget& target,
+                               PpTargetFrame frame) {
+  if (frame == PpTargetFrame::kTraining) return;
+  if (frame == PpTargetFrame::kBodyOnce)
+    throw std::invalid_argument("body_once requires a committed-target latch");
+  if (obs.size() != kObsDim110)
+    throw std::invalid_argument("body target override requires the 110-D actor");
+  const auto body = racket_target_to_body(state, target);
+  obs.segment<3>(103) = body.pos_b;
+  obs.segment<3>(106) = body.vel_b;
+  // normal_b is prepared by the shared transform, but the current 110-D actor
+  // has NO orientation slot. In particular, obs[109] remains time_to_strike.
+}
+
+// Capture the localized pose on the first actor tick of an accepted shot.
+// A changing robot pose must NOT move this shot's six target inputs. The shot
+// generation also covers rapid preemption with no intervening WAIT tick.
+class PpCommittedBodyTarget {
+ public:
+  void Reset() { body_.reset(); }
+  const std::optional<PpBodyRacketTarget>& body() const { return body_; }
+
+  bool Apply(Eigen::VectorXd& obs, const PpRobotState& state,
+             const PpRacketTarget& target, bool active,
+             std::uint64_t shot_generation) {
+    if (!active) {
+      Reset();  // WAIT/recovery keeps its original sentinel observation.
+      return false;
+    }
+    if (obs.size() != kObsDim110)
+      throw std::invalid_argument("body_once requires the 110-D actor");
+    const bool capture = !body_ || generation_ != shot_generation;
+    if (capture) {
+      const auto next = racket_target_to_body(state, target);
+      body_ = next;  // publish the complete position/velocity/normal atomically
+      generation_ = shot_generation;
+    }
+    obs.segment<3>(103) = body_->pos_b;
+    obs.segment<3>(106) = body_->vel_b;
+    // Optional face normal is retained in the latch; no current actor slot.
+    // Time-to-strike and all state observations continue updating normally.
+    return capture;
+  }
+
+ private:
+  std::optional<PpBodyRacketTarget> body_;
+  std::uint64_t generation_ = 0;
+};
+
+// The body_once field convention presents the actor as facing +x. Override
+// only the explicit planar heading slots, AFTER target capture used the real
+// localized pose. Gravity, angular velocity, localization and FK stay real.
+inline void apply_forward_heading_110(Eigen::VectorXd& obs) {
+  if (obs.size() != kObsDim110)
+    throw std::invalid_argument("forward heading override requires the 110-D actor");
+  obs[99] = 1.0;
+  obs[100] = 0.0;
+}
 
 // Assemble the 180-D observation (double precision; cast to float at the ONNX
 // boundary). last_action and default_q are length-31.
