@@ -1,0 +1,208 @@
+{
+  "group": "flight_v2_raw_scenarios",
+  "status": "passed",
+  "receipts": [
+    {
+      "status": "PASS",
+      "truth": "synthetic independent DOP853 fixture; not physical qualification",
+      "scenarios": [
+        {
+          "direction": -1,
+          "rate_hz": 150,
+          "policy": "FOLLOW_POSE",
+          "physical_forecasts": 113,
+          "confirmed_bounces": 2,
+          "spin_modes": [
+            "CONTACT_PROPAGATED",
+            "HELD",
+            "MEASURED"
+          ],
+          "planes": [
+            0.15,
+            0.25
+          ],
+          "generation": 1,
+          "automatic_acquisition": true,
+          "source_stamps_preserved": true,
+          "outside_legacy_robot_y_gate": true,
+          "verified_history_refreshes": 1,
+          "requested_full_rate_hz": 50,
+          "independent_source_process": true,
+          "actual_source_rate_hz": 147.55325513910066,
+          "max_source_gap_ms": 20.178183
+        },
+        {
+          "direction": -1,
+          "rate_hz": 300,
+          "policy": "FOLLOW_POSE",
+          "physical_forecasts": 215,
+          "confirmed_bounces": 2,
+          "spin_modes": [
+            "CONTACT_PROPAGATED",
+            "HELD",
+            "MEASURED"
+          ],
+          "planes": [
+            0.15,
+            0.25
+          ],
+          "generation": 1,
+          "automatic_acquisition": true,
+          "source_stamps_preserved": true,
+          "outside_legacy_robot_y_gate": true,
+          "verified_history_refreshes": 2,
+          "requested_full_rate_hz": 50,
+          "independent_source_process": true,
+          "actual_source_rate_hz": 297.5719652234869,
+          "max_source_gap_ms": 34.258925999999995
+        },
+        {
+          "direction": 1,
+          "rate_hz": 150,
+          "policy": "FOLLOW_POSE",
+          "physical_forecasts": 114,
+          "confirmed_bounces": 2,
+          "spin_modes": [
+            "CONTACT_PROPAGATED",
+            "HELD",
+            "MEASURED"
+          ],
+          "planes": [
+            0.15,
+            0.25
+          ],
+          "generation": 1,
+          "automatic_acquisition": true,
+          "source_stamps_preserved": true,
+          "outside_legacy_robot_y_gate": true,
+          "verified_history_refreshes": 1,
+          "requested_full_rate_hz": 50,
+          "independent_source_process": true,
+          "actual_source_rate_hz": 147.56806028934423,
+          "max_source_gap_ms": 19.973368999999998
+        },
+        {
+          "direction": 1,
+          "rate_hz": 300,
+          "policy": "FOLLOW_POSE",
+          "physical_forecasts": 223,
+          "confirmed_bounces": 2,
+          "spin_modes": [
+            "CONTACT_PROPAGATED",
+            "HELD",
+            "MEASURED"
+          ],
+          "planes": [
+            0.15,
+            0.25
+          ],
+          "generation": 1,
+          "automatic_acquisition": true,
+          "source_stamps_preserved": true,
+          "outside_legacy_robot_y_gate": true,
+          "verified_history_refreshes": 1,
+          "requested_full_rate_hz": 50,
+          "independent_source_process": true,
+          "actual_source_rate_hz": 297.5615226295605,
+          "max_source_gap_ms": 10.000734
+        },
+        {
+          "direction": -1,
+          "rate_hz": 150,
+          "policy": "ON_REFRESH",
+          "physical_forecasts": 113,
+          "confirmed_bounces": 2,
+          "spin_modes": [
+            "CONTACT_PROPAGATED",
+            "HELD",
+            "MEASURED"
+          ],
+          "planes": [
+            0.15
+          ],
+          "generation": 1,
+          "automatic_acquisition": true,
+          "source_stamps_preserved": true,
+          "outside_legacy_robot_y_gate": true,
+          "verified_history_refreshes": 1,
+          "requested_full_rate_hz": 50,
+          "independent_source_process": true,
+          "actual_source_rate_hz": 147.59122468774058,
+          "max_source_gap_ms": 20.433609
+        },
+        {
+          "direction": -1,
+          "rate_hz": 300,
+          "policy": "ON_REFRESH",
+          "physical_forecasts": 216,
+          "confirmed_bounces": 2,
+          "spin_modes": [
+            "CONTACT_PROPAGATED",
+            "HELD",
+            "MEASURED"
+          ],
+          "planes": [
+            0.15
+          ],
+          "generation": 1,
+          "automatic_acquisition": true,
+          "source_stamps_preserved": true,
+          "outside_legacy_robot_y_gate": true,
+          "verified_history_refreshes": 2,
+          "requested_full_rate_hz": 50,
+          "independent_source_process": true,
+          "actual_source_rate_hz": 297.57684752787,
+          "max_source_gap_ms": 32.636156
+        },
+        {
+          "direction": 1,
+          "rate_hz": 150,
+          "policy": "ON_REFRESH",
+          "physical_forecasts": 115,
+          "confirmed_bounces": 2,
+          "spin_modes": [
+            "CONTACT_PROPAGATED",
+            "HELD",
+            "MEASURED"
+          ],
+          "planes": [
+            0.15
+          ],
+          "generation": 1,
+          "automatic_acquisition": true,
+          "source_stamps_preserved": true,
+          "outside_legacy_robot_y_gate": true,
+          "verified_history_refreshes": 1,
+          "requested_full_rate_hz": 50,
+          "independent_source_process": true,
+          "actual_source_rate_hz": 147.5727075050277,
+          "max_source_gap_ms": 19.997653
+        },
+        {
+          "direction": 1,
+          "rate_hz": 300,
+          "policy": "ON_REFRESH",
+          "physical_forecasts": 213,
+          "confirmed_bounces": 2,
+          "spin_modes": [
+            "CONTACT_PROPAGATED",
+            "HELD",
+            "MEASURED"
+          ],
+          "planes": [
+            0.15
+          ],
+          "generation": 1,
+          "automatic_acquisition": true,
+          "source_stamps_preserved": true,
+          "outside_legacy_robot_y_gate": true,
+          "verified_history_refreshes": 2,
+          "requested_full_rate_hz": 50,
+          "independent_source_process": true,
+          "actual_source_rate_hz": 297.6427247390895,
+          "max_source_gap_ms": 31.733888999999998
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "group": "flight_v2_numerical",
+  "status": "passed",
+  "receipts": [
+    {
+      "status": "PASS",
+      "reference": "independent scipy DOP853 rtol=2e-12 atol=2e-14",
+      "events": 42,
+      "max_position_error_m": 7.22413413829901e-14,
+      "max_time_error_s": 5.0182080713057076e-14
+    }
+  ]
+}

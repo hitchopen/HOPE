@@ -508,7 +508,7 @@ int main(int argc, char** argv) {
                  " [--gain-scale F] [--swing-speed F] [--stand-kp K --stand-kd D]\n"
                  "       [--reference-playback|--mode reference-playback]"
                  " [--no-publish|--dry-run] [--warmup-sec S]\n"
-                 "       [--planner] [--shared-session-home] (LIVE planner: racket <- /racket/command_flat, base <- /a3/base_pose_flat over ros2;"
+                 "       [--planner] [--shared-session-home] [--planner-preengagement-revocation] (opt-in pending-flight veto, no active swing cancellation; racket <- /racket/command_flat, base <- /a3/base_pose_flat over ros2;"
                  " [--engage-min-tts S] [--cmd-timeout S] [--invalid-grace S] [--vel-gate-margin M]"
                  " [--pending-expire-after-strike S]"
                  " [--demo] [--policy-native]"
@@ -1042,6 +1042,7 @@ int main(int argc, char** argv) {
   pcfg.planner_mode = planner_mode;
   pcfg.kernel_mode = kernel_mode;
   pcfg.shared_session_home = Has(argc, argv, "--shared-session-home");
+  pcfg.planner_preengagement_revocation = Has(argc, argv, "--planner-preengagement-revocation");
   if (kernel_mode) {
     pcfg.yaw_align = true;
     std::cout << "[kernel] IMU entry heading + stance-foot odometry; estimated XY/vxy and FK height; no OptiTrack/Planner; not authoritative localization\n";
@@ -1253,7 +1254,7 @@ int main(int argc, char** argv) {
   std::shared_ptr<a3_pingpong::PpBasePoseInput> base_in;
   if (planner_mode) {
     auto racket_in = std::make_shared<a3_pingpong::PpRacketTargetInput>(
-        pp->expected_planner_wire_schema());
+        pp->expected_planner_wire_schema(), pcfg.planner_preengagement_revocation);
     base_in = std::make_shared<a3_pingpong::PpBasePoseInput>();
     pp->SetRacketInput(racket_in);
     pp->SetBasePoseInput(base_in);

@@ -1,0 +1,17 @@
+{
+  "group": "flight_v2_binary_scope",
+  "status": "passed",
+  "receipts": [
+    {
+      "status": "PASS",
+      "inspected": [
+        "/workspace/.cloud-setup/v2-evidence/fixed-final/build/hope_planner_cpp/hope_flight_prediction_v2_node",
+        "/workspace/.cloud-setup/v2-evidence/fixed-final/build/hope_planner_cpp/libhope_v2_forecast_core.a",
+        "/workspace/.cloud-setup/v2-evidence/fixed-final/build/hope_planner_cpp/libhope_v2_forward_physics.a",
+        "/workspace/.cloud-setup/v2-evidence/fixed-final/build/hope_planner_cpp/libhope_v2_transport.a",
+        "/workspace/.cloud-setup/v2-evidence/fixed-final/build/hope_planner_cpp/hope_ball_flight_baseline_replay"
+      ],
+      "inverse_and_command_symbols_absent": true
+    }
+  ]
+}

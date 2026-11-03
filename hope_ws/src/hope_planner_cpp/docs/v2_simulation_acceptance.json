@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "baseline": "0fb3542d77129d42ad04099bbb5296f816841e8b",
+  "scope": "Software and supplied simulations; no hardware or physical deployment",
+  "authorization": "User approved HOPE-V2-Simulation-Verification-Plan.md after accepting recorded latency and requiring coverage investigation before runtime changes",
+  "timing": {
+    "accepted_recorded_forecast_publication_ms": 54.731069,
+    "old_publication_gate_ms": 30,
+    "old_gate_remains_reported": true,
+    "optimize_to_old_gate": false,
+    "runtime_expiry_and_invalidation_unchanged": true,
+    "new_excursions": "Record and assess effect on consumer usability; do not automatically waive expiry or missed contact"
+  },
+  "coverage": {
+    "denominator": "Independent offered source opportunities and physical flights, including lost deliveries",
+    "raw_observation_coverage": "Diagnostic; retain the original >=95% verdict separately",
+    "incoming": "One immutable correctly decoded usable command per independently offered valid flight",
+    "existing_backend": "Evaluate per-flight usable command and required revision/revocation behavior separately from per-observation coverage",
+    "no_change_condition": "Demonstrated existing same-flight valid command meets the simulator/consumer contract; no concealed invalidation or missing required update",
+    "fix_condition": "Demonstrated lost usable command, incorrect conversion, or obsolete authority",
+    "unknown_condition": "INCONCLUSIVE; do not infer harmlessness from a rejection reason"
+  },
+  "simulation_tolerances": {
+    "converted_contact_position_m": 1e-8,
+    "converted_contact_velocity_mps": 1e-8,
+    "converted_contact_time_s": 1e-6,
+    "rationale_conversion": "Adapter/decoder numerical equality with the selected physical contact, allowing floating-point epoch representation",
+    "committed_contact_truth_position_m": 0.02,
+    "committed_contact_truth_time_s": 0.01,
+    "rationale_truth": "One modeled ball radius and half the existing 50 Hz Runner tick; declared before new scored runs; software simulation criteria only",
+    "outgoing_landing_reference_m": 0.001,
+    "outgoing_landing_reference_time_s": 0.0005,
+    "impact_closure_mps": 1e-8,
+    "rationale_outgoing": "Existing independent integrated_numerical_gate.py tolerances",
+    "managed_legacy_landing_simulation_m": 0.02,
+    "managed_legacy_landing_simulation_time_s": 0.01,
+    "rationale_managed_legacy": "Existing RacketTargetPlanner uses a separate 1 ms integrator; assess its simulated landing within one ball radius and half a Runner tick, while retaining the stricter independent ValidatedReturnPlanner gate above",
+    "managed_legacy_impact": "Use speed-dependent restitution .759*exp(-.0441*approach), clamped to [.2,.95]; report the three-iteration solver residual and test the independently reconstructed outgoing landing",
+    "prefix_availability": "A physical scenario must yield a usable command at a declared supported cutoff; an earlier uncertain prefix must abstain with independently checked uncertainty evidence. This does not substitute a later retry for a missing command in a committed ROS flight.",
+    "continuous_preview_truth_errors": "Report all errors by source cutoff; do not substitute an early preview for the committed-command criterion"
+  },
+  "lifecycle_controls": [
+    "normal_acquire_reject_reacquire",
+    "acquisition_and_rejection_between_status_polls",
+    "missing_acquisition_must_fail",
+    "wrong_flight_or_round_evidence_must_fail",
+    "missing_rejection_must_fail",
+    "resurrected_quarantine_must_fail",
+    "obsolete_published_command_must_fail",
+    "missing_B_acquisition_or_decode_must_fail",
+    "missing_or_truncated_transition_trace_must_fail"
+  ],
+  "qualification": {
+    "existing_campaign": {"profiles": 32, "repetitions": 5},
+    "incoming_campaign": {"profiles": 18, "repetitions": 5},
+    "reacquisition_consumers": 14,
+    "all_four_original_profiles_require_disposition": true,
+    "preserve_raw_exits": true,
+    "separate_current_assessment": true,
+    "clean_source_and_configuration_freeze": true
+  },
+  "assessment_states": [
+    "PASS", "ACCEPTED_TIMING_DEVIATION", "VERIFIED_NO_FUNCTIONAL_IMPACT",
+    "CORRECT_ABSTENTION", "CONFIRMED_DEFECT", "INCONCLUSIVE"
+  ]
+}

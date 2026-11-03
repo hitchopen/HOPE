@@ -1,0 +1,21 @@
+# Explicit source registration is required through launch arguments. These
+# defaults cannot authorize motion; all outputs are protected shadow topics.
+hope_planner:
+  ros__parameters:
+    prediction_backend: v2_incoming
+    racket_flat_schema: 4
+    flight_packet_input_enabled: true
+    flight_packet_topic: /hope/shadow/v2_incoming/flight_packet
+    post_net_one_shot_enabled: true
+    publish_serve_ball_flat: false
+    publish_base_flat: false
+    spin_shadow_enabled: false
+    racket_flat_topic: /hope/shadow/v2_incoming/command_flat
+    plane_reference_mode: fixed
+    v2_incoming.output_mode: shadow
+    v2_incoming.observation_topic: /hope/ball/observation_v2
+    v2_incoming.continuous_output: true
+    v2_incoming.full_output_rate_hz: 50.0
+    v2_incoming.clock_domain: ros_system
+    v2_incoming.clock_mapping_id: natnet_exposure_unix_v1
+    v2_incoming.ball_id: Ball

@@ -599,6 +599,11 @@ def main(args=None) -> None:
         rclpy.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    except RuntimeError:
+        # A ROS signal can close the context between executor wait and take.
+        # Keep ordinary callback/runtime failures visible while ROS is active.
+        if node.context.ok():
+            raise
     finally:
         node.destroy_node()
         if rclpy.ok():

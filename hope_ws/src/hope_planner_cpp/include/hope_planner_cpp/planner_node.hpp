@@ -1,4 +1,6 @@
 #pragma once
+#include "hope_planner_cpp/integrated_planner_runtime.hpp"
+#include "hope_planner_cpp/v2_incoming_runtime.hpp"
 
 #include "hope_planner_cpp/audit_logger.hpp"
 #include "a3_deploy/session_home_contract.hpp"
@@ -48,6 +50,11 @@ class PlannerNode final : public rclcpp::Node {
   ~PlannerNode() override;
 
  private:
+  std::unique_ptr<IntegratedPlannerRuntime> integrated_runtime_;
+  std::unique_ptr<V2IncomingRuntime> incoming_runtime_;
+  bool incoming_backend_ = false;
+  IncomingPlane incoming_preview() const;
+  bool publish_incoming_revocation(const V2StrikeCandidate&) noexcept;
   struct BaseSnapshot {
     Vec3 position = Vec3::Zero();
     Eigen::Quaterniond orientation = Eigen::Quaterniond::Identity();
@@ -69,7 +76,7 @@ class PlannerNode final : public rclcpp::Node {
   void base_flat_callback(const std_msgs::msg::Float64MultiArray::SharedPtr message);
   void robot_pose_callback(const geometry_msgs::msg::PoseStamped::SharedPtr message);
   void solver_loop() noexcept;
-  void publish_solve(
+  bool publish_solve(
       const BallSample& latest_sample,
       const BallState& state,
       const StrikeTarget& strike,
@@ -78,7 +85,7 @@ class PlannerNode final : public rclcpp::Node {
       const SolveAudit& audit,
       const SpinShadowAudit& spin_shadow,
       const PostNetOneShotEvent& one_shot_event,
-      std::int64_t solve_finished_steady_ns) noexcept;
+      std::int64_t solve_finished_steady_ns, WireIdentity* published_identity = nullptr) noexcept;
   void publish_diagnostics() noexcept;
   void poll_calibration_request() noexcept;
   std::pair<bool, std::string> calibrate_x_hit() noexcept;

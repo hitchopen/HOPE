@@ -1,0 +1,13 @@
+{
+  "group": "flight_v2_matched_replay_tooling",
+  "status": "passed",
+  "receipts": [
+    {
+      "status": "PASS",
+      "gate_p": "NOT_RUN_SYNTHETIC_TOOLING",
+      "matched_rows": 270,
+      "actual_one_shot_epochs": 1,
+      "figures": 6
+    }
+  ]
+}

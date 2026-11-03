@@ -1,0 +1,131 @@
+{
+  "source": "369dd6c",
+  "cases": [
+    {
+      "profile": "review_chain_300_10_known",
+      "raw_path": "qualification-06/repeated-campaign/repetition-2/review_chain_300_10_known/result.raw.json",
+      "incoming": false,
+      "run": "repetition-2"
+    },
+    {
+      "profile": "review_chain_300_12_unknown",
+      "raw_path": "qualification-06/repeated-campaign/repetition-2/review_chain_300_12_unknown/result.raw.json",
+      "incoming": false,
+      "run": "repetition-2"
+    },
+    {
+      "profile": "review_refresh_150_12_known",
+      "raw_path": "qualification-06/repeated-campaign/repetition-3/review_refresh_150_12_known/result.raw.json",
+      "incoming": false,
+      "run": "repetition-3"
+    },
+    {
+      "profile": "review_refresh_300_12_known",
+      "raw_path": "qualification-06/repeated-campaign/repetition-3/review_refresh_300_12_known/result.raw.json",
+      "incoming": false,
+      "run": "repetition-3"
+    },
+    {
+      "profile": "reacquisition_chain_300_FOLLOW_POSE_unknown",
+      "raw_path": "qualification-06/repeated-campaign/repetition-4/reacquisition_chain_300_FOLLOW_POSE_unknown/result.raw.json",
+      "incoming": false,
+      "run": "repetition-4"
+    },
+    {
+      "profile": "review_chain_300_12_known",
+      "raw_path": "qualification-06/repeated-campaign/repetition-4/review_chain_300_12_known/result.raw.json",
+      "incoming": false,
+      "run": "repetition-4"
+    },
+    {
+      "profile": "reacquisition_chain_300_ON_REFRESH_zero",
+      "raw_path": "qualification-06/repeated-campaign/repetition-5/reacquisition_chain_300_ON_REFRESH_zero/result.raw.json",
+      "incoming": false,
+      "run": "repetition-5"
+    },
+    {
+      "profile": "review_chain_300_12_zero",
+      "raw_path": "qualification-06/repeated-campaign/repetition-5/review_chain_300_12_zero/result.raw.json",
+      "incoming": false,
+      "run": "repetition-5"
+    },
+    {
+      "profile": "incoming_chain_300_per_ball_zero",
+      "raw_path": "qualification-06/incoming-campaign/repetition-1/incoming_chain_300_per_ball_zero/raw.json",
+      "incoming": true,
+      "run": "repetition-1"
+    },
+    {
+      "profile": "incoming_chain_360_per_ball_unknown",
+      "raw_path": "qualification-06/incoming-campaign/repetition-1/incoming_chain_360_per_ball_unknown/raw.json",
+      "incoming": true,
+      "run": "repetition-1"
+    },
+    {
+      "profile": "incoming_chain_150_per_ball_unknown",
+      "raw_path": "qualification-06/incoming-campaign/repetition-3/incoming_chain_150_per_ball_unknown/raw.json",
+      "incoming": true,
+      "run": "repetition-3"
+    },
+    {
+      "profile": "incoming_chain_150_per_ball_zero",
+      "raw_path": "qualification-06/incoming-campaign/repetition-4/incoming_chain_150_per_ball_zero/raw.json",
+      "incoming": true,
+      "run": "repetition-4"
+    },
+    {
+      "profile": "incoming_chain_150_stable_per_ball_zero",
+      "raw_path": "qualification-06/incoming-campaign/repetition-4/incoming_chain_150_stable_per_ball_zero/raw.json",
+      "incoming": true,
+      "run": "repetition-4"
+    },
+    {
+      "profile": "incoming_chain_360_stable_per_ball_zero",
+      "raw_path": "qualification-06/incoming-campaign/repetition-4/incoming_chain_360_stable_per_ball_zero/raw.json",
+      "incoming": true,
+      "run": "repetition-4"
+    },
+    {
+      "profile": "incoming_chain_300_fixed_unknown",
+      "raw_path": "qualification-06/incoming-campaign/repetition-5/incoming_chain_300_fixed_unknown/raw.json",
+      "incoming": true,
+      "run": "repetition-5"
+    },
+    {
+      "profile": "base_yaw_chain_150_0",
+      "raw_path": "qualification-06/build/hope_planner_cpp/base_yaw_chain_150_0.raw.json",
+      "incoming": false,
+      "run": "full_ros"
+    },
+    {
+      "profile": "review_chain_300_12_unknown",
+      "raw_path": "qualification-06/build/hope_planner_cpp/review_chain_300_12_unknown.raw.json",
+      "incoming": false,
+      "run": "full_ros"
+    },
+    {
+      "profile": "review_chain_150_12_zero",
+      "raw_path": "qualification-06/build/hope_planner_cpp/review_chain_150_12_zero.raw.json",
+      "incoming": false,
+      "run": "full_ros"
+    },
+    {
+      "profile": "review_refresh_300_10_unknown",
+      "raw_path": "qualification-06/build/hope_planner_cpp/review_refresh_300_10_unknown.raw.json",
+      "incoming": false,
+      "run": "full_ros"
+    },
+    {
+      "profile": "reacquisition_chain_300_ON_REFRESH_zero",
+      "raw_path": "qualification-06/build/hope_planner_cpp/reacquisition_chain_300_ON_REFRESH_zero.raw.json",
+      "incoming": false,
+      "run": "full_ros"
+    },
+    {
+      "profile": "incoming_chain_300_stable_per_ball_zero",
+      "raw_path": "qualification-06/build/hope_planner_cpp/incoming_chain_300_stable_per_ball_zero/raw.json.gz",
+      "incoming": true,
+      "run": "full_ros"
+    }
+  ]
+}

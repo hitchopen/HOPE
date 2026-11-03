@@ -1,0 +1,96 @@
+{
+  "status": "INCOMPLETE",
+  "qualified_source": "96034645f26b1597c093281a398fa0e62d5c93b5",
+  "code_branch": "feature/v2-incoming-validity-continuous-dropin",
+  "evidence_branch": "evidence/v2-simulation-verification-20261030",
+  "scope": "Software/supplied simulation; hardware and physical deployments excluded",
+  "raw_gate_exits": {
+    "source-commit-unchanged": 0,
+    "sanitized-configure": 0,
+    "premerge-v2-parity": 0,
+    "legacy-parity": 0,
+    "native-configure": 0,
+    "ros-test": 0,
+    "base-producer": 0,
+    "native-build": 0,
+    "repeated-campaign": 1,
+    "sanitized-build": 0,
+    "incoming-conversion": 0,
+    "ros-test-result": 1,
+    "historical-legacy-parity": 0,
+    "counterexample-cases": 0,
+    "outgoing-reference": 0,
+    "base-cases": 0,
+    "mujoco-conversion": 0,
+    "ros-result-audit": 1,
+    "review-cases": 0,
+    "incoming-campaign": 1,
+    "diagnostic-comparison": 0,
+    "sanitized-test": 0,
+    "runner-revocation": 0,
+    "ros-build": 0,
+    "policy-contract": 0,
+    "aggregate": 1,
+    "reacquisition-cases": 0,
+    "failing-before": 0,
+    "sanitizer-retention": 0,
+    "source-worktree-clean": 0,
+    "native-test": 0
+  },
+  "native_groups_passed": 25,
+  "sanitizer_groups_passed": 25,
+  "ros": {
+    "hope_msgs": {
+      "executed": 2,
+      "registered": 2,
+      "failures": {}
+    },
+    "hope_planner_cpp": {
+      "executed": 132,
+      "registered": 132,
+      "failures": {
+        "integrated_chain_150_ON_REFRESH": "failed"
+      }
+    },
+    "hope_bringup": {
+      "executed": 27,
+      "registered": 27,
+      "failures": {
+        "flake8": "failed",
+        "pep257": "failed"
+      }
+    }
+  },
+  "campaigns": {
+    "repeated-campaign": {
+      "executed": 160,
+      "raw_passed": 155,
+      "flights": 1440,
+      "useful_flights": 1440
+    },
+    "incoming-campaign": {
+      "executed": 90,
+      "raw_passed": 88,
+      "flights": 900,
+      "useful_flights": 899
+    }
+  },
+  "conversion_cases_passed": 162,
+  "physical_conversion_scenarios_covered": 81,
+  "mujoco_outgoing_replays_passed": 159,
+  "lifecycle": {
+    "controls": 14,
+    "registered_consumers": 14,
+    "exact_historical_replays": 2,
+    "instrumentation_comparisons": 4,
+    "runner_comparisons": 24,
+    "recorded_runner_replays": 4
+  },
+  "accepted_historical_publication_ms": 54.731069,
+  "new_publication_excursion_ms": 41.784759,
+  "new_excursion_assessment": "No new command authority; actual recorded command engaged before revocation; raw timing failure retained",
+  "unresolved_lost_flight_cases": 8,
+  "unresolved_case_scope": "Seven historical, one current. Raw failures are not replaced by fresh passing trials.",
+  "recovery_implemented": false,
+  "hardware_required_for_this_iteration": false
+}

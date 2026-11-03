@@ -128,6 +128,7 @@ struct PpPolicyConfig {
   // loading for old artifacts; formal HitterPingPong deploy always sets it.
   std::string deploy_cfg_path;
   bool shared_session_home = false; // Runner receipt -> Planner schema 4
+  bool planner_preengagement_revocation = false; // explicit opt-in; no active swing cancellation
   bool kernel_mode = false; // No-mocap actor WAIT test; never admits world-frame planner shots.
   int level = 1;                 // 0 = hold wind-up (quasi-stand), 1 = periodic forehand
   bool legs_passive = false;     // hold leg joints at nominal (firm PD) — for a HOISTED demo
@@ -931,6 +932,8 @@ class PpPolicy {
           hp_base_target_range_[0] != 0.0 || hp_base_target_range_[1] != 0.0)
         throw std::invalid_argument("shared HOME requires calibrated ball-clock 110-D policy with a common fixed station-relative X plane");
     }
+    if (cfg_.planner_preengagement_revocation && !cfg_.shared_session_home)
+      throw std::invalid_argument("pre-engagement revocation requires shared HOME");
     if (onnx_.uses_small_station_contract() || onnx_.uses_ball_clock_followthrough())
       std::fprintf(stderr, "[pp] validated_policy_abi=%s\n", onnx_.policy_abi());
     if (cfg_.fixed_station_replay)
@@ -1000,7 +1003,13 @@ class PpPolicy {
   // LocMode::kExternalBase. Both are written by the AimRT subscriber thread and read here
   // from the driver thread (each is internally lock-guarded + age-gated). Only consulted
   // when cfg_.planner_mode is set; absent/stale streams degrade to a held stand.
-  void SetRacketInput(std::shared_ptr<PpRacketTargetInput> r) { racket_in_ = std::move(r); }
+  void SetRacketInput(std::shared_ptr<PpRacketTargetInput> r) {
+    if (r && cfg_.planner_preengagement_revocation && !r->preengagement_revocation_enabled())
+      throw std::invalid_argument("policy revocation requires a revocation-enabled input");
+    racket_in_ = std::move(r);
+    if (racket_in_ && cfg_.planner_preengagement_revocation)
+      racket_in_->SetExpectedHomeEpoch(shared_home_receipt_.epoch);
+  }
   void SetBasePoseInput(std::shared_ptr<PpBasePoseInput> b) { base_in_ = std::move(b); }
   void SetSessionHomePublisher(std::function<void(const std::vector<double>&)> cb) {
     session_home_publish_ = std::move(cb);
@@ -1967,6 +1976,8 @@ class PpPolicy {
         shared_home_receipt_ = {shared_home_epoch_counter_, st.base_pos_w[0],
             st.base_pos_w[1], reach_offset_clip_[0][0],
             localized_calibration_id, localized_world_id, true};
+        if (racket_in_ && cfg_.planner_preengagement_revocation)
+          racket_in_->SetExpectedHomeEpoch(shared_home_receipt_.epoch);
       }
 
       std::fprintf(stderr,
@@ -4382,6 +4393,11 @@ class PpPolicy {
       set_planner_status_("session_home_mismatch");
       return;
     }
+    if (cfg_.planner_preengagement_revocation && snap.flight_revoked) {
+      ClearPendingStation_(tick_idx, "flight_revoked");
+      set_planner_status_("flight_revoked");
+      return;
+    }
     planner_current_msg_seq_ = snap.seq;
     planner_current_producer_epoch_ = snap.producer_epoch;
     planner_current_flight_id_ = snap.cmd.flight_id;
@@ -5464,6 +5480,15 @@ class PpPolicy {
       planner_tts0_ = std::min(tts, max_tts0);
       planner_late_phase_clamped_ = false;
     }
+    PpRacketTargetInput::EngagementGuard revocation_guard;
+    if (cfg_.planner_preengagement_revocation) {
+      revocation_guard = racket_in_->GuardEngagement(snap.cmd);
+      if (!revocation_guard.allowed) {
+        ClearPendingStation_(tick_idx, "flight_revoked_or_superseded");
+        set_planner_status_("flight_revoked_or_superseded");
+        return;
+      }
+    }
     planner_actor_tts0_ = tts;
     planner_engage_raw_tts_ = tts;
     planner_engage_clock_tts0_ = planner_tts0_;
@@ -5524,6 +5549,7 @@ class PpPolicy {
     ClearPendingStation_(tick_idx, "engaged");  // hold station remains the recovery/next-transition anchor
     set_swing_dir(sign >= 0.0 ? 1 : -1);
     set_level(1);
+    if (revocation_guard.lock.owns_lock()) revocation_guard.lock.unlock();
     // Planner engagement is the authoritative start edge. Reset explicitly because an internally
     // completed swing may accept a same-side flight immediately; relying only on the later edge
     // detector used to consume that flight against the previous clock origin.

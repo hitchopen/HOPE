@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "mode": "v2/shared_physics/shadow",
+  "source_clock_domain": "ros_system",
+  "ball": {
+    "producer": "optitrack_mct_relay",
+    "upstream": "/optitrack/poses",
+    "upstream_type": "motion_capture_tracking_interfaces/msg/NamedPoseArrayV2",
+    "topic": "/hope/ball/observation_v2",
+    "type": "hope_msgs/msg/BallObservationV2",
+    "schema": 2,
+    "qos": {
+      "reliability": "BEST_EFFORT",
+      "depth": 1,
+      "durability": "VOLATILE"
+    },
+    "rate_hz": [
+      150,
+      300
+    ],
+    "required": true,
+    "max_age_ms": 30,
+    "max_clock_uncertainty_ms": 1,
+    "identity_fields": [
+      "frame_id",
+      "calibration_id",
+      "ball_id",
+      "clock_domain",
+      "clock_mapping_id"
+    ],
+    "out_of_order": "ignore_without_refresh",
+    "unsupported_orientation": "retain_position_only",
+    "test": "integrated_chain_*"
+  },
+  "base": {
+    "producer": "hope_base_pose_flat_relay",
+    "upstream": "/UCB_P1/pose",
+    "topic": "/a3/base_pose_flat",
+    "type": "std_msgs/msg/Float64MultiArray",
+    "schema": 2,
+    "elements": 16,
+    "required_flags": 47,
+    "producer_qos": {
+      "reliability": "RELIABLE",
+      "depth": 10
+    },
+    "consumer_qos": {
+      "reliability": "BEST_EFFORT",
+      "depth": 10
+    },
+    "required": true,
+    "max_age_ms": 200,
+    "tested_timestamp_mode": "input_header",
+    "test": "integrated_chain_*"
+  },
+  "game_context": {
+    "required": false,
+    "topic": "/hope/integrated_planner/game_context",
+    "type": "hope_msgs/msg/FlightContextV2",
+    "operation": "CONTEXT",
+    "qos": {
+      "reliability": "RELIABLE",
+      "depth": 4
+    },
+    "effect": "diagnostics_only",
+    "history_upgrade": false
+  },
+  "support": {
+    "optitrack_relay_replay": "tested_after_camera_driver",
+    "optitrack_camera": "NOT_RUN",
+    "vrpn_integrated": "UNSUPPORTED",
+    "base_local_receipt_mode": "NOT_QUALIFIED",
+    "cross_host_clock_and_network": "NOT_QUALIFIED"
+  },
+  "frame": {
+    "axes": "+X toward opponent, +Z up",
+    "units": "SI",
+    "table_surface_z_m": 0,
+    "ball_radius_m": 0.02,
+    "receiving_plane": "base_x + 0.58m",
+    "nonzero_backhand_plane_delta": "REJECTED"
+  },
+  "wire": {
+    "schema": 2,
+    "elements": 19,
+    "integer_max": 4503599627370496,
+    "producer_epoch": "coordinated_restart_required",
+    "target_reference": "ball_center",
+    "policy_z_offset_m": 0.76,
+    "normal": "normalized_positive_X_racket_velocity",
+    "live": "UNAVAILABLE_PENDING_QUALIFICATION"
+  }
+}

@@ -1,4 +1,5 @@
 #include "hope_planner_cpp/planner_node.hpp"
+#include "hope_planner_cpp/v2_managed_revocation.hpp"
 #include "hope_planner_cpp/future_contact_parameters.hpp"
 #include "hope_planner_cpp/hit_speed_scale_state.hpp"
 
@@ -81,6 +82,13 @@ std::int64_t PlannerNode::wall_now_ns() noexcept {
 
 PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
     : rclcpp::Node("hope_planner", options) {
+  const auto backend = declare_parameter<std::string>("prediction_backend", "legacy");
+  if (backend == "v2") {
+    integrated_runtime_ = std::make_unique<IntegratedPlannerRuntime>(*this);
+    return;
+  }
+  incoming_backend_ = backend == "v2_incoming";
+  if (backend != "legacy" && !incoming_backend_) throw std::invalid_argument("unknown prediction_backend");
   declare_parameter<std::string>("ball_rigid_body_name", "pingpong_ball");
   ball_pose_index_ = static_cast<int>(declare_parameter<int>("ball_pose_index", 0));
   input_qos_depth_ = std::clamp(
@@ -300,7 +308,7 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   }
   publish_flat_command_ = declare_parameter<bool>("publish_flat_cmd", true);
   publish_base_flat_ = declare_parameter<bool>("publish_base_flat", false);
-  publish_serve_ball_flat_ = declare_parameter<bool>("publish_serve_ball_flat", true);
+  publish_serve_ball_flat_ = declare_parameter<bool>("publish_serve_ball_flat", !incoming_backend_);
   racket_flat_schema_ = static_cast<int>(
       declare_parameter<int>("racket_flat_schema", 2));
   if (racket_flat_schema_ != 2 && racket_flat_schema_ != 3 && racket_flat_schema_ != 4) {
@@ -317,8 +325,14 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
     home_subscription_ = create_subscription<std_msgs::msg::Float64MultiArray>(
         home_topic, rclcpp::QoS(10).reliable().durability_volatile(),
         [this](std_msgs::msg::Float64MultiArray::ConstSharedPtr msg) {
-          std::lock_guard<std::mutex> lock(base_mutex_);
-          shared_home_.accept(msg->data, steady_now_ns());
+          const auto update = [this, &msg] {
+            std::lock_guard<std::mutex> lock(base_mutex_);
+            shared_home_.accept(msg->data, steady_now_ns());
+            return std::make_pair(shared_home_.value.epoch, base_.valid &&
+                (!incoming_runtime_ || incoming_runtime_->reference_matches(base_.calibration_id, base_.world_id)));
+          };
+          if (incoming_runtime_) incoming_runtime_->update_reference(update);
+          else update();
         });
   }
   reach_permission_config_.enabled =
@@ -429,7 +443,12 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
             static_cast<std::size_t>(question_fixture_expected_flights)));
   }
   const std::string flat_topic =
-      declare_parameter<std::string>("racket_flat_topic", "/racket/command_flat");
+      declare_parameter<std::string>("racket_flat_topic", incoming_backend_
+          ? std::string(V2IncomingRuntime::prefix)+"command_flat" : "/racket/command_flat");
+  if (incoming_backend_ && (!flight_packet_input_enabled_ || !post_net_one_shot_enabled_ ||
+      racket_flat_schema_ != 4 || question_fixture_enabled_ || publish_base_flat_ ||
+      publish_serve_ball_flat_ || flat_topic != std::string(V2IncomingRuntime::prefix)+"command_flat"))
+    throw std::invalid_argument("v2_incoming requires managed packet/schema4 and protected shadow command outputs");
   rcl_interfaces::msg::ParameterDescriptor plane_descriptor;
   plane_descriptor.read_only = true;
   plane_descriptor.description = "Initial plane mode; runtime changes use /hope/planner/set_plane_mode";
@@ -440,7 +459,7 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
     throw std::invalid_argument("runtime plane modes require shared HOME and one-shot Planner");
   runtime_plane_.request(initial_plane_mode);
   plane_mode_service_ = create_service<rcl_interfaces::srv::SetParametersAtomically>(
-      "/hope/planner/set_plane_mode",
+      incoming_backend_ ? std::string(V2IncomingRuntime::prefix)+"set_plane_mode" : "/hope/planner/set_plane_mode",
       [this](const std::shared_ptr<rcl_interfaces::srv::SetParametersAtomically::Request> request,
              std::shared_ptr<rcl_interfaces::srv::SetParametersAtomically::Response> response) {
         try {
@@ -475,7 +494,7 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   }
   hit_speed_scale_.store(initial_scale);
   hit_speed_scale_service_ = create_service<rcl_interfaces::srv::SetParametersAtomically>(
-      "/hope/planner/set_hit_speed_scale",
+      incoming_backend_ ? std::string(V2IncomingRuntime::prefix)+"set_hit_speed_scale" : "/hope/planner/set_hit_speed_scale",
       [this](const std::shared_ptr<rcl_interfaces::srv::SetParametersAtomically::Request> request,
              std::shared_ptr<rcl_interfaces::srv::SetParametersAtomically::Response> response) {
         if (question_fixture_enabled_ || request->parameters.size() != 1 ||
@@ -616,10 +635,15 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   }
   if (publish_typed) {
     typed_publisher_ = create_publisher<hope_msgs::msg::RacketCommand>(
-        "/racket/command", command_qos);
+        incoming_backend_ ? std::string(V2IncomingRuntime::prefix)+"command" : "/racket/command", command_qos);
   }
+  if (incoming_backend_ && ((flat_publisher_ && std::string(flat_publisher_->get_topic_name()) !=
+      std::string(V2IncomingRuntime::prefix)+"command_flat") ||
+      (typed_publisher_ && std::string(typed_publisher_->get_topic_name()) !=
+      std::string(V2IncomingRuntime::prefix)+"command")))
+    throw std::invalid_argument("v2_incoming shadow command outputs cannot be remapped");
   diagnostics_publisher_ = create_publisher<diagnostic_msgs::msg::DiagnosticArray>(
-      "/planner/diagnostics", rclcpp::QoS(1));
+      incoming_backend_ ? std::string(V2IncomingRuntime::prefix)+"diagnostics" : "/planner/diagnostics", rclcpp::QoS(1));
 
   ball_callback_group_ = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   base_callback_group_ = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -673,7 +697,8 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
         response->message = result.second;
       });
   hit_plane_publisher_ = create_publisher<std_msgs::msg::Float64MultiArray>(
-      "/hope/planner/hit_plane", rclcpp::QoS(1).reliable().transient_local());
+      incoming_backend_ ? std::string(V2IncomingRuntime::prefix)+"hit_plane" : "/hope/planner/hit_plane",
+      rclcpp::QoS(1).reliable().transient_local());
   diagnostics_timer_ = create_wall_timer(1s, [this] { publish_diagnostics(); });
   if (!x_hit_request_file_.empty()) {
     calibration_timer_ = create_wall_timer(100ms, [this] { poll_calibration_request(); });
@@ -682,6 +707,11 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   RCLCPP_INFO(get_logger(), "Future contact model: tangential_gain=%.6f restitution_v=%.6f",
               post_net_future_bounce_tangential_gain_, post_net_future_bounce_restitution_v_);
   health_previous_steady_ns_ = steady_now_ns();
+  if (incoming_backend_) incoming_runtime_ = std::make_unique<V2IncomingRuntime>(
+      *this, physics_, table_, [this] { wake_condition_.notify_one(); }, [this] {
+        const auto plane = incoming_preview();
+        return std::make_pair(plane.selection.epoch, plane.selection.valid);
+      }, [this](const V2StrikeCandidate& status) { return publish_incoming_revocation(status); });
   solver_thread_ = std::thread(&PlannerNode::solver_loop, this);
 
   RCLCPP_INFO(
@@ -694,7 +724,7 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
 
   RCLCPP_INFO(
       get_logger(),
-      "HOPE C++ planner started: estimator=batch_physics_cpp_no_ekf_persistent_bounce "
+      "HOPE C++ planner started: estimator=%s "
       "input_depth=%d solve_period=%.3f x_hit=%.3f freeze_home=%d "
       "schema=%d reach=%s "
       "window=%.3f min_span=%.3f huber=%.4f recency_half_life=%.3f "
@@ -705,6 +735,7 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       "net_x=%.3f commit_delay=%.3f "
       "future_bounce_gain=%.3f incoming=(margin=%.3f vin=%.3f vout=%.3f "
       "fit=%zu confirm=%zu preroll=%zu gap=%.3f) question_fixture=%d",
+      incoming_backend_ ? "v2_shared_ckf" : "batch_physics_cpp_no_ekf_persistent_bounce",
       input_qos_depth_, solve_period_s_, x_hit_fh_.load(),
       x_hit_freeze_session_home_ ? 1 : 0,
       racket_flat_schema_, reach_permission_config_.contract.c_str(),
@@ -744,6 +775,7 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
 }
 
 PlannerNode::~PlannerNode() {
+  integrated_runtime_.reset();
   stop_requested_.store(true, std::memory_order_release);
   wake_condition_.notify_all();
   if (solver_thread_.joinable()) {
@@ -1001,6 +1033,11 @@ void PlannerNode::flight_packet_callback(
             identity_key.c_str(), message->payload_hash.c_str());
         return;
       }
+      if (incoming_backend_ && !flight_packet_queue_.empty()) {
+        flight_packets_invalid_.fetch_add(1, std::memory_order_relaxed);
+        write_receive_audit("bounded_command_queue_full", false, flight_packet_queue_.size());
+        return;
+      }
       flight_packet_queue_.push_back(std::move(snapshot));
       accepted_queue_depth = flight_packet_queue_.size();
     }
@@ -1035,6 +1072,8 @@ bool PlannerNode::try_take_flight_packet(
     TrajectorySnapshot& snapshot) noexcept {
   std::lock_guard<std::mutex> lock(flight_packet_mutex_);
   if (flight_packet_queue_.empty()) return false;
+  if (incoming_runtime_ && !incoming_runtime_->packet_ready(
+      flight_packet_queue_.front().latest_sample()->source_time_ns)) return false;
   snapshot = std::move(flight_packet_queue_.front());
   flight_packet_queue_.pop_front();
   return true;
@@ -1042,7 +1081,8 @@ bool PlannerNode::try_take_flight_packet(
 
 bool PlannerNode::has_pending_flight_packet() const noexcept {
   std::lock_guard<std::mutex> lock(flight_packet_mutex_);
-  return !flight_packet_queue_.empty();
+  return !flight_packet_queue_.empty() && (!incoming_runtime_ || incoming_runtime_->packet_ready(
+      flight_packet_queue_.front().latest_sample()->source_time_ns));
 }
 
 std::size_t PlannerNode::flight_packet_queue_depth() const noexcept {
@@ -1051,12 +1091,62 @@ std::size_t PlannerNode::flight_packet_queue_depth() const noexcept {
 }
 
 void PlannerNode::set_base_snapshot(const BaseSnapshot& snapshot) noexcept {
-  std::lock_guard<std::mutex> lock(base_mutex_);
   // A valid base packet at process startup is not a HOME receipt.  Gate3 publishes an origin
   // sample before reset/placement; latching here classified both physical lanes as FH.  HOME is
   // frozen at the first valid solve for legacy wire schemas. Schema 4 uses
   // the Runner policy-entry receipt for both plane and side choice.
-  base_ = snapshot;
+  const auto update = [this, &snapshot] {
+    std::lock_guard<std::mutex> lock(base_mutex_);
+    base_ = snapshot;
+    return std::make_pair(shared_home_.value.epoch, base_.valid &&
+        (!incoming_runtime_ || incoming_runtime_->reference_matches(base_.calibration_id, base_.world_id)));
+  };
+  if (incoming_runtime_) incoming_runtime_->update_reference(update);
+  else update();
+}
+
+IncomingPlane PlannerNode::incoming_preview() const {
+  std::lock_guard<std::mutex> lock(base_mutex_);
+  const auto now = steady_now_ns();
+  PlaneSelection selection;
+  selection.mode = runtime_plane_.requested();
+  selection.epoch = shared_home_.value.epoch;
+  selection.reference_x = shared_home_.value.x;
+  const bool home_fresh = shared_home_.fresh(now,
+      static_cast<std::int64_t>(session_home_max_age_s_ * 1e9), base_.calibration_id, base_.world_id);
+  const long double source_age = static_cast<long double>(wall_now_ns()) - base_.source_stamp_ns;
+  const bool body_fresh = base_.valid && base_.orientation_valid &&
+      now - base_.receipt_steady_ns >= 0 && now - base_.receipt_steady_ns <= target_turn_max_pose_age_s_ * 1e9 &&
+      source_age >= -1000000.L && source_age <= target_turn_max_pose_age_s_ * 1e9;
+  selection.valid = home_fresh && base_.valid && incoming_runtime_->reference_matches(
+      base_.calibration_id, base_.world_id);
+  if (selection.mode != PlaneMode::Fixed) {
+    selection.valid = selection.valid && body_fresh && shared_home_.value.runtime_planes;
+    const auto last = runtime_plane_.last_command();
+    if (last.valid && last.epoch == selection.epoch) selection.reference_x = last.reference_x;
+    if (selection.mode == PlaneMode::PerBall || shared_home_.posture_stable)
+      selection.reference_x = base_.position.x();
+  }
+  selection.plane_x = selection.reference_x + shared_home_.value.plane_x;
+  selection.reason = selection.valid ? "managed_preview" : "reference_unavailable";
+  const auto& contract = incoming_runtime_->contract();
+  return incoming_plane(selection, contract.frame, contract.registration,
+                        selection.mode != PlaneMode::Fixed, base_.source_stamp_ns);
+}
+
+bool PlannerNode::publish_incoming_revocation(const V2StrikeCandidate& status) noexcept {
+  try {
+    std::lock_guard<std::mutex> lock(hit_speed_scale_publish_mutex_);
+    const auto identity = schema2_packer_.next_identity(false, steady_now_ns());
+    const auto wire = managed_revocation(status, identity, wall_now_ns());
+    if (!wire || !flat_publisher_) return false;
+    std_msgs::msg::Float64MultiArray message; message.data = *wire;
+    flat_publisher_->publish(message);
+    return true;
+  } catch (const std::exception& e) {
+    RCLCPP_ERROR(get_logger(), "incoming revocation publication failed: %s", e.what());
+    return false;
+  }
 }
 
 PlannerNode::BaseSnapshot PlannerNode::base_snapshot() const noexcept {
@@ -1226,6 +1316,7 @@ void PlannerNode::solver_loop() noexcept {
         std::numeric_limits<double>::quiet_NaN();
     std::string pending_segment_boundary_reason = "none";
     FlightPacketMetadata pending_flight_packet;
+    TrajectorySnapshot incoming_packet;
     while (!stop_requested_.load(std::memory_order_acquire)) {
       {
         std::unique_lock<std::mutex> lock(wake_mutex_);
@@ -1233,7 +1324,7 @@ void PlannerNode::solver_loop() noexcept {
           return stop_requested_.load(std::memory_order_acquire) ||
                  input_ring_.size_approx() > 0 ||
                  snapshot_mailbox_.has_pending() ||
-                 has_pending_flight_packet();
+                 has_pending_flight_packet() || (incoming_runtime_ && incoming_runtime_->pending());
         });
       }
       if (stop_requested_.load(std::memory_order_acquire)) {
@@ -1252,11 +1343,14 @@ void PlannerNode::solver_loop() noexcept {
             : snapshot_mailbox_.try_take(snapshot);
         if (snapshot_available &&
             snapshot.sample_count > 0 && snapshot.latest_sample()) {
-          estimator_->reset();
-          spin_estimator_->reset();
-          for (std::size_t i = 0; i < snapshot.sample_count; ++i) {
-            estimator_->push(snapshot.samples[i]);
-            spin_estimator_->push(snapshot.samples[i]);
+          if (incoming_runtime_) incoming_packet = snapshot;
+          else {
+            estimator_->reset();
+            spin_estimator_->reset();
+            for (std::size_t i = 0; i < snapshot.sample_count; ++i) {
+              estimator_->push(snapshot.samples[i]);
+              spin_estimator_->push(snapshot.samples[i]);
+            }
           }
           latest_sample = *snapshot.latest_sample();
           consumed_now = snapshot.sample_count;
@@ -1287,6 +1381,7 @@ void PlannerNode::solver_loop() noexcept {
         if (consumed_now > 0) solve_pending = true;
       }
       if (!solve_pending) {
+        if (incoming_runtime_) incoming_runtime_->continuous(incoming_preview());
         continue;
       }
       const auto solve_start_ns = steady_now_ns();
@@ -1341,11 +1436,12 @@ void PlannerNode::solver_loop() noexcept {
                  maximum_batch, audit.input_samples_consumed)) {
       }
       const auto estimator_start = steady_now_ns();
-      const BallState state = estimator_->estimate();
+      BallState state = incoming_runtime_ ? BallState{} : estimator_->estimate();
       SpinShadowAudit spin_shadow;
-      spin_shadow.enabled = spin_shadow_enabled_;
-      spin_shadow.mode = spin_shadow_enabled_ ? spin_shadow_mode_name_ : "disabled";
-      spin_shadow.spin = state.spin_model_enabled ? state.physics_spin : spin_estimator_->estimate();
+      spin_shadow.enabled = spin_shadow_enabled_ && !incoming_runtime_;
+      spin_shadow.mode = spin_shadow.enabled ? spin_shadow_mode_name_ : "disabled";
+      spin_shadow.spin = incoming_runtime_ ? SpinEstimate{} :
+          (state.spin_model_enabled ? state.physics_spin : spin_estimator_->estimate());
       if (spin_shadow.spin.valid) {
         ++spin_valid_count_;
       }
@@ -1359,7 +1455,17 @@ void PlannerNode::solver_loop() noexcept {
           post_net_one_shot_enabled_ && post_net_predictor_
           ? post_net_predictor_.get()
           : predictor_.get();
-      if (state.valid && (racket_flat_schema_ != 4 || solve_home_valid_)) {
+      if (incoming_runtime_) {
+        const auto& contract = incoming_runtime_->contract();
+        auto selected = solve_plane_;
+        selected.valid = selected.valid && solve_home_valid_;
+        strike = incoming_runtime_->packet(incoming_packet,
+            incoming_plane(selected, contract.frame, contract.registration, false), state);
+        if (strike.valid) {
+          const auto base = base_snapshot();
+          swing_sign = select_swing_sign(strike.ball_position.y(), base.position.x(), base.position.y());
+        }
+      } else if (state.valid && (racket_flat_schema_ != 4 || solve_home_valid_)) {
         strike = post_net_one_shot_enabled_
             ? future_contact_predictor_->predict(state, active_x_hit(), spin_shadow.spin)
             : control_predictor->predict_with_spin(state, active_x_hit(), Vec3::Zero(),
@@ -1386,7 +1492,7 @@ void PlannerNode::solver_loop() noexcept {
       }
       if (racket_flat_schema_ == 4 && !solve_home_valid_) strike.reason =
           solve_plane_.valid ? "runner_home_missing_stale_or_frame_mismatch" : solve_plane_.reason;
-      if (spin_shadow_enabled_ && state.valid && (racket_flat_schema_ != 4 || solve_home_valid_)) {
+      if (!incoming_runtime_ && spin_shadow_enabled_ && state.valid && (racket_flat_schema_ != 4 || solve_home_valid_)) {
         const double shadow_x_hit =
             active_x_hit() + (swing_sign < 0.0 ? x_hit_bh_delta_ : 0.0);
         // Missing/unusable orientation deliberately falls back to zero omega
@@ -1501,9 +1607,18 @@ void PlannerNode::solver_loop() noexcept {
       audit.reason = command.valid ? "command_valid" :
           (strike.valid ? command.reason : strike.reason);
       ++solve_count_;
-      publish_solve(
-          latest_sample, state, strike, command, swing_sign, audit, spin_shadow,
-          one_shot_event, solve_finish_ns);
+      if (incoming_runtime_) {
+        incoming_runtime_->command([&](V2StrikeCandidate& candidate) {
+          WireIdentity identity;
+          const bool valid = publish_solve(latest_sample, state, strike, command,
+              swing_sign, audit, spin_shadow, one_shot_event, solve_finish_ns, &identity);
+          candidate.command_sequence = identity.command_sequence;
+          candidate.command_flight_id = identity.flight_id;
+          candidate.command_revision_id = identity.revision_id;
+          return valid;
+        });
+      } else publish_solve(latest_sample, state, strike, command, swing_sign, audit,
+                           spin_shadow, one_shot_event, solve_finish_ns);
       solve_pending = false;
       pending_input_samples = 0;
       one_shot_event = PostNetOneShotEvent{};
@@ -1523,7 +1638,7 @@ void PlannerNode::solver_loop() noexcept {
   }
 }
 
-void PlannerNode::publish_solve(
+bool PlannerNode::publish_solve(
     const BallSample& latest_sample,
     const BallState& state,
     const StrikeTarget& strike,
@@ -1532,7 +1647,7 @@ void PlannerNode::publish_solve(
     const SolveAudit& audit,
     const SpinShadowAudit& spin_shadow,
     const PostNetOneShotEvent& one_shot_event,
-    std::int64_t solve_finished_steady_ns) noexcept {
+    std::int64_t solve_finished_steady_ns, WireIdentity* published_identity) noexcept {
   try {
     std::lock_guard<std::mutex> filter_lock(hit_speed_scale_publish_mutex_);
     const double hit_speed_scale = hit_speed_scale_.load();
@@ -1707,6 +1822,7 @@ void PlannerNode::publish_solve(
       }
     }
     if (packet_valid) {
+      if (published_identity) *published_identity = identity;
       last_command_hit_speed_scale_.store(hit_speed_scale);
       if (racket_flat_schema_ == 4) {
         auto published_plane = solve_plane_;
@@ -1934,9 +2050,11 @@ void PlannerNode::publish_solve(
           << ',' << hit_speed_scale;
       audit_logger_->enqueue(row.str());
     }
+    return packet_valid;
   } catch (...) {
     RCLCPP_ERROR(get_logger(), "failed to publish one planner solve");
   }
+  return false;
 }
 
 void PlannerNode::publish_diagnostics() noexcept {
@@ -1984,8 +2102,21 @@ void PlannerNode::publish_diagnostics() noexcept {
     status.level = ring_drops_.load() == 0 && snapshot_mailbox_.superseded() == 0
         ? diagnostic_msgs::msg::DiagnosticStatus::OK
         : diagnostic_msgs::msg::DiagnosticStatus::WARN;
-    status.message =
+    status.message = incoming_backend_ ? "v2_shared_ckf; shadow commands; packet receive counters" :
         "batch_physics_cpp_no_ekf_persistent_bounce; diagnostics are audit-only";
+    if (incoming_runtime_) {
+      const auto counters = incoming_runtime_->counters();
+      for (const auto& entry : std::vector<std::pair<std::string, std::uint64_t>>{
+          {"incoming_observations", counters.offered}, {"incoming_qualified", counters.qualified},
+          {"incoming_tracker_accepted", counters.tracker_accepted},
+          {"incoming_tracker_rejected", counters.tracker_rejected},
+          {"incoming_queries", counters.queries}, {"incoming_completed", counters.completed},
+          {"incoming_obsolete", counters.obsolete}, {"incoming_commands", counters.commands},
+          {"incoming_revoked", counters.revoked}, {"incoming_history", counters.history},
+          {"incoming_checkpoints", counters.checkpoints},
+          {"incoming_superseded", incoming_runtime_->superseded()}})
+        status.values.push_back(diagnostic_value(entry.first, std::to_string(entry.second)));
+    }
     status.values.push_back(diagnostic_value("hit_speed_scale", scale_string(hit_speed_scale_.load())));
     status.values.push_back(diagnostic_value("hit_speed_scale_configurable", question_fixture_enabled_ ? "false" : "true"));
     status.values.push_back(diagnostic_value("hit_speed_scale_persistent", !question_fixture_enabled_ && !hit_speed_scale_state_file_.empty() ? "true" : "false"));

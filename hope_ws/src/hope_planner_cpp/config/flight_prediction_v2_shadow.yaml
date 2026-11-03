@@ -1,0 +1,23 @@
+hope_flight_prediction_v2:
+  ros__parameters:
+    shadow_only: true
+    frame_id: table
+    registration_id: UNQUALIFIED_SHADOW_REPLACE_BEFORE_ADOPTION
+    world_frame_id: 1
+    plane_policy: FOLLOW_POSE
+    plane_offset_m: 0.58
+    synthetic_plane: false
+    integration_dt_s: 0.001
+    horizon_s: 1.5
+    trajectory_dt_s: 0.005
+    # Maximum full/packet cadence; 0 publishes every completed latest result.
+    full_output_rate_hz: 50.0
+    packet_output_rate_hz: 50.0
+    max_source_age_s: 0.030
+    context_authority: fixture
+    physics.drag_k: 0.12861635416914574
+    physics.magnus_k: 0.00379260504480258
+    physics.restitution_v: 0.9313775047019153
+    physics.table_tangential_gain: 0.38744443855065164
+    physics.table_friction_cap_mu: 0.16706204822993975
+    physics.radius: 0.02

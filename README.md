@@ -474,3 +474,11 @@ serve/receive transitions, and saved field calibration/serve files. See the
 [validation limits](docs/operations/runtime_public_validation.md). This checkout
 includes the ready-to-install Foxglove `.foxe`, HumanLike locomotion bundle and
 serve CSVs.
+
+## Isolated V2 ball-flight shadow
+
+The opt-in [V2 physical forecaster](hope_ws/src/hope_planner_cpp/docs/flight_prediction_implementation.md)
+adds source-timed ball state, physical events, registered-plane intersection and
+causal checkpoint transport. It generates no racket commands and leaves legacy
+production prediction/control behavior unchanged. See [validation and limits](hope_ws/src/hope_planner_cpp/docs/flight_prediction_acceptance.md);
+live clock/frame registration and independent real-ball accuracy remain unqualified.

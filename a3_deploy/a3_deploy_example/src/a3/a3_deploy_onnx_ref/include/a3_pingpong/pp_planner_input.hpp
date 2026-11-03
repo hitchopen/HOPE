@@ -136,8 +136,12 @@ struct PpRacketMsg {
 // (the planner_invalid_grace_s flutter tolerance from the Python runner).
 class PpRacketTargetInput {
  public:
-  explicit PpRacketTargetInput(int expected_revisioned_schema = 0)
-      : expected_revisioned_schema_(expected_revisioned_schema) {
+  explicit PpRacketTargetInput(int expected_revisioned_schema = 0,
+                               bool preengagement_revocation = false)
+      : expected_revisioned_schema_(expected_revisioned_schema),
+        preengagement_revocation_(preengagement_revocation) {
+    if (preengagement_revocation_ && expected_revisioned_schema_ != 4)
+      throw std::invalid_argument("pre-engagement revocation requires shared HOME schema 4/5");
     if (expected_revisioned_schema_ != 0 &&
         expected_revisioned_schema_ != 2 &&
         expected_revisioned_schema_ != 3 && expected_revisioned_schema_ != 4) {
@@ -198,6 +202,7 @@ class PpRacketTargetInput {
     double producer_age_s = 1e9; // cross-host wall age (audit only)
     double control_time_to_strike_s = -1e9; // monotonic absolute-deadline countdown
     bool invalid_after = false;  // an invalid arrived AFTER the newest valid
+    bool flight_revoked = false; // opt-in veto; never means an active swing was cancelled
     std::uint64_t seq = 0;       // accepted packet or schema-2 command sequence
     std::uint64_t producer_epoch = 0; // coherent with cmd; zero for legacy schema 1
   };
@@ -211,6 +216,8 @@ class PpRacketTargetInput {
     if (last_valid_receipt_steady_ < 0.0) return s;  // no valid yet
     s.has_valid = true;
     s.cmd = last_valid_;
+    s.flight_revoked = preengagement_revocation_ &&
+        (revocation_overflow_ || revoked_flights_.count(last_valid_.flight_id) != 0);
     s.producer_epoch = last_valid_.producer_epoch;
     s.valid_age_s = now_steady - last_valid_receipt_steady_;
     const bool absolute_deadline_schema =
@@ -226,6 +233,35 @@ class PpRacketTargetInput {
   }
 
   bool has_any() const { return any_.load(); }
+  bool preengagement_revocation_enabled() const { return preengagement_revocation_; }
+
+  // Only the local policy's authoritative HOME receipt establishes a session.
+  // Cross-session packets cannot consume its transport sequence space.
+  void SetExpectedHomeEpoch(std::uint64_t epoch) {
+    if (!preengagement_revocation_) return;
+    std::lock_guard<std::mutex> lock(mu_);
+    if (!epoch || epoch <= expected_home_epoch_) return;
+    expected_home_epoch_ = epoch;
+    revoked_flights_.clear(); revocation_overflow_ = false;
+    have_wire_seq_ = have_schema2_valid_ = false;
+    last_valid_receipt_steady_ = last_valid_wall_ = -1.;
+    last_valid_event_seq_ = last_invalid_event_seq_ = 0;
+    seq_ = last_wire_seq_ = 0;
+  }
+  struct EngagementGuard {
+    std::unique_lock<std::mutex> lock;
+    bool allowed = true;
+  };
+  EngagementGuard GuardEngagement(const PpRacketMsg& command) {
+    EngagementGuard guard;
+    if (!preengagement_revocation_) return guard;
+    guard.lock = std::unique_lock<std::mutex>(mu_);
+    guard.allowed = !revocation_overflow_ && command.home_epoch == expected_home_epoch_ &&
+        command.flight_id != 0 && !revoked_flights_.count(command.flight_id) &&
+        last_valid_receipt_steady_ >= 0 && command.command_seq == last_valid_.command_seq &&
+        command.flight_id == last_valid_.flight_id && command.revision_id == last_valid_.revision_id;
+    return guard;
+  }
 
  private:
   static bool ExactU52_(double value, std::uint64_t& out,
@@ -389,6 +425,32 @@ class PpRacketTargetInput {
     bool reach_label_mutation = false;
     {
       std::lock_guard<std::mutex> lk(mu_);
+      if (preengagement_revocation_) {
+        if (!expected_home_epoch_ || home_epoch != expected_home_epoch_) return;
+        if (m.valid && (revocation_overflow_ || revoked_flights_.count(flight_id))) return;
+        if (!m.valid) {
+          // Order a veto against its own retained command. A later packet for
+          // another flight must not hide a delayed, still-authoritative veto.
+          // Identity-free legacy invalid messages remain advisory.
+          if (!flight_id || !revision_id ||
+              (last_valid_receipt_steady_ >= 0 && flight_id == last_valid_.flight_id &&
+               (command_seq <= last_valid_.command_seq ||
+                revision_id <= last_valid_.revision_id))) return;
+          auto previous = revoked_flights_.find(flight_id);
+          if (previous != revoked_flights_.end() && revision_id <= previous->second) return;
+          if (previous == revoked_flights_.end() && revoked_flights_.size() >= 256)
+            revocation_overflow_ = true;
+          else revoked_flights_[flight_id] = revision_id;
+          have_wire_seq_ = true;
+          last_wire_seq_ = seq_ = std::max(last_wire_seq_, command_seq);
+          if (last_valid_receipt_steady_ >= 0 && flight_id == last_valid_.flight_id) {
+            last_invalid_event_seq_ = ++event_seq_;
+            last_invalid_wall_ = now_wall;
+          }
+          any_ = true;
+          return;
+        }
+      }
       // Shared-reference modes are strictly one-shot. Never let a later mode
       // switch/revision move an already accepted physical-flight target.
       if (schema5 && m.valid && shared_reference_flights_.count({home_epoch, flight_id})) return;
@@ -549,6 +611,10 @@ class PpRacketTargetInput {
   std::map<std::uint64_t, std::pair<double, double>>
       schema3_permission_by_flight_;
   const int expected_revisioned_schema_ = 0;
+  const bool preengagement_revocation_ = false;
+  std::uint64_t expected_home_epoch_ = 0;
+  std::map<std::uint64_t, std::uint64_t> revoked_flights_;
+  bool revocation_overflow_ = false;
 };
 
 // ---------------------------- pre-serve ball state -------------------------

@@ -1,0 +1,65 @@
+{
+  "reason": "Independent post-minimum motion corroboration withholds the contact for one source cutoff; exact equality resumes at the next cutoff. Explicitly pinned differences, no numerical tolerance or broad exclusion.",
+  "baseline": "47296db5653c6dda7d397d7a82153f69fa4ed4fb",
+  "correction_commit": "072ba6e",
+  "total_cutoffs": 789,
+  "changed_cutoffs": 7,
+  "fixtures": {
+    "reacquisition_source_cutoff_parity-150-False.csv": [
+      {
+        "index": 48,
+        "source_ns": 1792738113179195069,
+        "before_sha256": "f976ac585ea509699fcbf8c43ef9f4d012908daedf86b9d15296f983bba58e66",
+        "after_sha256": "5cd758dd7b96119ad7c0008dfcfb0c116f398cf2128c62c97404df051ae47c55"
+      }
+    ],
+    "reacquisition_source_cutoff_parity-150-True.csv": [
+      {
+        "index": 50,
+        "source_ns": 1792738114552720142,
+        "before_sha256": "c48184b806aecb15fcb88032c252c81effd7720c1b855bd3985dee714ffa1a02",
+        "after_sha256": "a72c6aca278cf5829e1678dcd0bd8330eb4201f4a86786a0f874b0e50e839519"
+      }
+    ],
+    "reacquisition_source_cutoff_parity-300-False.csv": [
+      {
+        "index": 95,
+        "source_ns": 1792738115893283386,
+        "before_sha256": "a1aa5ef9ae75ee8b55cde0514199d0a147db2e77eda59d4dd670cce45b658d43",
+        "after_sha256": "a471b97e180f0a318a8ca899994d68c76326b6f559332489173d7272eafe4c1d"
+      }
+    ],
+    "review_source_cutoff_parity-150-True-producer-zero.csv": [
+      {
+        "index": 33,
+        "source_ns": 1792737925871858243,
+        "before_sha256": "5602776bacccae66e98e31d0f429c0c809f82dd04b3d4a7601291bee010c3a6a",
+        "after_sha256": "b94614c7ba9d070c7346a61cc6c068f4c6f29c51c82f138ba1359807d90ffa84"
+      }
+    ],
+    "review_source_cutoff_parity-150-True.csv": [
+      {
+        "index": 35,
+        "source_ns": 1792737925152340904,
+        "before_sha256": "886b352c3f9dd7f89f82c10bb67977db2d9953e3f91413c58aefef7037d322bd",
+        "after_sha256": "5dc4194e2ebdd5121630ee2cc076086a52cef378d4293b8b33e7c77cd9cff2b0"
+      }
+    ],
+    "review_source_cutoff_parity-300-False.csv": [
+      {
+        "index": 65,
+        "source_ns": 1792737926599401761,
+        "before_sha256": "51360f2c7324c875577735ea7980944893f15d8c9b7d34b9605917df00d5d211",
+        "after_sha256": "adb42f2cd1d2199240f2a37e8b325d770cdb0fb05227cc8c29317fd4e6c9ccfc"
+      }
+    ],
+    "review_source_cutoff_parity-300-True-producer-zero.csv": [
+      {
+        "index": 65,
+        "source_ns": 1792737928164859793,
+        "before_sha256": "22bb8a3d57725ab6d025e04626660e686814975c839d315683a7e3f5b47c9b16",
+        "after_sha256": "c12ce5c274ee140d3706a57b6233de299010895a1bb025db4b2c6c6680441b36"
+      }
+    ]
+  }
+}

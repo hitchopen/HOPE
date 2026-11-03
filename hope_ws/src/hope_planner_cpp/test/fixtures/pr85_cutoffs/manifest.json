@@ -1,0 +1,66 @@
+{
+  "source_commit": "f089137eec49e05fd2b29cbc4f0f75dc76f580c0",
+  "premerge_head": "47296db5653c6dda7d397d7a82153f69fa4ed4fb",
+  "fixtures": [
+    {
+      "path": "reacquisition_source_cutoff_parity-150-False.csv",
+      "sha256": "dada73ad7e9af98466cff7160d72f64a9f247807f88d3fa1afd033c0c5b77740",
+      "source": "/workspace/.cloud-setup/reacquisition-spin/development/build/hope_planner_cpp/reacquisition_source_cutoff_parity-150-False.csv",
+      "rearm": true
+    },
+    {
+      "path": "reacquisition_source_cutoff_parity-150-True.csv",
+      "sha256": "8405d3e810b8e51e164bf2e70cee7cc621b6382fb857ee13a7f2e263e9733668",
+      "source": "/workspace/.cloud-setup/reacquisition-spin/development/build/hope_planner_cpp/reacquisition_source_cutoff_parity-150-True.csv",
+      "rearm": true
+    },
+    {
+      "path": "reacquisition_source_cutoff_parity-300-False.csv",
+      "sha256": "2fff16ed90d5d63492ac0afd030dbed117a47559a4397f8f1df2ca1d0eb2ea94",
+      "source": "/workspace/.cloud-setup/reacquisition-spin/development/build/hope_planner_cpp/reacquisition_source_cutoff_parity-300-False.csv",
+      "rearm": true
+    },
+    {
+      "path": "reacquisition_source_cutoff_parity-300-True.csv",
+      "sha256": "d1f5deaed83cf700d1301ce256aea165f8a2a7585447baf4fb42266a6059fc3c",
+      "source": "/workspace/.cloud-setup/reacquisition-spin/development/build/hope_planner_cpp/reacquisition_source_cutoff_parity-300-True.csv",
+      "rearm": true
+    },
+    {
+      "path": "review_source_cutoff_parity-150-False.csv",
+      "sha256": "201bee346a312ff372f3d8aa80defed104d72f120d9dbc4eee6f0a06c15ee751",
+      "source": "/workspace/.cloud-setup/reacquisition-spin/development/build/hope_planner_cpp/review_source_cutoff_parity-150-False.csv",
+      "rearm": false
+    },
+    {
+      "path": "review_source_cutoff_parity-150-True-producer-zero.csv",
+      "sha256": "10ae04814cf3ba395fd79f4ec15a964d41682fdd9b79da11ab572d377aa11402",
+      "source": "/workspace/.cloud-setup/reacquisition-spin/development/build/hope_planner_cpp/review_source_cutoff_parity-150-True-producer-zero.csv",
+      "rearm": false
+    },
+    {
+      "path": "review_source_cutoff_parity-150-True.csv",
+      "sha256": "73e7759c6be6201e0773386cf78addc096efd3bdda700ee1c989353f64aeb758",
+      "source": "/workspace/.cloud-setup/reacquisition-spin/development/build/hope_planner_cpp/review_source_cutoff_parity-150-True.csv",
+      "rearm": false
+    },
+    {
+      "path": "review_source_cutoff_parity-300-False.csv",
+      "sha256": "d76c9eedf90090952b07ab95b87f6923323e9f16eb70eb63d880df423df36ae5",
+      "source": "/workspace/.cloud-setup/reacquisition-spin/development/build/hope_planner_cpp/review_source_cutoff_parity-300-False.csv",
+      "rearm": false
+    },
+    {
+      "path": "review_source_cutoff_parity-300-True-producer-zero.csv",
+      "sha256": "2090306417d639c5bac80410ae62848af0e884478d31649487beed152d2d6573",
+      "source": "/workspace/.cloud-setup/reacquisition-spin/development/build/hope_planner_cpp/review_source_cutoff_parity-300-True-producer-zero.csv",
+      "rearm": false
+    },
+    {
+      "path": "review_source_cutoff_parity-300-True.csv",
+      "sha256": "2c1a5c7704dcfe6d229844a7a1a6e2a753da2950a31d8a333f98cc691fa17ebd",
+      "source": "/workspace/.cloud-setup/reacquisition-spin/development/build/hope_planner_cpp/review_source_cutoff_parity-300-True.csv",
+      "rearm": false
+    }
+  ]
+}

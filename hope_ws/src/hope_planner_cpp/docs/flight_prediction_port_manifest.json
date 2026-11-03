@@ -1,0 +1,39 @@
+{
+  "upstream_repository": "hitchopen/HOPE",
+  "base_branch": "nightly_built",
+  "base": "8d599e7d21e196275cf426488555e2648e8fd789",
+  "source_repository": "timothyypark/HOPE",
+  "source_branch": "feature/flight-state-prediction-v2-scoped",
+  "source": "9118a491df658fa7e68f042581af48890ec8b0b8",
+  "source_commits": 42,
+  "source_changed_files": 113,
+  "new_branch": "feature/flight-state-prediction-v2-minimal",
+  "source_branch_modified": false,
+  "other_checkout": {
+    "repository": "timothyypark/nohope",
+    "head": "96e71c1adb217d14b925681173cebe00d8427f21",
+    "history_parent": "dongc1/HOPE",
+    "parent_main": "c2a627f26c957a079b5cc2586ab6cf49aae4a221",
+    "parent_ahead": 3,
+    "local_ahead": 9,
+    "modified": false
+  },
+  "github_review": {
+    "pr49_title": "Feature/ckf strike shadow",
+    "pr49_url": "https://github.com/hitchopen/HOPE/pull/49",
+    "fork_metadata": "Public pages confirm timothyypark/HOPE and dongc1/HOPE fork hitchopen/HOPE",
+    "api": "403 from network proxy; used authenticated Git reads and public GitHub pages",
+    "nohope_public_page": "404; Git access succeeded; parent relationship inferred from merge history",
+    "pr49_state": "CLOSED_UNMERGED",
+    "pr49_head": "84fc446e131a054204ed37fa3f1d1988c154879c"
+  },
+  "baseline_environment": {
+    "image": "ros:jazzy-ros-base",
+    "digest": "sha256:103b6c417973394659af6804d4917cd489b91e5ed22eb7bef263025a3bed2410",
+    "distribution": "Ubuntu 24.04",
+    "compiler": "GCC 13.3",
+    "cmake": "3.28.3"
+  },
+  "preservation": "Original work branches, main branches and scoped source are untouched; selected additive files only.",
+  "scope": "Forward physical forecasting; no adoption by production, inverse planning or command publication"
+}

@@ -1,0 +1,132 @@
+{
+  "tested_source": "369dd6cf6bfbf12ce2f4cd87223570fd7ee008df",
+  "software_qualified": false,
+  "track_a_software_complete": false,
+  "track_b_future_planner_ready": false,
+  "live_adoption_authorized": false,
+  "active_swing_cancellation": false,
+  "gates": {
+    "A": {
+      "status": "PASS_IN_TESTED_SOFTWARE",
+      "evidence": "adapter + coordinator + ROS invalidity/regression tests"
+    },
+    "B": {
+      "status": "PASS",
+      "evidence": "failing-before contact counterexample; genuine/sparse/double/restored contacts; pinned 789-cutoff comparison"
+    },
+    "C": {
+      "status": "PASS_IN_TESTED_SOFTWARE",
+      "evidence": "source/context/HOME retirement, authority lock through publication, delayed second-bounce regression"
+    },
+    "D": {
+      "status": "PASS_IN_TESTED_SOFTWARE",
+      "evidence": "native recovery and actual producer-chain multi-flight tests; campaign losses retained under J/K"
+    },
+    "E": {
+      "status": "PASS",
+      "evidence": "protected RuntimePlaneReference; fixed/per-ball/stable-per-ball tests"
+    },
+    "F": {
+      "status": "PASS",
+      "evidence": "27 exact adapter/downstream/serialization combinations and unchanged planner sources"
+    },
+    "G": {
+      "status": "PASS",
+      "evidence": "actual schema-4/5 receiver and managed ROS tests"
+    },
+    "H": {
+      "status": "PASS_IN_TESTED_SOFTWARE",
+      "evidence": "one-shot identity, deduplication, immutable command and committed plane regressions; lost opportunities count under J"
+    },
+    "I": {
+      "status": "PASS_IN_TESTED_SOFTWARE",
+      "evidence": "continuous without command packets, after one-shot and output toggles; full trajectory cap separate from compact coverage"
+    },
+    "J": {
+      "status": "FAIL",
+      "evidence": "full ROS plus frozen 160/90 campaigns, all trials retained"
+    },
+    "K": {
+      "status": "FAIL",
+      "evidence": "native/sanitizers/numerical/parity/full ROS + campaigns; raw colcon exit retained"
+    },
+    "L": {
+      "status": "PASS_FOR_TESTED_OPT_IN_CONFIGURATION",
+      "evidence": "24 actual PpPolicy/unchanged ONNX cases plus atomic receiver guard tests",
+      "limits": "flag defaults off; deployed artifact and HAL unverified; engaged swing continues"
+    }
+  },
+  "qualification_aggregate_exit": 1,
+  "qualification_note": "The raw aggregate includes inherited lint and is never rewritten; scoped audit and every campaign must independently pass. Component evidence does not establish physical accuracy or real-time guarantees.",
+  "all_four_original_failures_closed": false,
+  "original_four_failure_profiles": {
+    "base_yaw_chain_150_0": {
+      "full_ros": {
+        "status": "PASS",
+        "command_coverage": 0.9512195121951219,
+        "command_denominator": 41,
+        "covered_command_epochs": 39
+      },
+      "repeated_passed": 0,
+      "repeated_executed": 0,
+      "failed_repetitions": [],
+      "note": "base-yaw belongs to full ROS only; it is not in the original 160-run repeated campaign"
+    },
+    "review_chain_300_12_unknown": {
+      "full_ros": {
+        "status": "PASS",
+        "command_coverage": 1.0,
+        "command_denominator": 40,
+        "covered_command_epochs": 40
+      },
+      "repeated_passed": 4,
+      "repeated_executed": 5,
+      "failed_repetitions": [
+        2
+      ],
+      "note": ""
+    },
+    "review_chain_150_12_zero": {
+      "full_ros": {
+        "status": "PASS",
+        "command_coverage": 1.0,
+        "command_denominator": 20,
+        "covered_command_epochs": 20
+      },
+      "repeated_passed": 5,
+      "repeated_executed": 5,
+      "failed_repetitions": [],
+      "note": ""
+    },
+    "review_refresh_300_10_unknown": {
+      "full_ros": {
+        "status": "PASS",
+        "command_coverage": 1.0,
+        "command_denominator": 160,
+        "covered_command_epochs": 160
+      },
+      "repeated_passed": 5,
+      "repeated_executed": 5,
+      "failed_repetitions": [],
+      "note": ""
+    }
+  },
+  "post_campaign_fixture": {
+    "commit": "f015e0e42c9b122b35168994ce04b6045461d4b2",
+    "runtime_sources_unchanged": true,
+    "scope_and_accounting_passed": 10,
+    "registered_consumers_passed": 13,
+    "registered_consumers_executed": 14,
+    "failed_profiles": [
+      {
+        "name": "reacquisition_delayed_150",
+        "exit": 1,
+        "status": "FAIL",
+        "coverage": 1.0,
+        "exception": "AssertionError: ('A never acquired', 1)"
+      }
+    ],
+    "qualification_credit": false
+  },
+  "portable_evidence": "https://github.com/timothyypark/HOPE/tree/evidence/v2-incoming-qualification-20261029"
+}
