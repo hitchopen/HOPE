@@ -24,13 +24,13 @@ test('restored stream retains stop reason; offline modes and startup are explici
   assert.match(safetyText(api.decodeMocapSafety([1,42,7,8,1,0,0,0])), /entry blocked/);
   assert.match(safetyText(undefined), /unavailable/);
 });
-test('held pelvis is not displayed as fresh and operator losses have independent reasons', () => {
-  const packet=[1,42,7,8,1,0,0,0,1,25.5,1,1,1,0,0];
+test('mocap status ignores legacy operator heartbeat fields', () => {
+  const packet=[1,42,7,8,1,0,0,0,1,25.5,1,0,0,0,0];
   assert.match(safetyText(api.decodeMocapSafety(packet)), /Holding last pelvis pose.*PD_STAND at 1 s/);
-  packet[13]=36;
-  assert.match(safetyText(api.decodeMocapSafety(packet)), /Stopped: Foxglove UI lost/);
-  packet[13]=37;
-  assert.match(safetyText(api.decodeMocapSafety(packet)), /Stopped: operator computer lost/);
-  packet[5]=1;
-  assert.match(safetyText(api.decodeMocapSafety(packet)), /links restored/);
+  for (const oldReason of [0,36,37]) {
+    packet[5]=1; packet[8]=0; packet[13]=oldReason;
+    assert.equal(safetyText(api.decodeMocapSafety(packet)), 'Mocap fresh');
+    packet[5]=0;
+    assert.match(safetyText(api.decodeMocapSafety(packet)), /entry blocked/);
+  }
 });

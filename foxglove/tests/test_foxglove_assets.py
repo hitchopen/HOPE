@@ -546,7 +546,9 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
             extension,
         )
         self.assertIn("runnerStanding", extension)
-        self.assert_console_message(extension, "hopeA3Console.serveConfirm", "post-contact handoff")
+        self.assertIn('invokeServe("prepareServe")', extension)
+        self.assertIn('invokeServe("readyToServe")', extension)
+        self.assertIn('confirmationBlocked({ key, host:', extension)
         self.assert_console_message(extension, "hopeA3Console.resetSoftwareEStop", "Reset Software E-stop")
         self.assertNotIn("SERVER returns to PD_STAND after serve", extension)
         self.assertIn('snapshot.localRole !== "RECEIVER"', extension)
@@ -761,7 +763,7 @@ class FoxgloveAssetInvariantTests(unittest.TestCase):
             self.assertNotIn("pkill", script)
             self.assertNotIn("killall", script)
         # Fall Guard is a deployment-profile choice, not a browser/lifecycle invariant.
-        self.assertIn('field_runner_args=(--planner --shared-session-home --operator-watchdog)', helper)
+        self.assertIn('field_runner_args=(--planner --shared-session-home)', helper)
         self.assertIn('local -a serve_runner_args=(--serve)', helper)
         self.assertIn('"${field_runner_args[@]}" --policy-native "${serve_runner_args[@]}"', helper)
         self.assertIn('--trace-csv "$session_dir/sim2real/runner_trace.csv"', helper)

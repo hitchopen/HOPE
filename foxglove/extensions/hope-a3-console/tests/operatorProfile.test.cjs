@@ -435,7 +435,6 @@ function serveFrame(h, {ui = 1, computer = 1, boot = 42, session = 'test', role 
     runnerAlive: true, runnerBoot: boot, runnerFault: false, runnerMode: mode,
     localRole: role, serveCapability: 'AVAILABLE', serveState: serve, lifecycleSession: session,
     mocapSafety: [1, boot, 2279734720943415, seq, 1, 1, 0, 0, 0, 0, required, ui, computer, 0, 0],
-    operatorChallenge: [1, boot, 2279734720943415, seq],
   };
   h.frame(Object.entries(values).map(([key, data]) => ({topic:h.api.TOPICS[key], message:{data}})));
 }
@@ -443,62 +442,155 @@ function action(tree, label) {
   return elements(tree).find(n => n.props?.label === label);
 }
 
-test('confirmation stays open beyond watchdog deadline while real onRender continues echoing; one explicit submit', async () => {
+function consoleKeyboard(h) {
+  const shortcutHarness = require('./shortcutHarness.cjs');
+  return shortcutHarness(shortcut => {
+    const tree = h.render();
+    const controls = elements(tree).filter(n => n.props?.shortcut === shortcut);
+    const switching = elements(tree).some(n => n.type === 'fieldset' && n.props.disabled);
+    return controls.map(control => ({matches: () => switching || control.props.disabled || control.props.busy,
+      click: control.props.onClick}));
+  }, () => elements(h.render()).some(n => n.props?.role === 'dialog'));
+}
+
+test('Console shortcuts use the actual Init/Ready/Passive services and local intents', async () => {
+  const h = serveHarness(); h.render(); serveFrame(h, {role:'RECEIVER'});
+  const keyboard = consoleKeyboard(h);
+  keyboard.down('i'); keyboard.up('i');
+  keyboard.down('r'); keyboard.up('r');
+  keyboard.down('ArrowLeft'); keyboard.down('ArrowRight');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(h.calls.map(call => call.service), [
+    '/hope/runner/enter_pd_stand', '/hope/runner/enter_motion', '/hope/runner/emergency_passive',
+  ]);
+  assert.deepEqual(h.localRequests, ['STOP','READY','STOP']);
+});
+
+test('Ready shortcut respects Runner role/mode, stale state, fault and request busy gates', () => {
+  for (const state of [{role:'SERVER'}, {mode:'PASSIVE'}, {mode:'MOTION'}, {stale:true}, {fault:true}]) {
+    const h = serveHarness(); h.render(); serveFrame(h, {role:'RECEIVER',...state});
+    if (state.stale) h.advance(1600);
+    if (state.fault) h.frame([{topic:h.api.TOPICS.runnerFault,message:{data:true}}]);
+    consoleKeyboard(h).down('r');
+    assert.equal(h.calls.length, 0, JSON.stringify(state));
+  }
+  const h = serveHarness(); h.render(); serveFrame(h, {role:'RECEIVER'});
+  const keyboard = consoleKeyboard(h);
+  keyboard.down('r'); keyboard.up('r'); keyboard.down('r');
+  assert.equal(h.calls.length, 1);
+});
+
+test('S starts the current Serve stage without a dialog and needs a fresh press for stage two', async () => {
   const h = serveHarness(); h.render(); serveFrame(h);
-  action(h.render(), 'Start to Serve · Raise hand').props.onClick();
+  assert.ok(action(h.render(), 'Init'));
+  const keyboard = consoleKeyboard(h);
+  keyboard.down('s');
+  assert.equal(elements(h.render()).some(n=>n.props?.role==='dialog'), false);
+  assert.deepEqual(h.calls.map(call=>call.service), ['/hope/runner/prepare_serve']);
+  await new Promise(resolve=>setImmediate(resolve));
+  serveFrame(h,{mode:'SERVE',serve:'WAIT_READY_TO_SERVE'});
+  keyboard.down('s', {repeat:true});
+  assert.equal(h.calls.length,1);
+  keyboard.up('s'); keyboard.down('s');
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(h.calls.map(call=>call.service), ['/hope/runner/prepare_serve','/hope/runner/ready_to_serve']);
+  assert.deepEqual(h.localRequests,['SERVE','SERVE']);
+  assert.equal(elements(h.render()).some(n=>n.props?.role==='dialog'), false);
+});
+
+test('S does nothing between Serve stages or for a receiver', () => {
+  for (const frame of [{role:'RECEIVER'}, {mode:'PASSIVE'}, {mode:'SERVE',serve:'PREPARING'},
+    {mode:'SERVE',serve:'SERVING'}, {serve:'FAULT'}]) {
+    const h=serveHarness(); h.render(); serveFrame(h,frame);
+    consoleKeyboard(h).down('s');
+    assert.equal(h.calls.length,0,JSON.stringify(frame));
+  }
+});
+
+test('immediate Serve keeps click-time state/identity checks and synchronous duplicate protection', () => {
+  for (const change of [h=>h.advance(1001), h=>serveFrame(h,{role:'RECEIVER'}),
+    h=>serveFrame(h,{serve:'PREPARING'}), h=>serveFrame(h,{boot:43}),
+    h=>serveFrame(h,{session:'other'}), h=>h.frame([],true)]) {
+    const h=serveHarness(); h.render(); serveFrame(h);
+    const oldClick=action(h.render(),'Start to Serve · Raise hand').props.onClick;
+    change(h); oldClick();
+    assert.equal(h.calls.length,0);
+  }
+  const h=serveHarness(); h.render(); serveFrame(h);
+  const click=action(h.render(),'Start to Serve · Raise hand').props.onClick;
+  click(); click();
+  assert.equal(h.calls.length,1);
+});
+
+test('Passive remains available on a Runner fault; stale Runner disables every shortcut', () => {
+  const h = serveHarness(); h.render(); serveFrame(h);
+  h.frame([{topic:h.api.TOPICS.runnerFault,message:{data:true}}]);
+  const keyboard = consoleKeyboard(h);
+  keyboard.down('i'); keyboard.up('i');
+  keyboard.down('ArrowRight'); keyboard.down('ArrowLeft');
+  assert.deepEqual(h.calls.map(call => call.service), ['/hope/runner/emergency_passive']);
+  keyboard.up('ArrowRight'); keyboard.up('ArrowLeft');
+  h.advance(1600);
+  keyboard.down('i'); keyboard.down('s'); keyboard.down('r'); keyboard.down('ArrowLeft'); keyboard.down('ArrowRight');
+  assert.equal(h.calls.length, 1);
+});
+
+test('confirmation stays open with telemetry and no heartbeat publication; one explicit submit', async () => {
+  const h = serveHarness(); h.render(); serveFrame(h);
+  action(h.render(), 'Open gripper').props.onClick();
   for(let seq=2;seq<=26;seq++) {
     h.advance(200); serveFrame(h, {seq});
     assert.ok(elements(h.render()).some(n=>n.props?.role==='dialog'));
   }
-  assert.equal(h.published.length,26); // five seconds of live challenges, no timer replay
+  assert.equal(h.published.length,0); // telemetry updates never publish operator heartbeats
   assert.equal(h.calls.length,0);
   const confirm=button(h.render(),'Confirm and send');
   assert.equal(confirm.props.disabled,false);
   confirm.props.onClick(); confirm.props.onClick();
   await Promise.resolve();
   assert.equal(h.calls.length,1);
-  assert.equal(h.calls[0].service,'/hope/runner/prepare_serve');
+  assert.equal(h.calls[0].service,'/hope/runner/open_gripper');
   assert.ok(!elements(h.render()).some(n=>n.props?.role==='dialog'));
 });
 
-test('heartbeat loss blocks submission, recovery never sends automatically, and cancel sends nothing', () => {
+test('missing UI and computer heartbeats do not block explicit submission', () => {
   const h=serveHarness(); h.render(); serveFrame(h);
-  action(h.render(),'Start to Serve · Raise hand').props.onClick();
-  const oldConfirm=button(h.render(),'Confirm and send');
-  serveFrame(h,{ui:0,seq:2});
-  oldConfirm.props.onClick(); // race: fresh telemetry arrived after the last render
-  assert.equal(h.calls.length,0);
-  assert.equal(button(h.render(),'Confirm and send').props.disabled,true);
-  serveFrame(h,{ui:1,computer:0,seq:3});
-  assert.equal(button(h.render(),'Confirm and send').props.disabled,true);
-  serveFrame(h,{seq:4});
+  action(h.render(),'Open gripper').props.onClick();
+  serveFrame(h,{ui:0,computer:0,seq:2});
   assert.equal(button(h.render(),'Confirm and send').props.disabled,false);
   assert.equal(h.calls.length,0);
+  button(h.render(),'Confirm and send').props.onClick();
+  assert.equal(h.calls.length,1);
+  assert.equal(h.published.length,0);
+});
+
+test('cancel invalidates an old confirmation callback without sending a request', () => {
+  const h=serveHarness(); h.render(); serveFrame(h,{ui:0,computer:0});
+  action(h.render(),'Open gripper').props.onClick();
+  const oldConfirm=button(h.render(),'Confirm and send');
   button(h.render(),'Cancel').props.onClick();
   oldConfirm.props.onClick();
   assert.equal(h.calls.length,0);
   assert.ok(!elements(h.render()).some(n=>n.props?.role==='dialog'));
 });
 
-test('stale status, role changes, new boot/session and seek invalidate pending serve consent', () => {
+test('stale status, role changes, new boot/session and seek invalidate pending gripper consent', () => {
   for(const change of [h=>h.advance(1001), h=>serveFrame(h,{role:'RECEIVER',seq:2}),
     h=>serveFrame(h,{boot:43,seq:2}), h=>serveFrame(h,{session:'other',seq:2}),
     h=>h.frame([],true)]) {
     const h=serveHarness(); h.render(); serveFrame(h);
-    action(h.render(),'Start to Serve · Raise hand').props.onClick();
+    action(h.render(),'Open gripper').props.onClick();
     const confirm=button(h.render(),'Confirm and send');
     change(h); confirm.props.onClick();
     assert.equal(h.calls.length,0);
   }
 });
 
-test('Serve also uses live confirmation; explicit offline watchdog setting remains supported', () => {
+test('Serve sends immediately without confirmation or operator heartbeats', () => {
   const h=serveHarness(); h.render(); serveFrame(h,{mode:'SERVE',serve:'WAIT_READY_TO_SERVE',required:0,ui:0,computer:0});
   const serve=elements(h.render()).find(n=>n.props?.next && n.props?.onClick && n.props?.label?.includes('Serve'));
   assert.ok(serve); serve.props.onClick();
-  const confirm=button(h.render(),'Confirm and send');
-  assert.equal(confirm.props.disabled,false);
-  confirm.props.onClick();
+  assert.equal(elements(h.render()).some(n=>n.props?.role==='dialog'), false);
   assert.equal(h.calls.length,1);
   assert.equal(h.calls[0].service,'/hope/runner/ready_to_serve');
 });
@@ -507,7 +599,6 @@ test('Serve also uses live confirmation; explicit offline watchdog setting remai
 test('local Serve intent survives rejected robot request; remote feedback never sends local intents', async () => {
   const h=serveHarness();h.setRobotAccepted(false);h.render();serveFrame(h);
   action(h.render(),'Start to Serve · Raise hand').props.onClick();
-  button(h.render(),'Confirm and send').props.onClick();
   await new Promise(resolve=>setImmediate(resolve));
   assert.deepEqual(h.localRequests,['SERVE']);
   assert.equal(h.calls.length,1);
@@ -521,7 +612,6 @@ test('local Serve intent survives rejected robot request; remote feedback never 
 test('local endpoint failure never blocks the existing robot request', async () => {
   const h=serveHarness();h.setLocalOffline(true);h.render();serveFrame(h);
   action(h.render(),'Start to Serve · Raise hand').props.onClick();
-  button(h.render(),'Confirm and send').props.onClick();
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(h.calls.length,1);assert.deepEqual(h.localRequests,[]);
   assert.ok(elements(h.render()).some(n=>n.props?.role==='alert'));

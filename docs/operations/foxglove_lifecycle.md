@@ -73,54 +73,27 @@ commit time, retained velocity, strike time/contact error and recovery commands
 with the prior policy-input path. Then qualify on supported hardware with an
 attending E-stop operator; software regressions are not policy/hardware approval.
 
-Normal managed play also enables `--operator-watchdog`. The Runner issues a
-challenge every 20 ms. The current Console echoes role 1, and the operator
-computer's Motive/VRPN relay echoes role 2, bound to its managed launch session
-(`debug_session_id`). Both must be live before normal play entry. Loss of either
-echo requests controlled PD_STAND recovery: **2 s for the Console**, **1 s for
-the operator-computer relay**. A normal
-serve uses its existing abort/recovery path. Held pelvis data cannot refresh
-either heartbeat. Stand/PASSIVE, Teleop and offline Kernel/Pure Serve are exempt;
-standalone tools do not opt into the UI watchdog unless explicitly requested.
+Normal managed play uses mocap freshness for its input-loss guard. Console/UI
+and operator-computer heartbeats are not required at startup, mode entry,
+receive, or serve completion. Runner no longer issues operator challenges;
+Motive/VRPN relays and Console no longer start challenge echoes. Closing or
+stalling Foxglove does not cause a transition while accepted mocap keeps arriving.
 
 Managed START reconnects the Laptop receiver with the new session ID before
-starting HAL/Runner. This replaces any independently started debug session so
-role-2 echoes match the Runner; a failed reconnect stops START before HAL.
-Offline Kernel startup does not reconnect the receiver. These external-link
-windows do not change the internal HAL/joint-state safe-halt deadline.
-
-Challenge `[1, boot, session_fingerprint, nonce]` travels on
-`/hope/runner/operator_challenge_flat` → `operator_challenge_hdu_flat`.
-Echo `[1, boot, session_fingerprint, nonce, role]` travels back on
-`/hope/runner/operator_echo_hdu_flat` → `operator_echo_flat`. Runner validates its
-own monotonic challenge-issue age, not a remote clock or new echo receipt time.
-Duplicate, wrong-session/boot and late echoes cannot renew liveness; no cached
-heartbeat is timer-replayed. This is a trusted-LAN liveness protocol, not an
-authentication boundary against malicious publishers.
-
-These timeout values are watchdog triggers, not the time to finish the standing
-pose. Detection runs on the command callback and is subject to its scheduling;
-the existing stand blend/validated serve recovery determines motion duration.
-A slow/frozen/minimized Console or a switch to another layout/tab can miss its
-2 s deadline just like a disconnected one. Echoes come only from `onRender`;
-this is not a background app-liveness service. The two-second UI window tolerates
-short rendering/network delays, not a Console absent for more than 2 s.
-Qualify actual foreground/background rendering, Wi-Fi jitter and CPU load
-on the deployed system before competition; do not claim hard real-time timing
-or hardware stability from unit tests.
+starting HAL/Runner. A failed reconnect stops START before HAL. Offline Kernel
+startup does not reconnect the receiver. Internal HAL/joint-state fault handling
+is unchanged.
 
 Runner publishes `/hope/runner/mocap_safety_flat` at 50 Hz, forwarded unchanged to
 `/hope/runner/mocap_safety_hdu_flat`. Its schema is
 `[1, boot_id, session_fingerprint, state_seq, required, fresh, stop_count, interrupted,
 held, real_age_ms, operator_required, ui_fresh, computer_fresh, operator_stop_reason, operator_stop_count]`.
 An unavailable age is -1. The Console also accepts the original eight-value prefix.
-The Console checks its age and current Runner boot, and displays **Stopped: mocap
-lost**, **Stopped: Foxglove UI lost**, **Stopped: operator computer lost**, or the
-held-pose age independently of the last operator-action result. `interrupted` stays set
-after data returns until explicit play entry succeeds. The original 21-value
-schema-2 Runner state and action codes stay unchanged. Refused play transitions
-return `MOCAP_UNAVAILABLE`, `OPERATOR_UI_UNAVAILABLE` or
-`OPERATOR_COMPUTER_UNAVAILABLE`, never `APPLIED`, and never leave a pending serve prepare.
+The Console checks its age and current Runner boot, displays the mocap hold age
+and persistent mocap stop reason, and does not gate on legacy operator fields.
+`interrupted` remains set after data returns until explicit play entry succeeds.
+The schema-2 Runner state/action wire is unchanged. Mocap-unavailable play entry
+returns `MOCAP_UNAVAILABLE` and never leaves a pending serve prepare.
 
 The supervisor service uses the same explicit-peer wrapper as the control bridge
 when `ROS_STATIC_PEERS` is configured in `/etc/hope-foxglove/network.env`. Include
@@ -132,15 +105,10 @@ After a FAILED-session cleanup succeeds, a player/preflight rejection returns
 STOPPED and releases the hardware-operation lock. A failed cleanup still retains
 FAILED, the old session identity and the lock for explicit retry.
 
-Install `hope_player_positions.py` with the HDU modules, update the supervisor
-service, control decoder, mocap and Runner transport relays, rebuild the MDU Runner
-with its matching AimRT config and install the matching Console. Rebuild
-`hope_bringup` on the operator computer to install `operator_heartbeat.py`, update
-the VRPN launch file and lifecycle helper, and deploy the control-bridge config
-that permits **only** `/hope/runner/operator_echo_hdu_flat` client publishing.
-All command/request topics and generic parameter operations remain denied.
-Normal-play preflight rejects an old Runner or AimRT config that lacks the
-operator-watchdog protocol, rather than silently running without this protection.
+Install `hope_player_positions.py` with the HDU modules and keep Runner, Console,
+lifecycle helper and mocap relays paired. START no longer checks for the
+operator-watchdog flag or heartbeat topic. Apply packages while stopped and
+verify the loaded artifact and `operator_required=0` on a new session.
 
 Before deployment approval, verify both ends and failed-start cleanup, then:
 
@@ -151,11 +119,9 @@ Before deployment approval, verify both ends and failed-start cleanup, then:
 2. With the robot supported and an operator at E-stop, interrupt the mocap
    stream and the Laptop–HDU/HDU–MDU transport separately. Record watchdog trigger
    time, actual joint-command continuity and the full PD_STAND recovery.
-3. Independently close/disconnect/freeze the Console and stop/disconnect the
-   managed operator relay/computer. Verify the Console's 2 s and computer's
-   1 s triggers despite the other channel remaining live. Exercise tab/layout
-   switches and minimize/background behavior, including brief interruptions that
-   should not stop play. Delayed/replayed challenges must not postpone expiry.
+3. Close, disconnect, freeze or background Console while mocap continues:
+   no operator heartbeat is involved and there should be no UI-induced stop.
+   Stopping the relay/computer removes mocap and must exercise step 2 instead.
 4. Restore each link: no automatic play resumption. Check explicit re-entry,
    manual Stand/PASSIVE and unchanged offline Kernel/Pure Serve/Teleop behavior.
 

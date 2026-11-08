@@ -23,10 +23,10 @@ import { message as msg, LocalizedError, errorText, LocalText, Translator, Local
 import { mergeConfirmedConfig } from "./lifecycleConfig";
 import { MocapSafety, decodeMocapSafety, mocapSafetyText } from "./mocapSafety";
 import { MOCAP_LABELS, mocapSetupCommand } from "./mocapSetup";
-import { OPERATOR_CHALLENGE, OperatorHeartbeat } from "./operatorHeartbeat";
 import { PLANE_MODE_SERVICE, PlaneMode, PlaneModeState, decodePlaneMode, planeModeRequest } from "./planeMode";
 import { PlayerPosition, decodePlayerPosition, playerSideAvailable } from "./playerPositions";
 import { reconcileRobotTarget, robotConnectionUrl, switchRobot } from "./robotConnection";
+import { bindRunnerShortcuts, RUNNER_SHORTCUT_KEYS, RunnerShortcut } from "./runnerShortcuts";
 import { decodeTeleopState, teleopEntryReason, xboxInputFresh } from "./teleopStatus";
 import { timeCalibrationControls } from "./timeCalibration";
 
@@ -74,7 +74,6 @@ const TOPICS = {
   runnerAlive: "/hope/runner/alive",
   runnerBoot: "/hope/runner/boot_id",
   mocapSafety: "/hope/runner/mocap_safety_hdu_flat",
-  operatorChallenge: OPERATOR_CHALLENGE,
   runnerMode: "/hope/runner/mode",
   xboxPreview: "/hope/runner/xbox_preview",
   teleopState: "/hope/runner/teleop_state_hdu_flat",
@@ -634,7 +633,7 @@ type Confirmation = {
   boot?: number;
 };
 
-function confirmationBlocked(pending: Confirmation, current: Snapshot, now: number): LocalText | undefined {
+function confirmationBlocked(pending: Omit<Confirmation, "prompt">, current: Snapshot, now: number): LocalText | undefined {
   if (pending.host !== current.lifecycleConfig.hdu_wifi_ip ||
       pending.session !== current.lifecycleSession || pending.boot !== current.runnerBoot) {
     return msg("hopeA3Console.confirmationIdentityChanged");
@@ -660,9 +659,6 @@ function confirmationBlocked(pending: Confirmation, current: Snapshot, now: numb
   const safety = current.mocapSafety;
   if (!isFresh(current, TOPICS.mocapSafety, now, 1_000) || safety?.boot !== current.runnerBoot) {
     return msg("hopeA3Console.confirmationStateUnavailable");
-  }
-  if (safety.operatorRequired !== false && (safety.uiFresh !== true || safety.computerFresh !== true)) {
-    return msg("hopeA3Console.confirmationHeartbeatUnavailable");
   }
   return undefined;
 }
@@ -730,6 +726,7 @@ type ActionButtonProps = {
   next?: boolean;
   wide?: boolean;
   danger?: boolean;
+  shortcut?: RunnerShortcut;
   onClick: () => void;
 };
 
@@ -749,6 +746,8 @@ function ActionButton(props: ActionButtonProps): ReactElement {
       className={classes}
       type="button"
       disabled={props.disabled || props.busy}
+      data-runner-shortcut={props.shortcut}
+      aria-keyshortcuts={props.shortcut == undefined ? undefined : RUNNER_SHORTCUT_KEYS[props.shortcut]}
       onClick={props.onClick}
     >
       <span>{props.busy ? t("hopeA3Console.working") : props.label}</span>
@@ -804,6 +803,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   // render, otherwise a new packet appears up to 250 ms in the future.
   const now = Date.now();
   const [busy, setBusy] = useState<Partial<Record<ServiceKey, boolean>>>({});
+  const inFlightServices = useRef(new Set<ServiceKey>());
   const [notice, setNotice] = useState<LocalText>(msg("hopeA3Console.waitingForAuthoritativeRunnerState"));
   const [confirmation, setConfirmation] = useState<Confirmation | undefined>();
   const confirmationRef = useRef<Confirmation>();
@@ -861,7 +861,6 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   }, [context, t]);
 
   useLayoutEffect(() => {
-    const heartbeat = new OperatorHeartbeat(context);
     context.onRender = (renderState, done) => {
       const receivedAt = Date.now();
       const hostMessage = renderState.currentFrame?.find((event) => event.topic === TOPICS.hduWifiIp);
@@ -887,11 +886,6 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       for (const event of renderState.currentFrame ?? []) {
         applyMessage(next, event, receivedAt);
       }
-      for (const event of renderState.currentFrame ?? []) {
-        if (event.topic === OPERATOR_CHALLENGE && !renderState.didSeek) {
-          heartbeat.echo(scalar(event.message), next.runnerBoot, next.lifecycleSession);
-        }
-      }
       latest.current = next;
       setSnapshot(next);
       setRenderDone(() => done);
@@ -901,7 +895,6 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     context.watch("currentFrame");
     context.subscribe(Object.values(TOPICS).map((topic) => ({ topic })));
     return () => {
-      heartbeat.close();
       context.onRender = undefined;
       context.unsubscribeAll();
     };
@@ -926,7 +919,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
 
   const invoke = useCallback(
     async (key: ServiceKey) => {
-      if (busy[key] === true) return;
+      if (busy[key] === true || inFlightServices.current.has(key)) return;
       // Local button intent and the existing robot request are independent.
       // Neither rejection nor acknowledgement from A3 changes the classifier.
       applyLocalButton(key);
@@ -934,6 +927,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         setNotice(msg("hopeA3Console.currentDataSourceDoesNotExposeServiceCalls"));
         return;
       }
+      inFlightServices.current.add(key);
       setBusy((current) => ({ ...current, [key]: true }));
       setNotice(msg("hopeA3Console.requested", {service: SERVICES[key]}));
       try {
@@ -952,6 +946,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       } catch (error) {
         setNotice(msg("hopeA3Console.failed", {error: errorText(error)}));
       } finally {
+        inFlightServices.current.delete(key);
         setBusy((current) => ({ ...current, [key]: false }));
       }
     },
@@ -1083,6 +1078,15 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     if (blocked != undefined) { setNotice(blocked); return; }
     const key = confirmation.key;
     cancelConfirmation();
+    void invoke(key);
+  };
+
+  const invokeServe = (key: "prepareServe" | "readyToServe") => {
+    if (pendingTarget) { return; }
+    // Serve is immediate; keep the existing state/identity checks at the click.
+    const blocked = confirmationBlocked({ key, host: snapshot.lifecycleConfig.hdu_wifi_ip,
+      session: snapshot.lifecycleSession, boot: snapshot.runnerBoot }, latest.current, Date.now());
+    if (blocked != undefined) { setNotice(blocked); return; }
     void invoke(key);
   };
 
@@ -1323,7 +1327,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
 
   return (
     <LanguageContext.Provider value={t}>
-    <div className="hope-console">
+    <div className="hope-console" tabIndex={0}>
       {confirmation != undefined && (
         <section className="action-confirmation" role="dialog" aria-label={t("hopeA3Console.confirmationTitle")}
           onKeyDown={event => { if (event.key === "Escape") { cancelConfirmation(); } }}>
@@ -1361,7 +1365,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       <fieldset className="robot-controls" disabled={Boolean(pendingTarget)}>
       <div className="source-row">
         <div className="source-block">
-          <div className="eyebrow">{t("hopeA3Console.version", { version: "1.9.13" })}</div>
+          <div className="eyebrow">{t("hopeA3Console.version", { version: "1.9.17" })}</div>
           <div className="source-value">
             <span>{context.dataSourceProfile?.toUpperCase() ?? t("hopeA3Console.ros2")} {t("hopeA3Console.control8766")}</span>
             <span
@@ -1893,6 +1897,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
                 ? t("hopeA3Console.runnerSummary", {mode: snapshot.runnerMode ?? t("hopeA3Console.unknown"), serve: serveState, gripper: snapshot.gripperState ?? t("hopeA3Console.unavailable"), cleanup: snapshot.serveCleanupRequired === true ? t("hopeA3Console.cleanupRequired") : ""})
                 : t("hopeA3Console.noFreshRunnerState")}
             </span>
+            <span className="sequence-status">{t("hopeA3Console.runnerShortcuts")}</span>
           </div>
           <div className="role-controls">
             <span className="role-label">{t("hopeA3Console.ourRole")} {snapshot.localRole ?? t("hopeA3Console.unassigned")}</span>
@@ -1913,6 +1918,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         <div className="action-grid">
           <ActionButton
             label={t("hopeA3Console.stand")}
+            shortcut="stand"
             detail={
               snapshot.runnerMode === "TELEOP"
                 ? t("hopeA3Console.stopAndSettleWaitsForTheFeetThen")
@@ -1920,7 +1926,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
                 ? t("hopeA3Console.phaseAwareAbortRecoveryStaysInThisRunner")
                 : runnerStanding
                   ? t("hopeA3Console.donePdStand")
-                  : t("hopeA3Console.sameAsKeyboardS")
+                  : t("hopeA3Console.sameAsKeyboardI")
             }
             disabled={!runnerUsable}
             busy={busy.stand === true}
@@ -1931,6 +1937,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           <div className="ready-controls">
           <ActionButton
             label={t("hopeA3Console.ready")}
+            shortcut="ready"
             detail={
               runnerReady
                 ? kernelMode ? t("hopeA3Console.readyReceivePolicyTestStartToServeBegins") : t("hopeA3Console.readyReceivingStartToServeBeginsTheNext")
@@ -1977,6 +1984,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           </div>
           <ActionButton
             label={t("hopeA3Console.startToServeRaiseHand")}
+            shortcut="serve"
             detail={
               !serveAvailable
                 ? t("hopeA3Console.unavailableLaunchRunnerWithServe")
@@ -1996,15 +2004,11 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             busy={busy.prepareServe === true}
             completed={serveWorkflowActive}
             next={nextStep === "prepareServe"}
-            onClick={() => {
-              invokeConfirmed(
-                "prepareServe",
-                msg("hopeA3Console.prepareServeConfirm"),
-              );
-            }}
+            onClick={() => { invokeServe("prepareServe"); }}
           />
           <ActionButton
             label={t("hopeA3Console.servePlay")}
+            shortcut="serve"
             detail={
               serveState === "WAIT_READY_TO_SERVE"
                 ? t("hopeA3Console.loadBallClearHandsStartsSelectedFull31Timeline", {gripper: snapshot.gripperState ?? t("hopeA3Console.unavailable")})
@@ -2024,12 +2028,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             busy={busy.readyToServe === true}
             completed={snapshot.serving === true || serveState === "COMPLETE"}
             next={nextStep === "readyToServe"}
-            onClick={() => {
-              invokeConfirmed(
-                "readyToServe",
-                kernelMode ? msg("hopeA3Console.testCsvConfirm") : msg("hopeA3Console.serveConfirm"),
-              );
-            }}
+            onClick={() => { invokeServe("readyToServe"); }}
           />
           <ActionButton
             label={t("hopeA3Console.openGripper")}
@@ -2093,6 +2092,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
               ? snapshot.mocapSafety : undefined, t)}</span>
           <ActionButton
             label={t("hopeA3Console.runnerPassive")}
+            shortcut="passive"
             detail={t("hopeA3Console.zeroGainsRobotLosesSupport")}
             disabled={!runnerFresh}
             busy={busy.passive === true}
@@ -2110,7 +2110,9 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
 export function initHopeA3Console(context: PanelExtensionContext): () => void {
   const root = createRoot(context.panelElement);
   root.render(<HopeA3Console context={context} />);
+  const removeShortcuts = bindRunnerShortcuts(context.panelElement);
   return () => {
+    removeShortcuts();
     root.unmount();
   };
 }

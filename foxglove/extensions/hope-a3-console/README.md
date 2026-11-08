@@ -111,21 +111,9 @@ HELD does not shorten mode admission or serve completion to 20 ms: these use
 the actual observation/rescue deadline. New-flight commits still wait for a
 real pose; replay/field validation must qualify the effect on strike timing.
 
-Normal managed mocap play also requires independent Console and operator-relay
-challenge echoes. The panel replies only to the current boot/session challenges;
-closing/freezing/disconnecting it triggers controlled recovery after **1 s**.
-The managed operator-computer relay retains its separate **1 s** timeout.
-Delayed/replayed echoes cannot extend either deadline. No timer publishes
-cached heartbeats. Recovery motion can take longer; Kernel/Pure Serve and Teleop
-are exempt. Echoes depend on panel rendering: switching away from the Console,
-minimizing/backgrounding or overloading it for more than 1 s may still stop play.
-The one-second UI window tolerates short delays, not an absent Console. Qualify
-actual foreground/background Foxglove/Wi-Fi timing before operation.
-
-The control bridge enables client publishing **only** on
-`/hope/runner/operator_echo_hdu_flat`; no command publisher or generic parameter
-access is enabled. The operator relay's heartbeat is bound to its launch session,
-not inferred from general DDS process presence.
+Normal managed play uses mocap freshness for its input-loss guard. Console/UI
+and operator-computer heartbeats are not required at startup, mode entry,
+receive, or serve completion. No operator challenge or echo is started.
 
 The footer displays fresh Runner mocap health and **Stopped: mocap lost**,
 independently of the last action acknowledgment. The stop reason persists after
@@ -133,15 +121,41 @@ the stream returns until explicit play re-entry succeeds. The read-only
 `/hope/runner/mocap_safety_hdu_flat` telemetry is boot-checked and expires after
 one second. It does not alter the existing schema-2 Runner state/action wire.
 
-Deploy the updated relays on the mocap computer, `hope_player_positions.py`
-alongside the HDU supervisor modules, the updated supervisor service/control decoder,
-Runner transport relay, and a rebuilt MDU Runner with its matching AimRT config
-together with this panel. Also update the control-bridge config and managed
-lifecycle helper, and rebuild the operator workspace to install the heartbeat
-helper and matching VRPN launch file. Configure `/etc/hope-foxglove/network.env` peers as
-described in the lifecycle guide. A panel-only upgrade cannot
-provide the native dropout response. Bench verification precedes attended
-hardware validation.
+Deploy Runner, lifecycle helper, mocap relays and Console together while stopped.
+A panel-only update does not change the running Runner. Verify the loaded
+artifacts and `operator_required=0` on the next session.
+
+Keyboard shortcuts work throughout the Foxglove window, including after an
+action button disables itself or focus moves to another panel:
+**I → Init** (the former Stand), **R → Ready**,
+**S → the currently available Serve stage**, and **hold ← + → together
+→ Runner Passive**, in either order. They click the corresponding enabled
+buttons, including the same local ball intent and Runner service request.
+Both Start to Serve and Serve send immediately, without a confirmation dialog.
+S selects Start to Serve in IDLE/COMPLETE/ABORTED, or Serve in WAIT_READY_TO_SERVE;
+it does nothing between stages. Release S and press again for the next stage.
+The buttons retain their role, mode, freshness and identity checks.
+Init still calls the existing PD Stand action; Ready requires a fresh, usable
+Runner in PD Stand with the receiver role.
+Runner Passive retains its zero-gain behavior and removes active support.
+Typing in inputs, IME composition, Ctrl/Alt/Meta combinations and open
+confirmation dialogs suppress shortcuts. Held keys do not repeat commands;
+release both arrows before another Passive chord. Changing focus, clicking or
+leaving the window clears held keys. If multiple visible Consoles are open,
+click the Console to control first; a key is sent to only that Console.
+
+Before start, the operator chooses `UCB_P1 · DIRECT` or `UCB_P2 · ROTATE 180°` and
+confirms configuration. P2 tracks Motive rigid body UCB_P2 and rotates every ball
+and rigid-body pose about the table centre, so both end robots consume the same
+policy convention. The selection is locked while a lifecycle is active.
+
+The no-OptiTrack receiver test sequence shown by the UI is Init, then Ready.
+`START SYSTEM` does not launch or wait for the Laptop OptiTrack stack, and
+the optional Motive address may be left empty. `Ready` does not require a fresh
+base packet. The native Runner still owns the
+role/mode transition and all of its fault checks. With OptiTrack absent there
+is no live ball/base stream, so this proves Runner entry and attended motion
+behavior rather than incoming-ball performance.
 
 The Console uses the current pelvis-aligned Motive asset. The former Venue
 Calibration card, Load/Export JSON and Cali V2/V3 buttons are removed. Opening

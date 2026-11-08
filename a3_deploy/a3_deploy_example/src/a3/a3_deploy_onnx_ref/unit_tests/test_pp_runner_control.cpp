@@ -20,6 +20,42 @@ void SetRole(PpRunnerControl& control, RunnerAction action,
   ASSERT_EQ(control.local_role(), expected);
 }
 
+TEST(PpRunnerControl, MocapOnlyPlayDoesNotRequireAnyOperatorEcho) {
+  PpRunnerControl control(RunnerMode::kPdStand, 42, "mocap-only");
+  control.RequireMocap(true);
+  SetRole(control, RunnerAction::kSetReceiver, LocalRole::kReceiver);
+  ASSERT_FALSE(control.ObserveMocap(true));
+  ASSERT_TRUE(control.Enqueue({2, RunnerAction::kEnterMotion, true}));
+  auto decisions = control.ProcessPending(false, false);
+  ASSERT_EQ(decisions.size(), 1U);
+  ASSERT_EQ(decisions.front().result, RunnerActionResult::kApplied);
+  for (int tick = 0; tick < 2000; ++tick) {
+    EXPECT_FALSE(control.ObserveOperatorHeartbeat(false, false));
+    EXPECT_FALSE(control.ObserveMocap(true));
+  }
+  EXPECT_EQ(control.mode(), RunnerMode::kMotion);
+  EXPECT_FALSE(control.PlayStopRequested());
+  EXPECT_EQ(control.EncodeMocapSafety()[10], 0.);
+  EXPECT_EQ(control.EncodeMocapSafety()[14], 0.);
+  EXPECT_TRUE(control.ObserveMocap(false));
+  EXPECT_EQ(control.mode(), RunnerMode::kPdStand);
+  EXPECT_EQ(control.EncodeMocapSafety()[6], 1.);
+}
+
+TEST(PpRunnerControl, MocapOnlyServeCompletionNeedsNoOperatorEcho) {
+  PpRunnerControl control(RunnerMode::kServe, 42, "mocap-only");
+  control.RequireMocap(true);
+  EXPECT_FALSE(control.ObserveMocap(true));
+  EXPECT_FALSE(control.ObserveOperatorHeartbeat(false, false));
+  EXPECT_TRUE(control.CompleteServe());
+  EXPECT_EQ(control.mode(), RunnerMode::kMotion);
+  control.SetRuntimeMode(RunnerMode::kServe);
+  EXPECT_TRUE(control.ObserveMocap(false));
+  EXPECT_TRUE(control.PlayStopRequested());
+  EXPECT_TRUE(control.CompleteServe());
+  EXPECT_EQ(control.mode(), RunnerMode::kPdStand);
+}
+
 TEST(PpRunnerControl, PureServeRejectsReceiveAndPolicyActions) {
   PpRunnerControl control(RunnerMode::kPdStand, 123, "session", 16, true);
   SetRole(control, RunnerAction::kSetServer, LocalRole::kServer);

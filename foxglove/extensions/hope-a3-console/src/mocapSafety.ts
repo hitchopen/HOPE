@@ -35,19 +35,10 @@ export function decodeMocapSafety(value: unknown): MocapSafety | undefined {
 
 export function mocapSafetyText(state: MocapSafety | undefined, t: Translator = defaultTranslator): string {
   if (state == undefined) { return t("mocapSafety.mocapSafetyStatusUnavailable"); }
-  if (state.operatorInterrupted === 36 || state.operatorInterrupted === 37) {
-    const link = state.operatorInterrupted === 36 ? t("mocapSafety.foxgloveUi") : t("mocapSafety.operatorComputer");
-    return state.uiFresh === true && state.computerFresh === true && state.fresh
-      ? t("mocapSafety.stoppedLostLinksRestoredExplicitlyReEnterPlay", {source: link})
-      : t("mocapSafety.stoppedLostControlledPdStandRecovery", {source: link});
-  }
   if (!state.required) { return t("mocapSafety.offlineModeMocapProtectionNotRequired"); }
   if (state.interrupted) {
     return state.fresh ? t("mocapSafety.stoppedMocapLostStreamRestoredExplicitlyReEnter")
       : t("mocapSafety.stoppedMocapLostControlledPdStandRecovery");
-  }
-  if (state.operatorRequired === true && (state.uiFresh !== true || state.computerFresh !== true)) {
-    return t("mocapSafety.normalPlayEntryBlockedHeartbeatMissing", {source: state.uiFresh !== true ? t("mocapSafety.foxgloveUi") : t("mocapSafety.operatorComputer")});
   }
   if (state.held === true) {
     return t("mocapSafety.holdingLastPelvisPoseRealSampleAgeMs", {age: Math.round(state.ageMs ?? 0)});

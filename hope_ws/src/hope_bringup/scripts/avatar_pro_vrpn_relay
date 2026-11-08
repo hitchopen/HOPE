@@ -36,7 +36,6 @@ import time
 from std_msgs.msg import Bool, String
 from vrpn_pants_contract import Selection, load_profiles, normalize_pose, observation, update_selection, validate_vrpn_setup
 from source_time_rate_gate import SourceTimeRateGate
-from operator_heartbeat import OperatorHeartbeat
 
 import rclpy
 from geometry_msgs.msg import PointStamped, Pose, PoseArray, PoseStamped, TransformStamped
@@ -212,7 +211,6 @@ class AvatarProVrpnRelay(Node):
         }
         self._player_position_gates = {name: SourceTimeRateGate(30.0)
                                        for name in self._player_position_publishers}
-        self._operator_heartbeat = OperatorHeartbeat(self, str(self.get_parameter("debug_session_id").value))
 
         # topic -> ("PPT"|"UCB_P1"|"UCB_P2"|"ball"|"ball_candidate")
         self._subs: dict[str, object] = {}

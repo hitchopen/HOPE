@@ -55,7 +55,6 @@
 #include "a3_pingpong/pp_policy.hpp"
 #include "a3_pingpong/pp_reference_playback.hpp"
 #include "a3_pingpong/pp_runner_control.hpp"
-#include "a3_pingpong/pp_operator_heartbeat.hpp"
 #include "a3_pingpong/pp_serve_recovery.hpp"
 #include "a3_pingpong/pp_serve_controller.hpp"
 #include "robot_io/a3_aimrt_backend.hpp"
@@ -527,7 +526,7 @@ int main(int argc, char** argv) {
                  " [--gain-scale F] [--swing-speed F] [--stand-kp K --stand-kd D]\n"
                  "       [--reference-playback|--mode reference-playback]"
                  " [--no-publish|--dry-run] [--warmup-sec S]\n"
-                 "       [--planner] [--shared-session-home] [--operator-watchdog] (LIVE planner: racket <- /racket/command_flat, base <- /a3/base_pose_flat over ros2;"
+                 "       [--planner] [--shared-session-home] (LIVE planner: racket <- /racket/command_flat, base <- /a3/base_pose_flat over ros2;"
                  " [--engage-min-tts S] [--cmd-timeout S] [--invalid-grace S] [--vel-gate-margin M]"
                  " [--pending-expire-after-strike S]"
                  " [--demo] [--policy-native]"
@@ -1287,17 +1286,7 @@ int main(int argc, char** argv) {
   std::shared_ptr<a3_pingpong::PpBasePoseInput> base_in;
   const bool mocap_loss_protection = planner_mode && !kernel_mode && !serve_only;
   runner_control.RequireMocap(mocap_loss_protection);
-  const bool operator_loss_protection = mocap_loss_protection && Has(argc, argv, "--operator-watchdog");
-  if (operator_loss_protection && session_id.empty()) {
-    std::cerr << "[pingpong] --operator-watchdog requires a nonempty --session-id\n";
-    return 1;  // backend has not started; no hardware command can have been issued
-  }
-  runner_control.RequireOperatorHeartbeat(operator_loss_protection);
-  auto operator_heartbeat = std::make_shared<a3_pingpong::PpOperatorHeartbeat>(runner_boot_id, session_id);
-  if (operator_loss_protection) backend->SetOperatorHeartbeatCallback(
-      [operator_heartbeat](const std::vector<double>& values) {
-        operator_heartbeat->Echo(values, a3_pingpong::PpNowSteadySec());
-      });
+  // Operator UI/computer connectivity is not a play admission or stop condition.
   if (planner_mode) {
     auto racket_in = std::make_shared<a3_pingpong::PpRacketTargetInput>(
         pp->expected_planner_wire_schema());
@@ -2122,8 +2111,10 @@ int main(int argc, char** argv) {
             source.kp.setZero();
             source.kd.setZero();
           }
-          // Cross-fade complete PD laws on policy exit as well as entry, so
-          // low-gain compensation is not amplified by increasing stand gains.
+          // The low-gain actor's gravity-compensating q_des must not be
+          // multiplied by independently increasing stand gains on exit either.
+          // Cross-fade complete PD laws in both policy/stand directions; keep
+          // the existing measured-pose PASSIVE -> PD_STAND entry unchanged.
           if (policy_native && ppp->onnx().has_v11_affine_safe_qdes_contract() &&
               (m == Mode::kMotion || last_delivered_mode == Mode::kMotion))
             mode_transition.BeginImpedance(source, cmd, duration);
@@ -2293,12 +2284,6 @@ int main(int argc, char** argv) {
       if (runner_control.ObserveMocap(usable, usable && sample.held_for_policy,
                                      usable ? sample.receipt_age_s : -1.))
         std::fprintf(stderr, "[pp SAFETY] MOCAP_UNAVAILABLE -> controlled PD_STAND recovery\n");
-    }
-    if (operator_loss_protection) {
-      const auto live = operator_heartbeat->Fresh(a3_pingpong::PpNowSteadySec());
-      if (runner_control.ObserveOperatorHeartbeat(live[0], live[1]))
-        std::fprintf(stderr, "[pp SAFETY] OPERATOR_%s_UNAVAILABLE -> controlled PD_STAND recovery\n",
-                     live[0] ? "COMPUTER" : "UI");
     }
     const auto command_now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
         std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -2803,15 +2788,13 @@ int main(int argc, char** argv) {
     }
   });
 
-  // Authoritative Runner heartbeat.  It carries actual local role/mode and
+  // Authoritative Runner state telemetry. It carries actual local role/mode and
   // the real PpServeController enum; the HDU observer only decodes it.
   std::thread runner_state_publisher([&]() {
-    unsigned heartbeat_tick = 0;
+    unsigned state_publish_tick = 0;
     while (!g_stop.load()) {
-      if (operator_loss_protection)
-        backend->PublishOperatorChallenge(operator_heartbeat->Issue(a3_pingpong::PpNowSteadySec()));
       backend->PublishMocapSafety(runner_control.EncodeMocapSafety());
-      if (heartbeat_tick++ % 10 != 0) {
+      if (state_publish_tick++ % 10 != 0) {
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
         continue;
       }

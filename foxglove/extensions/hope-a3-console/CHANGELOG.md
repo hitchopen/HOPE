@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.9.17
+
+- Remove operator UI/computer challenge echoes and heartbeat admission; managed
+  play retains the independent mocap freshness guard.
+
+- Listen at document capture so shortcuts survive action-button focus loss and
+  work from other Foxglove panels. With multiple visible Consoles, target only
+  the last Console selected by click/focus. Ignore hidden panels and dialogs.
+- Verify the complete production bundle in Chromium with real pointer/key input:
+  both Serve stages, Passive, and PLAYING/MOTION to Init after focus loss.
+
+## 1.9.16 (local shortcut restoration)
+
+- Rename Stand to Init and bind I → Init, R → Ready, S → the currently enabled
+  Serve stage, and simultaneous Left + Right → Runner Passive.
+- Remove both Serve confirmation dialogs while retaining click-time state and
+  identity checks, local ball intents and synchronous duplicate suppression.
+- Suppress editing, IME and held-key repeats, including across Serve stages;
+  clear held keys on focus loss, window blur and visibility changes.
+
 ## 1.9.13
 
 - Accept qualified incoming observations without invented pre-net history.

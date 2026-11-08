@@ -51,7 +51,7 @@ test('expired and genuinely future-dated input stays stale', () => {
 
 test('button explains missing Runner, Stand, controller, policy and fault', () => {
   assert.match(entry(false, false, undefined, false, undefined, false), /Start the system/);
-  assert.match(entry(true, false, 'PASSIVE', true, state, false), /Select Stand/);
+  assert.match(entry(true, false, 'PASSIVE', true, state, false), /Select Init/);
   assert.match(entry(true, false, 'PD_STAND', true, state, false, { xboxFresh: false }), /fresh controller/);
   const noPolicy = [...state]; noPolicy[2] = 0;
   assert.match(entry(true, false, 'PD_STAND', true, noPolicy, false), /no teleop policy/);
@@ -83,7 +83,7 @@ test('entry still requires neutral, released controls and no pending action or E
   assert.match(entry(true, false, 'PD_STAND', false, undefined, false, { estop: true }), /E-stop/);
   assert.match(entry(true, false, 'PD_STAND', false, undefined, true), /request pending/);
   for (const mode of ['SERVE', 'MOTION', 'PASSIVE']) {
-    assert.match(entry(true, false, mode, false, undefined, false), /Select Stand/);
+    assert.match(entry(true, false, mode, false, undefined, false), /Select Init/);
   }
 });
 
@@ -95,7 +95,7 @@ test('Stand -> Entering -> Active -> Stopping -> Stand has accurate feedback', (
     current[3] = phase;
     const reason = entry(true, false, 'TELEOP', true, current, false);
     assert.match(reason, text);
-    assert.doesNotMatch(reason, /Select Stand/);
+    assert.doesNotMatch(reason, /Select Init/);
   }
   // Mode and phase arrive on separate topics. Fresh PD_STAND is authoritative
   // even if the final STOPPING telemetry packet has not yet been replaced.
