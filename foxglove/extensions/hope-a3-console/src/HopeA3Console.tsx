@@ -24,6 +24,7 @@ import { mergeConfirmedConfig } from "./lifecycleConfig";
 import { MocapSafety, decodeMocapSafety, mocapSafetyText } from "./mocapSafety";
 import { MOCAP_LABELS, mocapSetupCommand } from "./mocapSetup";
 import { OPERATOR_CHALLENGE, OperatorHeartbeat } from "./operatorHeartbeat";
+import { decodeDockState, dockRepositionReason, formatDockStatus } from "./dockStatus";
 import { PLANE_MODE_SERVICE, PlaneMode, PlaneModeState, decodePlaneMode, planeModeRequest } from "./planeMode";
 import { PlayerPosition, decodePlayerPosition, playerSideAvailable } from "./playerPositions";
 import { reconcileRobotTarget, robotConnectionUrl, switchRobot } from "./robotConnection";
@@ -78,6 +79,7 @@ const TOPICS = {
   runnerMode: "/hope/runner/mode",
   xboxPreview: "/hope/runner/xbox_preview",
   teleopState: "/hope/runner/teleop_state_hdu_flat",
+  dockState: "/hope/runner/dock_state_hdu_flat",
   runnerFault: "/hope/runner/command_fault_latched",
   localRole: "/hope/runner/local_role",
   roleChangeAllowed: "/hope/runner/role_change_allowed",
@@ -115,6 +117,7 @@ const TOPICS = {
   vrpnPort: "/hope/lifecycle/config/vrpn_port",
   vrpnUnits: "/hope/lifecycle/config/vrpn_units",
   operatorProfile: "/hope/lifecycle/config/operator_profile",
+  autoDock: "/hope/lifecycle/config/auto_dock",
 } as const;
 
 const SERVICES = {
@@ -125,6 +128,7 @@ const SERVICES = {
   stand: "/hope/runner/enter_pd_stand",
   ready: "/hope/runner/enter_motion",
   teleop: "/hope/runner/enter_teleop",
+  dock: "/hope/runner/enter_dock",
   prepareServe: "/hope/runner/prepare_serve",
   confirmBallLoaded: "/hope/runner/confirm_ball_loaded",
   readyToServe: "/hope/runner/ready_to_serve",
@@ -175,6 +179,7 @@ const CONFIG_FIELDS = {
   gripper_profile: { label: msg("hopeA3Console.gripper"), topic: TOPICS.gripperProfile },
   pants_profile: { label: msg("hopeA3Console.markerPants"), topic: TOPICS.pantsProfile },
   operator_profile: { label: msg("hopeA3Console.operatorComputer"), topic: TOPICS.operatorProfile },
+  auto_dock: { label: msg("hopeA3Console.autoDock"), topic: TOPICS.autoDock },
 } as const;
 
 type ConfigField = keyof typeof CONFIG_FIELDS;
@@ -205,6 +210,7 @@ const EMPTY_CONFIG: LifecycleConfigDraft = {
   vrpn_port: "",
   vrpn_units: "",
   operator_profile: "",
+  auto_dock: "off",
 };
 
 type XboxPreview = {
@@ -250,6 +256,7 @@ type Snapshot = {
   planeMode?: PlaneModeState;
   xboxPreview?: XboxPreview;
   teleopState?: number[];
+  dockState?: number[];
   ntpOffsetMs?: number;
   ntpSkewPpm?: number;
   ntpDispersionMs?: number;
@@ -487,6 +494,10 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
       next.teleopState = decodeTeleopState(scalar(event.message));
       break;
     }
+    case TOPICS.dockState: {
+      next.dockState = decodeDockState(scalar(event.message));
+      break;
+    }
     case TOPICS.runnerFault:
       next.runnerFault = boolValue(event.message);
       break;
@@ -597,6 +608,9 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
       break;
     case TOPICS.operatorProfile:
       next.lifecycleConfig.operator_profile = stringValue(event.message);
+      break;
+    case TOPICS.autoDock:
+      next.lifecycleConfig.auto_dock = stringValue(event.message);
       break;
   }
 }
@@ -1108,7 +1122,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         bool_value: false,
         integer_value: 0,
         double_value: 0,
-        string_value: configDraft[name],
+        string_value: name === "auto_dock" ? (configDraft.auto_dock || "off") : configDraft[name],
         byte_array_value: [],
         bool_array_value: [],
         integer_array_value: [],
@@ -1130,7 +1144,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       } else {
         setConfigTouched(false);
         setNotice(
-          msg("hopeA3Console.configConfirmed", {operator: configDraft.operator_profile ? msg("hopeA3Console.operator", {platform: configDraft.operator_profile.toUpperCase()}) : "", mocap: MOCAP_LABELS[configDraft.mocap_source] ?? "UNKNOWN", side: configDraft.table_side, gripper: configDraft.gripper_profile, pants: configDraft.pants_profile.toUpperCase()}),
+          msg("hopeA3Console.configConfirmed", {operator: configDraft.operator_profile ? msg("hopeA3Console.operator", {platform: configDraft.operator_profile.toUpperCase()}) : "", mocap: MOCAP_LABELS[configDraft.mocap_source] ?? "UNKNOWN", side: configDraft.table_side, gripper: configDraft.gripper_profile, pants: configDraft.pants_profile.toUpperCase(), autoDock: configDraft.auto_dock || "off"}),
         );
       }
     } catch (error) {
@@ -1145,10 +1159,12 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       snapshot.lifecycleState === "FAILED"
         ? msg("hopeA3Console.cleanUpTheFailedSessionAndRetryStart")
         : snapshot.field?.mode === "KERNEL"
-        ? msg("hopeA3Console.startKernelModeWithTheSelectedCsvConfirm")
+        ? snapshot.lifecycleConfig.auto_dock === "on"
+          ? msg("hopeA3Console.startKernelModeWithAutoDock")
+          : msg("hopeA3Console.startKernelModeWithTheSelectedCsvConfirm")
         : msg("hopeA3Console.startStep012A2B45"),
     );
-  }, [invokeConfirmed, snapshot.field?.mode, snapshot.lifecycleState]);
+  }, [invokeConfirmed, snapshot.field?.mode, snapshot.lifecycleConfig.auto_dock, snapshot.lifecycleState]);
 
   const killAllAndCollect = useCallback(() => {
     invokeConfirmed("killAllAndCollect",
@@ -1204,6 +1220,19 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     isFresh(snapshot, TOPICS.runnerFault, now, 1_000), runnerFault: snapshot.runnerFault !== false,
     mode: snapshot.runnerMode, telemetryFresh: teleopFresh, state: teleop, pending: busy.teleop === true,
     xboxFresh, xbox: snapshot.xboxPreview, estop: estopAsserted }, t);
+  const autoDock = snapshot.lifecycleConfig.auto_dock === "on";
+  const dockFresh = isFresh(snapshot, TOPICS.dockState, now, 1000);
+  const dockState = dockFresh ? snapshot.dockState : undefined;
+  const serveQuiet = snapshot.serveState == undefined ||
+    ["UNAVAILABLE", "IDLE", "COMPLETE"].includes(snapshot.serveState);
+  const dockBlocked = dockRepositionReason({
+    autoDock: snapshot.lifecycleConfig.auto_dock,
+    runnerFresh: runnerFresh && isFresh(snapshot, TOPICS.runnerMode, now, 1_000) &&
+      isFresh(snapshot, TOPICS.runnerFault, now, 1_000),
+    runnerFault: snapshot.runnerFault !== false,
+    mode: snapshot.runnerMode, baseFresh, serveActive: snapshot.serving === true || !serveQuiet,
+    pending: busy.dock === true,
+  }, t);
   const xboxVelocity = xboxFresh ? snapshot.xboxPreview?.velocity : undefined;
   const velocityText = (values: number[] | undefined) => values == undefined
     ? "vx — · vy — · yaw —"
@@ -1544,6 +1573,24 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             {Object.entries(MOCAP_LABELS).map(([value, label]) => <option key={value} value={value}>{t.text(label)}</option>)}
           </select>
         </label>
+        <div className="table-side-selector" role="group" aria-label={t("hopeA3Console.autoDock")}>
+          <div>
+            <div className="eyebrow">{t("hopeA3Console.autoDock")}</div>
+            <div className="helper">{t("hopeA3Console.autoDockHelp")}</div>
+          </div>
+          {(["off", "on"] as const).map((value) => (
+            <button key={value} type="button"
+              className={(configDraft.auto_dock || "off") === value ? "side-selected" : ""}
+              aria-pressed={(configDraft.auto_dock || "off") === value}
+              disabled={!lifecycleStopped || lifecycleBusy}
+              onClick={() => {
+                setConfigTouched(true);
+                setConfigDraft((current) => ({ ...current, auto_dock: value }));
+              }}>
+              {value === "on" ? t("hopeA3Console.on") : t("hopeA3Console.off")}
+            </button>
+          ))}
+        </div>
         {snapshot.lifecycleConfig.operator_profile != undefined && <div className="table-side-selector" role="group" aria-label={t("hopeA3Console.operatorComputer")}>
           <div>
             <div className="eyebrow">{t("hopeA3Console.operatorComputer2")}</div>
@@ -1910,11 +1957,12 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
               {t("hopeA3Console.receiver")} </button>
           </div>
         </div>
+        {autoDock && <p className="helper" role="status">{formatDockStatus(dockState, t)}</p>}
         <div className="action-grid">
           <ActionButton
             label={t("hopeA3Console.stand")}
             detail={
-              snapshot.runnerMode === "TELEOP"
+              snapshot.runnerMode === "TELEOP" || snapshot.runnerMode === "DOCK"
                 ? t("hopeA3Console.stopAndSettleWaitsForTheFeetThen")
                 : serveWorkflowActive
                 ? t("hopeA3Console.phaseAwareAbortRecoveryStaysInThisRunner")
@@ -1928,6 +1976,14 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             next={nextStep === "stand"}
             onClick={() => void invoke("stand")}
           />
+          {autoDock && <ActionButton
+            label={t("hopeA3Console.reposition")}
+            detail={dockBlocked ?? t("hopeA3Console.repositionWalk")}
+            disabled={dockBlocked != undefined}
+            busy={busy.dock === true}
+            completed={dockState?.[2] === 5}
+            onClick={() => void invoke("dock")}
+          />}
           <div className="ready-controls">
           <ActionButton
             label={t("hopeA3Console.ready")}

@@ -180,6 +180,8 @@ serve. Y never queues a Stand-to-Teleop sequence during a serve or another mode.
 Reconnecting a controller reopens the device; held face buttons require release
 and a new press. Neither reconnecting nor finishing a serve selects locomotion.
 
+**Reposition** is separate from Teleop. It is hidden unless lifecycle Auto-dock is on. From fresh Stand, with a fresh base pose and no serve in progress, it runs `ENTER_DOCK`: the same HumanLike walker, with velocity from motion capture instead of the Xbox sticks. Y still enters Teleop and does not start a dock. Stand aborts either walk and waits for the feet. Dock details are in [auto_dock.md](auto_dock.md).
+
 The Console enables **Enter Teleop** from fresh Stand and connected, neutral Xbox
 input with LT released. Its separate Teleop phase/input-age display can reconnect
 independently and does not lock the request button. Runner still validates the

@@ -44,6 +44,7 @@
 #include "a3_pingpong/pp_sha256.hpp"
 #include "a3_pingpong/pp_stand_pose.hpp"
 #include "a3_pingpong/pp_hybrid_lower_policy.hpp"
+#include "a3_pingpong/pp_dock_controller.hpp"
 #include "a3_pingpong/pp_humanlike_policy.hpp"
 #include "a3_pingpong/pp_teleop_entry.hpp"
 #include "a3_pingpong/pp_teleop_input.hpp"
@@ -520,6 +521,7 @@ int main(int argc, char** argv) {
     std::cerr << "usage: " << argv[0]
               << " --runtime-cfg PATH [--aimrt-cfg PATH]"
                  " [--policy-dir PATH] [--teleop-policy-dir PATH]"
+                 " [--auto-dock --dock-config PATH]"
                  " [--start passive|pd_stand|shadow|motion]"
                  " [--level 0|1]\n"
                  "       [--backhand] [--legs-passive] [--waist-passive] [--auto-leg-hold]"
@@ -957,6 +959,20 @@ int main(int argc, char** argv) {
       throw std::invalid_argument("teleop requires the existing 50 Hz receive policy contract");
     locomotion = std::make_unique<a3_pingpong::PpHumanLikePolicy>(teleop_policy_dir);
   }
+  const bool auto_dock = Has(argc, argv, "--auto-dock");
+  std::unique_ptr<a3_pingpong::PpDockController> dock_controller;
+  if (auto_dock) {
+    if (!locomotion)
+      throw std::invalid_argument("--auto-dock requires --teleop-policy-dir");
+    const std::string dock_config = Flag(argc, argv, "--dock-config", "");
+    if (dock_config.empty())
+      throw std::invalid_argument("--auto-dock requires --dock-config PATH");
+    dock_controller = std::make_unique<a3_pingpong::PpDockController>(
+        a3_pingpong::LoadDockConfig(dock_config));
+    std::cout << "[pingpong] auto-dock target=(" << dock_controller->config().target_x
+              << ", " << dock_controller->config().target_y
+              << ") yaw=" << dock_controller->config().target_yaw << "\n";
+  }
   const auto wall_seconds = [] { return std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count(); };
   const auto steady_seconds = [] { return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count(); };
   // Optional PD_STAND warmup: hold nominal for N s (robot settles upright),
@@ -1302,6 +1318,14 @@ int main(int argc, char** argv) {
                         "planner landing velocity is overridden\n"
                       : "[pingpong] planner velocity mode: PLANNED (default); executing "
                         "planner velocity subject to metadata gates\n");
+  }
+  // Kernel normally has no base producer. Auto-dock still reads /a3/base_pose_flat
+  // directly and does not change kernel localization or the receive policy.
+  if (auto_dock && !base_in) {
+    base_in = std::make_shared<a3_pingpong::PpBasePoseInput>();
+    backend->SetBasePoseCallback(
+        [base_in](const std::vector<double>& a) { base_in->SetFromFlat(a); });
+    std::cout << "[pingpong] auto-dock base <- /a3/base_pose_flat\n";
   }
 
   // ---- SIM-ONLY oracle localization wiring ----
@@ -1726,8 +1750,16 @@ int main(int argc, char** argv) {
   std::atomic<int> teleop_phase{0}; // off, entering, active, stopping
   std::atomic<double> teleop_progress{0};
   std::array<std::atomic<double>,3> teleop_velocity{};
+  std::atomic<int> dock_phase{0};
+  std::atomic<int> dock_attempt{0};
+  std::atomic<int> dock_result{0};
+  std::atomic<int> dock_reason{0};
+  std::atomic<double> dock_error_x{0}, dock_error_y{0}, dock_error_yaw{0};
+  std::atomic<double> dock_distance{0}, dock_elapsed{0}, dock_pose_age{1e9};
   a3_pingpong::PpTeleopEntry teleop_entry;
   bool teleop_entered = false;
+  bool dock_frame_latched = false;
+  std::uint64_t dock_frame_id = 0;
   std::uint64_t teleop_tick = 0;
   int teleop_quiet_ticks = 0, teleop_fall_ticks = 0;
   robot_io::RobotCommand hybrid_hope_command_cache;
@@ -2312,7 +2344,7 @@ int main(int argc, char** argv) {
       serve_hal_selection_missed.store(true, std::memory_order_release);
     if (locomotion) {
       const Mode mode = runner_control.mode();
-      if (mode == Mode::kTeleop) {
+      if (mode == Mode::kTeleop || (mode == Mode::kDock && dock_controller)) {
         computed_mode = mode;
         prev_mode_for_blend = mode;
         mode_cadence.Reset();
@@ -2333,15 +2365,61 @@ int main(int argc, char** argv) {
           teleop_tick = 0;
           teleop_quiet_ticks = 0;
           teleop_fall_ticks = 0;
+          dock_frame_latched = false;
+          if (mode == Mode::kDock) dock_controller->Begin(steady_seconds());
           command = teleop_entry.Step(0., state, *locomotion, Eigen::Vector3d::Zero());
           teleop_entered = true;
         } else {
-          const bool stopping = runner_control.TeleopStopRequested();
-          const bool active = !teleop_entry.active() && !stopping;
-          const auto target = teleop_input.Sample(active, wall_seconds(), steady_seconds());
+          const bool body_quiet = state.dq.cwiseAbs().maxCoeff() < .5 && state.imu_gyro.norm() < .15;
+          bool stopping = mode == Mode::kTeleop ? runner_control.TeleopStopRequested()
+                                                : runner_control.DockStopRequested();
+          Eigen::Vector3d target = Eigen::Vector3d::Zero();
+          if (mode == Mode::kTeleop) {
+            const bool active = !teleop_entry.active() && !stopping;
+            target = teleop_input.Sample(active, wall_seconds(), steady_seconds());
+          } else {
+            if (stopping) dock_controller->RequestStop();
+            std::optional<a3_pingpong::DockPose> pose;
+            if (base_in) {
+              a3_pingpong::PpBaseSample sample;
+              if (base_in->Latest(sample, 1.0, true)) {
+                a3_pingpong::DockPose next;
+                next.x = sample.pos.x();
+                next.y = sample.pos.y();
+                next.yaw = a3_pingpong::DockYawWxyz(
+                    sample.quat[0], sample.quat[1], sample.quat[2], sample.quat[3]);
+                next.age_s = sample.receipt_age_s;
+                next.valid = true;
+                const bool flags = (sample.flags & a3_pingpong::kV17RequiredBaseFlags) ==
+                                   a3_pingpong::kV17RequiredBaseFlags;
+                if (!dock_frame_latched) {
+                  dock_frame_id = sample.world_frame_id;
+                  dock_frame_latched = true;
+                }
+                next.frame_ok = flags && sample.schema == 2 && sample.world_frame_id != 0 &&
+                                sample.world_frame_id == dock_frame_id;
+                pose = next;
+                dock_pose_age.store(next.age_s);
+              }
+            }
+            const auto out = dock_controller->Update(
+                steady_seconds(), pose, teleop_entry.active(), locomotion->settled(), body_quiet);
+            dock_phase.store(static_cast<int>(out.phase));
+            dock_attempt.store(out.attempt);
+            dock_result.store(static_cast<int>(out.result));
+            dock_reason.store(static_cast<int>(out.reason));
+            dock_error_x.store(out.error_x);
+            dock_error_y.store(out.error_y);
+            dock_error_yaw.store(out.error_yaw);
+            dock_distance.store(out.distance);
+            dock_elapsed.store(out.elapsed_s);
+            const bool finished = out.result == a3_pingpong::DockResult::kDone ||
+                                  out.result == a3_pingpong::DockResult::kFailed;
+            if (finished) stopping = true;
+            target = stopping || teleop_entry.active() ? Eigen::Vector3d::Zero() : out.velocity;
+          }
           command = teleop_entry.Step(teleop_tick * .002, state, *locomotion, target);
-          if (stopping && !teleop_entry.active() && locomotion->settled() && state.dq.cwiseAbs().maxCoeff() < .5 &&
-              state.imu_gyro.norm() < .15)
+          if (stopping && !teleop_entry.active() && locomotion->settled() && body_quiet)
             ++teleop_quiet_ticks;
           else teleop_quiet_ticks = 0;
           if (teleop_quiet_ticks >= 150) runner_control.SetRuntimeMode(Mode::kPdStand);
@@ -2351,8 +2429,13 @@ int main(int argc, char** argv) {
                                          state.imu_quat_wxyz[2] * state.imu_quat_wxyz[2]));
         teleop_fall_ticks = gz > fall_guard_gz ? teleop_fall_ticks + 1 : 0;
         if (fall_guard && teleop_fall_ticks >= 30) throw std::runtime_error("teleop fall guard");
-        teleop_phase.store(runner_control.TeleopStopRequested() ? 3 : (teleop_entry.active() ? 1 : 2));
-        teleop_progress.store(std::min(1., teleop_tick * .002 / a3_pingpong::PpTeleopEntry::kSeconds));
+        if (mode == Mode::kTeleop) {
+          teleop_phase.store(runner_control.TeleopStopRequested() ? 3 : (teleop_entry.active() ? 1 : 2));
+          teleop_progress.store(std::min(1., teleop_tick * .002 / a3_pingpong::PpTeleopEntry::kSeconds));
+        } else {
+          teleop_phase.store(0);
+          teleop_progress.store(0);
+        }
         const auto filtered = locomotion->filtered_velocity();
         for (int i = 0; i < 3; ++i) teleop_velocity[i].store(filtered[i]);
         ++teleop_tick;
@@ -2361,6 +2444,7 @@ int main(int argc, char** argv) {
       if (teleop_entered) {
         teleop_entered = false;
         teleop_input.Disarm();
+        dock_frame_latched = false;
       }
       teleop_phase.store(0);
       teleop_progress.store(0);
@@ -2462,11 +2546,25 @@ int main(int argc, char** argv) {
               : static_cast<int>(servep->gripper_state());
       const bool cleanup_required =
           servep != nullptr && servep->cleanup_required();
+      bool dock_pose_ready = false;
+      bool dock_start_near = false;
+      if (dock_controller && base_in) {
+        a3_pingpong::PpBaseSample sample;
+        if (base_in->Latest(sample, dock_controller->config().mocap_max_age_s, true)) {
+          const bool flags = (sample.flags & a3_pingpong::kV17RequiredBaseFlags) ==
+                             a3_pingpong::kV17RequiredBaseFlags;
+          dock_pose_ready = flags && sample.schema == 2 && sample.world_frame_id != 0;
+          dock_start_near = std::hypot(dock_controller->config().target_x - sample.pos.x(),
+                                       dock_controller->config().target_y - sample.pos.y()) <=
+                            dock_controller->config().max_start_distance_m;
+        }
+      }
       const auto decisions = runner_control.ProcessPending(
           driver.CommandFaultLatched(), serve_active, serve_capability,
           serve_state, true, gripper_state,
           cleanup_required, locomotion != nullptr,
-          teleop_input.Ready(wall_seconds(),steady_seconds()));
+          teleop_input.Ready(wall_seconds(),steady_seconds()),
+          dock_controller != nullptr, dock_pose_ready, dock_start_near);
       for (const auto& decision : decisions) {
         if (decision.hold_reference) {
           refp->Hold(decision.request.action ==
@@ -2698,7 +2796,7 @@ int main(int argc, char** argv) {
           case '5':
           case '6':
           case '7':
-            if (runner_control.mode() == Mode::kTeleop) {
+            if (runner_control.mode() == Mode::kTeleop || runner_control.mode() == Mode::kDock) {
               std::cout << "-> return to PD_STAND before reference/policy diagnostics\n";
               break;
             }
@@ -2745,7 +2843,7 @@ int main(int argc, char** argv) {
                     ppp->set_swing_dir(-1);
                     std::cout << "-> swing dir = BACKHAND (scripted target +y, clip1)\n"; break;
           case 'r':
-            if (runner_control.mode() == Mode::kTeleop) {
+            if (runner_control.mode() == Mode::kTeleop || runner_control.mode() == Mode::kDock) {
               std::cout << "-> return to PD_STAND before REFERENCE_PLAYBACK\n";
               break;
             }
@@ -2761,7 +2859,7 @@ int main(int argc, char** argv) {
             }
             break;
           case 'x':
-            if (runner_control.mode() == Mode::kTeleop) {
+            if (runner_control.mode() == Mode::kTeleop || runner_control.mode() == Mode::kDock) {
               runner_control.EnqueueLocalAction(a3_pingpong::RunnerAction::kEnterPdStand);
               break;
             }
@@ -2817,6 +2915,13 @@ int main(int argc, char** argv) {
           teleop_input.Age(steady_seconds()),teleop_progress.load(),
           teleop_velocity[0].load(),teleop_velocity[1].load(),teleop_velocity[2].load(),
           teleop_input.armed()?1.:0.});
+      if (dock_controller) backend->PublishDockState({
+          1., static_cast<double>(runner_boot_id), static_cast<double>(dock_phase.load()),
+          static_cast<double>(dock_attempt.load()), dock_error_x.load(), dock_error_y.load(),
+          dock_error_yaw.load(), dock_distance.load(), dock_elapsed.load(),
+          static_cast<double>(dock_result.load()), static_cast<double>(dock_reason.load()),
+          dock_controller->config().target_x, dock_controller->config().target_y,
+          dock_controller->config().target_yaw, dock_pose_age.load()});
       std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
   });

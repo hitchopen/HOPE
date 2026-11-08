@@ -285,7 +285,30 @@ TEST(PpRunnerControl, SessionFingerprintMatchesPythonFixture) {
   EXPECT_LT(fingerprint, a3_pingpong::kRunnerMaxExactFloatInteger);
 }
 
-}  // namespace
+TEST(PpRunnerControl, DockRequiresStandCapabilityAndFreshNearPose) {
+  PpRunnerControl control(RunnerMode::kPdStand, 1, "dock");
+  control.EnqueueLocalAction(RunnerAction::kEnterDock);
+  EXPECT_EQ(control.ProcessPending(false, false)[0].reason, RunnerActionReason::kDockUnavailable);
+  control.EnqueueLocalAction(RunnerAction::kEnterDock);
+  EXPECT_EQ(control.ProcessPending(false, false, false, -1, false, -1, false, false, false,
+                                   true, false, false)[0].reason,
+            RunnerActionReason::kDockMocapUnavailable);
+  control.EnqueueLocalAction(RunnerAction::kEnterDock);
+  EXPECT_EQ(control.ProcessPending(false, false, false, -1, false, -1, false, false, false,
+                                   true, true, false)[0].reason,
+            RunnerActionReason::kDockStartTooFar);
+  control.EnqueueLocalAction(RunnerAction::kEnterDock);
+  EXPECT_EQ(control.ProcessPending(false, false, false, -1, false, -1, false, false, false,
+                                   true, true, true)[0].result,
+            RunnerActionResult::kApplied);
+  EXPECT_EQ(control.mode(), RunnerMode::kDock);
+  control.EnqueueLocalAction(RunnerAction::kEnterPdStand);
+  const auto stop = control.ProcessPending(false, false)[0];
+  EXPECT_TRUE(stop.request_teleop_stop);
+  EXPECT_EQ(stop.reason, RunnerActionReason::kDockStopRequested);
+  EXPECT_TRUE(control.DockStopRequested());
+  EXPECT_EQ(control.mode(), RunnerMode::kDock);
+}
 
 TEST(PpRunnerControl, KernelServeCompletesInStandAndKeepsServerRole) {
   PpRunnerControl control(RunnerMode::kPdStand, 1, "kernel");
@@ -307,3 +330,5 @@ TEST(PpRunnerControl, NormalAndPureServeKeepExistingCompletionModes) {
     EXPECT_EQ(control.mode(), pure ? RunnerMode::kPdStand : RunnerMode::kMotion);
   }
 }
+
+}  // namespace

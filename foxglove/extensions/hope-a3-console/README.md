@@ -97,6 +97,8 @@ explains an HDU discovery mismatch while side selection still uses raw mocap.
 Side changes remain locked through STARTING/RUNNING/FAILED/KILLING until STOPPED.
 Player positions are not used to reassign sides during play.
 
+Auto-dock is a stopped-lifecycle setting. Off keeps Kernel start without mocap. On starts mocap and the base-pose relay, still without the Planner, and shows Reposition. Reposition walks to the serve pose from Stand and returns to Stand. It is not a substitute for Start to Serve. See `docs/operations/auto_dock.md`.
+
 Normal mocap-based SERVE/RALLY requires a fresh MDU base-pose mailbox. A 1 s
 signal gap or an explicit invalid pose stops RALLY into the existing PD_STAND
 blend; SERVE requests its authored abort and validated recovery first. Fresh

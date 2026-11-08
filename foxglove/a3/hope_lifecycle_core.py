@@ -13,7 +13,7 @@ import tempfile
 from typing import IO, Mapping, Sequence
 
 
-CONFIG_SCHEMA_VERSION = 6
+CONFIG_SCHEMA_VERSION = 7
 NETWORK_CONFIG_FIELDS = (
     "laptop_wifi_ip",
     "hdu_wifi_ip",
@@ -27,9 +27,11 @@ OPERATOR_CONFIG_FIELDS = (*LEGACY_CONFIG_FIELDS, "operator_profile")
 MAIN_CONFIG_FIELDS = (*OPERATOR_CONFIG_FIELDS, "gripper_profile")
 FIELD_CONFIG_FIELDS = (*NETWORK_CONFIG_FIELDS, "table_side", "gripper_profile", "pants_profile",
                        "mocap_source", "vrpn_port", "vrpn_units")
-CONFIG_FIELDS = (*FIELD_CONFIG_FIELDS, "operator_profile")
+SCHEMA6_CONFIG_FIELDS = (*FIELD_CONFIG_FIELDS, "operator_profile")
+CONFIG_FIELDS = (*SCHEMA6_CONFIG_FIELDS, "auto_dock")
 REQUEST_FIELD_SETS = tuple(map(frozenset, (LEGACY_CONFIG_FIELDS, OPERATOR_CONFIG_FIELDS,
-                                        MAIN_CONFIG_FIELDS, FIELD_CONFIG_FIELDS, CONFIG_FIELDS)))
+                                        MAIN_CONFIG_FIELDS, FIELD_CONFIG_FIELDS,
+                                        SCHEMA6_CONFIG_FIELDS, CONFIG_FIELDS)))
 PRIVATE_NETWORKS = tuple(
     ipaddress.IPv4Network(cidr) for cidr in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
 )
@@ -60,6 +62,7 @@ class LifecycleConfig:
     operator_profile: str = "linux"
     gripper_profile: str = "legacy"
     pants_profile: str = "v2"
+    auto_dock: str = "off"
     revision: int = 0
 
     def values(self) -> dict[str, str]:
@@ -156,6 +159,10 @@ def validate_config_value(name: str, value: object) -> str:
         if not isinstance(value, str) or value not in choices:
             raise ValueError(f"{name} must be one of {', '.join(sorted(choices))}")
         return value
+    if name == "auto_dock":
+        if not isinstance(value, str) or value not in {"off", "on"}:
+            raise ValueError("auto_dock must be exactly off or on")
+        return value
     if name == "vrpn_port":
         if (not isinstance(value, str) or re.fullmatch(r"[1-9][0-9]{0,4}", value) is None
                 or not 1 <= int(value) <= 65535):
@@ -207,7 +214,7 @@ def config_to_document(config: LifecycleConfig) -> dict[str, object]:
 
 def config_from_document(document: Mapping[str, object]) -> LifecycleConfig:
     schema_version = document.get("schema_version")
-    if schema_version not in {1, 2, 3, 4, 5, CONFIG_SCHEMA_VERSION}:
+    if schema_version not in {1, 2, 3, 4, 5, 6, CONFIG_SCHEMA_VERSION}:
         raise ValueError("unsupported lifecycle configuration schema")
     revision = document.get("revision")
     if not isinstance(revision, int) or isinstance(revision, bool) or revision < 1:
@@ -229,7 +236,7 @@ def config_from_document(document: Mapping[str, object]) -> LifecycleConfig:
     main_lineage = "operator_profile" in document
     values["operator_profile"] = (
         validate_config_value("operator_profile", document.get("operator_profile"))
-        if schema_version == 6 or (main_lineage and schema_version >= 3) else "linux")
+        if schema_version >= 6 or (main_lineage and schema_version >= 3) else "linux")
     values["gripper_profile"] = (
         "legacy" if schema_version < 3 or (main_lineage and schema_version == 3)
         else validate_config_value("gripper_profile", document.get("gripper_profile")))
@@ -244,6 +251,9 @@ def config_from_document(document: Mapping[str, object]) -> LifecycleConfig:
     }.items():
         values[name] = (default if schema_version < 5
                         else validate_config_value(name, document.get(name)))
+    values["auto_dock"] = (
+        "off" if schema_version < 7
+        else validate_config_value("auto_dock", document.get("auto_dock")))
     validate_mocap_setup(values)
     return LifecycleConfig(**values, revision=revision)
 
