@@ -6,12 +6,11 @@ from pathlib import Path
 import pytest
 
 
-@pytest.fixture(params=["bringup"])
-def guard_class(request):
+@pytest.fixture
+def guard_class():
     src = Path(__file__).resolve().parents[2]
-    path = (src / "hope_bringup/scripts/base_pose_contract.py" if request.param == "bringup"
-            else src / "hope_planner/hope_planner/base_pose_contract.py")
-    spec = importlib.util.spec_from_file_location("jump_contract_" + request.param, path)
+    path = src / "hope_bringup/scripts/base_pose_contract.py"
+    spec = importlib.util.spec_from_file_location("jump_contract_bringup", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module.BasePoseJumpGuard

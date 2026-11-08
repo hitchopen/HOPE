@@ -26,6 +26,8 @@ if [[ "$mocap_source" == vrpn ]]; then
     sha256sum src/hope_bringup/launch/avatar_pro_hope_bridge.launch.py \
       src/hope_bringup/scripts/avatar_pro_vrpn_relay \
       src/hope_bringup/scripts/vrpn_pants_contract.py \
+      install/hope_bringup/lib/hope_bringup/hope_base_pose_flat_relay \
+      install/hope_bringup/lib/hope_bringup/base_pose_contract.py \
       src/hope_bringup/config/pants_profiles/*.json
   } > "$laptop_dir/artifact_sha256.txt"
   ros2 daemon stop || true
@@ -61,6 +63,8 @@ fi
     src/hope_planner_cpp/src/flight_packetizer_node.cpp \
     src/hope_bringup/scripts/hope_base_pose_flat_relay \
     src/hope_bringup/scripts/base_pose_contract.py \
+    install/hope_bringup/lib/hope_bringup/hope_base_pose_flat_relay \
+    install/hope_bringup/lib/hope_bringup/base_pose_contract.py \
     src/hope_bringup/scripts/p1_calibration.py \
     src/hope_bringup/config/optitrack_relay.yaml \
     src/hope_bringup/config/hope_world_frame.yaml \

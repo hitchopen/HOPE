@@ -216,6 +216,9 @@ class BasePoseFlatRelay(Node):
         self._received = 0
         self._published = 0
         self._rejected = 0
+        self._stale_dropped = 0
+        self._reordered_dropped = 0
+        self._jump_dropped = 0
 
         input_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -458,6 +461,7 @@ class BasePoseFlatRelay(Node):
         source_nsec = input_nsec
         receipt_ns = int(self.get_clock().now().nanoseconds)
         out = Float64MultiArray()
+        source_age_s = 0.0
         try:
             if self._asset_mode:
                 pose_stamp = input_sec * 1_000_000_000 + input_nsec
@@ -480,7 +484,7 @@ class BasePoseFlatRelay(Node):
             source_sec, source_nsec = divmod(source_ns, 1_000_000_000)
             if self._source_stamp_mode == SOURCE_STAMP_INPUT_HEADER:
                 source_age_s = (receipt_ns - source_ns) * 1.0e-9
-                if source_age_s < -0.010 or source_age_s > self._max_source_age_s:
+                if source_age_s < -0.010:
                     raise ValueError(
                         f"source stamp age {source_age_s:.3f}s is invalid/stale"
                     )
@@ -488,9 +492,21 @@ class BasePoseFlatRelay(Node):
                 self._last_input_source_ns is not None
                 and input_source_ns <= self._last_input_source_ns
             ):
-                raise ValueError("input source timestamp is duplicate or reordered")
+                self._rejected += 1
+                self._reordered_dropped += 1
+                self.get_logger().warning(
+                    "input source timestamp duplicate/reordered; dropped without refreshing freshness",
+                    throttle_duration_sec=2.0,
+                )
+                return
             if self._last_source_ns is not None and source_ns <= self._last_source_ns:
-                raise ValueError("wire source timestamp is duplicate or reordered")
+                self._rejected += 1
+                self._reordered_dropped += 1
+                self.get_logger().warning(
+                    "wire source timestamp duplicate/reordered; dropped without refreshing freshness",
+                    throttle_duration_sec=2.0,
+                )
+                return
 
             flags = self._flags | FLAG_TRACKING_VALID | FLAG_QUATERNION_VALID
             candidate = pose_to_base_flat(
@@ -520,9 +536,36 @@ class BasePoseFlatRelay(Node):
                 self._offset_quat,
                 previous_base_quaternion_wxyz=self._last_base_quaternion,
             )
+            # A delayed sample is not evidence that the tracked pose is invalid.
+            # Drop it without publishing or renewing the MDU receipt clock. Its
+            # existing hold/rescue deadline still expires if fresh input stops.
+            # Calibration, frame and pose-structure errors above remain hard
+            # invalidations; future timestamps remain clock-contract errors.
+            if source_age_s > self._max_source_age_s:
+                self._rejected += 1
+                self._stale_dropped += 1
+                self.get_logger().warning(
+                    f"stale base pose dropped without refreshing freshness "
+                    f"(source stamp age {source_age_s:.3f}s)",
+                    throttle_duration_sec=2.0,
+                )
+                return
             position = tuple(float(v) for v in candidate[5:8])
             quaternion = tuple(float(v) for v in candidate[8:12])
-            self._jump_guard.observe(source_ns, position, quaternion)
+            try:
+                self._jump_guard.observe(source_ns, position, quaternion)
+            except ValueError as exc:
+                # A rejected measurement is not a new pose or an instruction
+                # to stop. Keep the last accepted pose and its original age;
+                # the Runner's one-second no-progress deadline remains active.
+                # The guard also retains its last/anchor on rejection.
+                self._rejected += 1
+                self._jump_dropped += 1
+                self.get_logger().warning(
+                    f"base pose jump dropped without refreshing freshness ({exc})",
+                    throttle_duration_sec=2.0,
+                )
+                return
             out.data = candidate
             self._last_input_source_ns = input_source_ns
             self._last_source_ns = source_ns
@@ -558,7 +601,7 @@ class BasePoseFlatRelay(Node):
         self.get_logger().info(
             "BASE RELAY schema=2 stamp=%s side=%s calibrated=%d world=%d "
             "receipt=%s world_receipt=%s "
-            "received=%d published=%d rejected=%d"
+            "received=%d published=%d rejected=%d stale_dropped=%d reordered_dropped=%d jump_dropped=%d"
             % (
                 self._source_stamp_mode,
                 self._table_side,
@@ -569,6 +612,9 @@ class BasePoseFlatRelay(Node):
                 self._received,
                 self._published,
                 self._rejected,
+                self._stale_dropped,
+                self._reordered_dropped,
+                self._jump_dropped,
             )
         )
 

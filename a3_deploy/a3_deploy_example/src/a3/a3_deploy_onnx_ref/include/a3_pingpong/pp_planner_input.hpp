@@ -675,6 +675,9 @@ class PpBallStateInput {
 };
 
 // -------------------------------- base pose ---------------------------------
+// Admission limit for source-stamped mocap, matching the upstream relay.
+// Accepted samples still expire only on the monotonic receipt clock.
+inline constexpr double kBasePoseMaxSourceAgeS = 0.100;
 inline constexpr double kBasePoseHoldAfterS = 0.020;
 inline constexpr double kBasePoseRescueAfterS = 1.0;
 
@@ -690,8 +693,8 @@ struct PpBaseSample {
   // velocity gate. It is always identical to receipt_wall_s.
   double stamp_wall_s = -1.0;
   double source_wall_s = -1.0;
-  // MDU local wall receipt minus the HDU relay stamp.  This is diagnostic
-  // clock/transport evidence only and is not a freshness input.
+  // MDU wall receipt minus the original source stamp. Used once for stale
+  // admission; retained-pose expiry uses only the monotonic receipt clock.
   double source_clock_delta_s = 0.0;
   std::uint64_t seq = 0;
   double tracking_quality = 0.0;
@@ -946,14 +949,21 @@ class PpBasePoseInput {
     bool reordered = false;
     bool producer_restarted = false;
     bool source_clock_regressed = false;
+    const bool stale = source_clock_delta > kBasePoseMaxSourceAgeS;
     {
       std::lock_guard<std::mutex> lk(mu_);
       producer_restarted = have_schema2_seq_ && wire_seq < last_wire_seq_ &&
           receipt_steady_ >= 0.0 && now_steady - receipt_steady_ > 0.050;
       source_clock_regressed =
           have_source_wall_ && source_wall <= last_source_wall_;
-      if (!producer_restarted && have_schema2_seq_ &&
-          wire_seq <= last_wire_seq_) {
+      if (stale || source_clock_regressed) {
+        // A late/new-sequence packet is not a new measurement. In particular,
+        // it must not reseed an expired mailbox or masquerade as a relay restart.
+        // Keep the pose, sequence, quaternion history and receipt deadline intact.
+        any_ = true;
+        producer_restarted = false;
+      } else if (!producer_restarted && have_schema2_seq_ &&
+                 wire_seq <= last_wire_seq_) {
         // Do not invalidate a good pose because DDS delivered a duplicate or
         // an older sample.  Keeping the old monotonic receipt time means the
         // retained pose still expires normally if the stream really stops.
@@ -985,9 +995,19 @@ class PpBasePoseInput {
         any_ = true;
       }
     }
-    if (reordered) WarnIgnoredSequence_();
+    if (stale) {
+      WarnStaleSource_(source_clock_delta);
+      return;
+    }
+    if (source_clock_regressed) {
+      WarnSourceClockRegression_();
+      return;
+    }
+    if (reordered) {
+      WarnIgnoredSequence_();
+      return;
+    }
     if (producer_restarted) WarnProducerRestart_(wire_seq);
-    if (source_clock_regressed) WarnSourceClockRegression_();
     if (std::fabs(source_clock_delta) > 0.010)
       WarnClockSkew_(source_clock_delta);
   }
@@ -1026,14 +1046,25 @@ class PpBasePoseInput {
                  static_cast<unsigned long long>(n));
   }
 
+  void WarnStaleSource_(double age_s) {
+    const std::uint64_t n =
+        stale_source_count_.fetch_add(1, std::memory_order_relaxed) + 1;
+    if (n == 1 || n % 250 == 0) {
+      std::fprintf(stderr,
+                   "[pp input audit] DROP base stale source age=%.6f s limit=%.3f s; "
+                   "retained pose and receipt deadline unchanged (count=%llu)\n",
+                   age_s, kBasePoseMaxSourceAgeS,
+                   static_cast<unsigned long long>(n));
+    }
+  }
+
   void WarnSourceClockRegression_() {
     const std::uint64_t n =
         source_clock_regression_count_.fetch_add(1, std::memory_order_relaxed) + 1;
     if (n == 1 || n % 250 == 0) {
       std::fprintf(stderr,
-                   "[pp clock audit] base source wall time did not increase; "
-                   "packet control remains on sequence + local CLOCK_MONOTONIC "
-                   "receipt age (count=%llu)\n",
+                   "[pp input audit] DROP base non-increasing source time; "
+                   "retained pose and receipt deadline unchanged (count=%llu)\n",
                    static_cast<unsigned long long>(n));
     }
   }
@@ -1091,6 +1122,7 @@ class PpBasePoseInput {
   std::atomic<std::uint64_t> ignored_count_{0};
   std::atomic<std::uint64_t> producer_restart_count_{0};
   std::atomic<std::uint64_t> source_clock_regression_count_{0};
+  std::atomic<std::uint64_t> stale_source_count_{0};
 };
 
 }  // namespace a3_pingpong

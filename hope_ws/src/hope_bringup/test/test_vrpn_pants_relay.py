@@ -92,12 +92,17 @@ def test_unconfirmed_import_bad_timestamp_and_jump_do_not_produce_valid_base(ros
     base._vrpn_confirmed=True
     send(stamp-10**9);assert output[-1].data[1]==0
     send(stamp);assert output[-1].data[1]==1
-    send(stamp);assert output[-1].data[1]==0
-    send(stamp+1_000_000,(1.,0.,0.));assert output[-1].data[1]==0
+    accepted_count = len(output)
+    accepted_stamp = base._last_source_ns
+    send(stamp)
+    send(stamp+1_000_000,(1.,0.,0.))
+    assert len(output) == accepted_count
+    assert base._last_source_ns == accepted_stamp
+    assert base._reordered_dropped == 1 and base._jump_dropped == 1
     base.destroy_node()
 
 
-def test_burst_pose_noise_stays_valid_but_large_jump_still_invalidates(ros):
+def test_burst_pose_noise_stays_valid_and_large_jump_is_dropped(ros):
     import math
     base = load('hope_base_pose_flat_relay').BasePoseFlatRelay()
     output = []
@@ -115,7 +120,12 @@ def test_burst_pose_noise_stays_valid_but_large_jump_still_invalidates(ros):
         assert send(0, 0., 0.) == 1
         assert send(25_000, .0000357, .0137) == 1
         assert send(50_000, .009, 2.9) == 1
-        assert send(75_000, .2, 2.9) == 0
+        accepted_count = len(output)
+        accepted_stamp = base._last_source_ns
+        send(75_000, .2, 2.9)
+        assert len(output) == accepted_count
+        assert base._last_source_ns == accepted_stamp
+        assert base._jump_dropped == 1
         assert send(3_333_333, .001, .2) == 1
     finally:
         base.destroy_node()

@@ -40,6 +40,11 @@ TEST(PpBasePoseHold, ShortGapNeverInventsSensorProgressOrExtendsDeadline) {
   EXPECT_FALSE(input.LatestForPolicy(held, 10., true));
   wire[2] = 8; wire[5] = -.4;
   input.SetFromFlat(wire);
+  EXPECT_FALSE(input.LatestForPolicy(held, 10., true));
+  const double resumed = PpNowWallSec();
+  wire[3] = std::floor(resumed);
+  wire[4] = std::floor((resumed - wire[3]) * 1e9);
+  input.SetFromFlat(wire);
   ASSERT_TRUE(input.LatestForPolicy(real, kBasePoseRescueAfterS, true));
   EXPECT_FALSE(real.held_for_policy);
   EXPECT_EQ(hold.Apply(real, real.quat).pos, real.pos);
