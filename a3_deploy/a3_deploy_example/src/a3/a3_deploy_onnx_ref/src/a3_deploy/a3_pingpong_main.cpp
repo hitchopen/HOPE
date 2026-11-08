@@ -2107,8 +2107,10 @@ int main(int argc, char** argv) {
             source.kp.setZero();
             source.kd.setZero();
           }
-          if (m == Mode::kMotion && policy_native &&
-              ppp->onnx().has_v11_affine_safe_qdes_contract())
+          // Cross-fade complete PD laws on policy exit as well as entry, so
+          // low-gain compensation is not amplified by increasing stand gains.
+          if (policy_native && ppp->onnx().has_v11_affine_safe_qdes_contract() &&
+              (m == Mode::kMotion || last_delivered_mode == Mode::kMotion))
             mode_transition.BeginImpedance(source, cmd, duration);
           else
             mode_transition.Begin(source, cmd, duration);

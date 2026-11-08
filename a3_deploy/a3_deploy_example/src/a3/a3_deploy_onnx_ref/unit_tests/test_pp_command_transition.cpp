@@ -113,6 +113,29 @@ TEST(PpCommandTransition, ImpedanceHandoffWithZeroGainsStaysFiniteAndContinuous)
   EXPECT_NEAR(target.dq_des[0], .05, 1e-12);
 }
 
+TEST(PpCommandTransition, PolicyToStandDoesNotAmplifyLowGainCompensation) {
+  auto source = Command(.3, 0., 50.);
+  auto stand = Command(0., 0., 1000.);
+  source.tau_ff.setZero();
+  stand.tau_ff.setZero();
+  a3_pingpong::PpCommandTransition transition;
+  transition.BeginImpedance(source, stand, .5);
+  for (double t : {0., .02, .1, .25, .4, .48, .5}) {
+    auto target = stand;
+    transition.Apply(t, target);
+    const double u = t / .5;
+    const double w = u*u*u * (10 + u*(-15 + 6*u));
+    // At the standing pose, the actor asks for 15 Nm of compensation.
+    // Independent midpoint q/kp mixing would instead request 78.75 Nm
+    // before the artificial blend-trajectory velocity term is applied.
+    EXPECT_NEAR(target.kp[0] * target.q_des[0], (1-w)*15., 1e-12);
+    EXPECT_DOUBLE_EQ(target.dq_des[0], 0.);
+    EXPECT_GE(target.kp[0], source.kp[0]);
+    EXPECT_LE(target.kp[0], stand.kp[0]);
+  }
+  EXPECT_FALSE(transition.active());
+}
+
 TEST(PpCommandTransition, LongPoseBlendSettlesEntryVelocityWithoutLongExtrapolation) {
   a3_pingpong::PpCommandTransition t;
   const auto source = Command(.2, 2., 40), target = Command(.2, 0., 200);
