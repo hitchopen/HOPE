@@ -89,6 +89,11 @@ class HopeRunnerTransportRelay(Node):
         self._teleop_state_subscription = self.create_subscription(
             Float64MultiArray, '/hope/runner/teleop_state_flat',
             self._teleop_state_publisher.publish, stream_qos)
+        self._dock_state_publisher = self.create_publisher(
+            Float64MultiArray, '/hope/runner/dock_state_hdu_flat', stream_qos)
+        self._dock_state_subscription = self.create_subscription(
+            Float64MultiArray, '/hope/runner/dock_state_flat',
+            self._dock_state_publisher.publish, stream_qos)
         self._home_publisher = self.create_publisher(
             Float64MultiArray, '/hope/runner/session_home_hdu_flat', stream_qos)
         self._home_subscription = self.create_subscription(

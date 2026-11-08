@@ -8,6 +8,7 @@ const ts = require('typescript');
 // Exercise the actual panel and callbacks without a browser, ROS connection,
 // robot, or exported test-only production API. JSX remains a React element tree.
 function panelHarness(profile = 'linux', lifecycleState = 'STOPPED', lifecycleBusy = false, field, fieldAgeMs = 0, players = [], extraSnapshot = {}) {
+  const created = Date.now();
   const state = [];
   let cursor = 0;
   let api;
@@ -78,7 +79,14 @@ function panelHarness(profile = 'linux', lifecycleState = 'STOPPED', lifecycleBu
   };
   return {
     api, calls, subscribed,
-    render() { cursor = 0; return api.HopeA3Console({ context }); },
+    render() {
+      cursor = 0;
+      const stamped = Date.now();
+      for (const player of players) {
+        if (player && created - player.receivedAt <= 250) { player.receivedAt = stamped; }
+      }
+      return api.HopeA3Console({ context });
+    },
   };
 }
 
@@ -181,7 +189,9 @@ test('START requires the HDU verdict as well as raw UI evidence; side buttons st
   for (const verified of [true, false, undefined]) {
     const field = {mode:'OPTITRACK', player_positions: verified == null ? undefined : {P1:verified, P2:false},
       ball_model_status:{state:'CONFIGURED', configured_model:'ppq004', age_s:0, endpoints:{}}};
-    const tree = panelHarness('linux','STOPPED',false,field,0,players,{lifecycleConfigRevision:1}).render();
+    const harness = panelHarness('linux','STOPPED',false,field,0,players,{lifecycleConfigRevision:1});
+    players[0].receivedAt = Date.now();
+    const tree = harness.render();
     assert.equal(button(tree,'UCB_P1 · DIRECT').props.disabled, false);
     assert.equal(button(tree,'START SYSTEM').props.disabled, verified !== true);
   }

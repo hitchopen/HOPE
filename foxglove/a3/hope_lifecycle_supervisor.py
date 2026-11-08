@@ -186,7 +186,8 @@ class LifecycleBackend:
         commands = (
             ("PREFLIGHT", self._ssh(laptop, laptop_helper, "preflight-laptop", *common), 15.0),
             ("PREFLIGHT", [LIFECYCLE_HELPER, "preflight-hdu", *common], 15.0),
-            ("PREFLIGHT", self._ssh(mdu, LIFECYCLE_HELPER, "preflight-mdu", *common), 15.0),
+            ("PREFLIGHT", self._ssh(mdu, LIFECYCLE_HELPER, "preflight-mdu", *common,
+                                    *( [config.auto_dock] if config.auto_dock == "on" else [] )), 15.0),
             # Explicit mutating boundary: vendor StopApp/UI cleanup is NOT a
             # read-only preflight. Track it so failures retain cleanup context.
             ("BACKGROUND", [LIFECYCLE_HELPER, "prepare-background-hdu", *common], 180.0),
@@ -206,7 +207,8 @@ class LifecycleBackend:
             # shutdown commonly takes 40-60 s, so do not orphan a successful
             # remote HAL transition behind an undersized SSH timeout.
             ("HAL", self._ssh(mdu, LIFECYCLE_HELPER, "start-hal", *common), 120.0),
-            ("RUNNER", self._ssh(mdu, LIFECYCLE_HELPER, "start-runner", *common), 60.0),
+            ("RUNNER", self._ssh(mdu, LIFECYCLE_HELPER, "start-runner", *common,
+                                  *( [config.auto_dock] if config.auto_dock == "on" else [] )), 60.0),
             # The MDU AimRT participant must exist before this explicit-peer
             # HDU participant.  Reversing these two steps reproduces the field
             # failure where Runner DATA reaches the HDU UDP socket but the old
@@ -218,9 +220,18 @@ class LifecycleBackend:
             ),
         )
         if mode == "KERNEL":
-            commands = tuple(item for item in commands
-                             if not (item[1][0] == "/usr/bin/ssh" and laptop in item[1])
-                             and item[0] not in {"BASE_RELAY", "PLANNER"})
+            # Auto-dock still skips the Planner. It keeps the laptop mocap
+            # receiver and the HDU base-pose relay so the Runner can read pelvis pose.
+            dock = config.auto_dock == "on"
+            kept = []
+            for item in commands:
+                step, argv = item[0], item[1]
+                if step == "PLANNER" or (step == "BASE_RELAY" and not dock):
+                    continue
+                if argv[0] == "/usr/bin/ssh" and laptop in argv and not (dock and step == "MOCAP"):
+                    continue
+                kept.append(item)
+            commands = tuple(kept)
         mutation_started = False
         for step, argv, timeout_s in commands:
             if step != "PREFLIGHT" and not mutation_started:
@@ -261,7 +272,11 @@ class LifecycleBackend:
             ("COLLECT", self._ssh(laptop, laptop_helper, "collect", *common), 1800.0),
         )
         if mode == "KERNEL":
-            commands = tuple(item for item in commands if item[0] != "COLLECT")
+            commands = tuple(
+                item for item in commands
+                if item[0] != "COLLECT" or (
+                    config.auto_dock == "on" and "stop-capture-laptop" in item[1])
+            )
         errors: list[str] = []
         collection_reason = "COLLECTION_RESULT_MISSING"
         for step, argv, timeout_s in commands:

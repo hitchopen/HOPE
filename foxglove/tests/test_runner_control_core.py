@@ -68,6 +68,10 @@ class RunnerControlWireTests(unittest.TestCase):
             encode_runner_request(48, "CONFIRM_GRIP_SECURE"),
             [2.0, 48.0, 12.0, 0.0],
         )
+        self.assertEqual(
+            encode_runner_request(49, "ENTER_DOCK"),
+            [2.0, 49.0, 14.0, 0.0],
+        )
         for forbidden in (
             "CONFIRM_LOADING_ZONE_CLEAR",
             "ENTER_SHADOW",
@@ -91,6 +95,18 @@ class RunnerControlWireTests(unittest.TestCase):
         self.assertFalse(state.serve_cleanup_required)
         self.assertEqual(state.last_action_id, 99)
         self.assertEqual(state.last_action_result, "APPLIED")
+
+    def test_decodes_dock_mode_and_reasons(self):
+        values = valid_state()
+        values[3] = 7.0
+        values[17] = 14.0
+        values[18] = 16.0
+        values[19] = 41.0
+        state = decode_runner_state(values)
+        self.assertEqual(state.run_mode, "DOCK")
+        self.assertEqual(state.last_action, "ENTER_DOCK")
+        self.assertEqual(state.last_action_result, "REJECTED_DOCK")
+        self.assertEqual(state.last_action_reason, "DOCK_STOP_REQUESTED")
 
     def test_reports_serve_recovery_pending(self):
         values = valid_state()

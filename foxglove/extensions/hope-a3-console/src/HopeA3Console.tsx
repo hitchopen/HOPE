@@ -23,6 +23,7 @@ import { mergeConfirmedConfig } from "./lifecycleConfig";
 import { PlayerPosition, decodePlayerPosition, playerSideAvailable } from "./playerPositions";
 import { MocapSafety, decodeMocapSafety, mocapSafetyText } from "./mocapSafety";
 import { OPERATOR_CHALLENGE, OperatorHeartbeat } from "./operatorHeartbeat";
+import { decodeDockState, dockRepositionReason, formatDockStatus } from "./dockStatus";
 import { decodeTeleopState, teleopEntryReason, xboxInputFresh } from "./teleopStatus";
 
 import "@fontsource/ibm-plex-mono/400.css";
@@ -76,6 +77,7 @@ const TOPICS = {
   runnerMode: "/hope/runner/mode",
   xboxPreview: "/hope/runner/xbox_preview",
   teleopState: "/hope/runner/teleop_state_hdu_flat",
+  dockState: "/hope/runner/dock_state_hdu_flat",
   runnerFault: "/hope/runner/command_fault_latched",
   localRole: "/hope/runner/local_role",
   roleChangeAllowed: "/hope/runner/role_change_allowed",
@@ -113,6 +115,7 @@ const TOPICS = {
   vrpnUnits: "/hope/lifecycle/config/vrpn_units",
   operatorProfile: "/hope/lifecycle/config/operator_profile",
   gripperProfile: "/hope/lifecycle/config/gripper_profile",
+  autoDock: "/hope/lifecycle/config/auto_dock",
 } as const;
 
 const SERVICES = {
@@ -123,6 +126,7 @@ const SERVICES = {
   stand: "/hope/runner/enter_pd_stand",
   ready: "/hope/runner/enter_motion",
   teleop: "/hope/runner/enter_teleop",
+  dock: "/hope/runner/enter_dock",
   prepareServe: "/hope/runner/prepare_serve",
   confirmBallLoaded: "/hope/runner/confirm_ball_loaded",
   readyToServe: "/hope/runner/ready_to_serve",
@@ -169,6 +173,7 @@ const CONFIG_FIELDS = {
   table_side: { label: "Our table side", topic: TOPICS.tableSide },
   operator_profile: { label: "Operator computer", topic: TOPICS.operatorProfile },
   gripper_profile: { label: "Gripper", topic: TOPICS.gripperProfile },
+  auto_dock: { label: "Auto-dock", topic: TOPICS.autoDock },
 } as const;
 
 type ConfigField = keyof typeof CONFIG_FIELDS;
@@ -199,6 +204,7 @@ const EMPTY_CONFIG: LifecycleConfigDraft = {
   vrpn_units: "",
   operator_profile: "",
   gripper_profile: "",
+  auto_dock: "off",
 };
 
 type XboxPreview = {
@@ -243,6 +249,7 @@ type Snapshot = {
   ballYFilter?: BallYFilterState;
   xboxPreview?: XboxPreview;
   teleopState?: number[];
+  dockState?: number[];
   ntpOffsetMs?: number;
   ntpSkewPpm?: number;
   ntpDispersionMs?: number;
@@ -481,6 +488,10 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
       next.teleopState = decodeTeleopState(scalar(event.message));
       break;
     }
+    case TOPICS.dockState: {
+      next.dockState = decodeDockState(scalar(event.message));
+      break;
+    }
     case TOPICS.runnerFault:
       next.runnerFault = boolValue(event.message);
       break;
@@ -591,6 +602,9 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
       break;
     case TOPICS.operatorProfile:
       next.lifecycleConfig.operator_profile = stringValue(event.message);
+      break;
+    case TOPICS.autoDock:
+      next.lifecycleConfig.auto_dock = stringValue(event.message);
       break;
   }
 }
@@ -986,7 +1000,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         bool_value: false,
         integer_value: 0,
         double_value: 0,
-        string_value: configDraft[name],
+        string_value: name === "auto_dock" ? (configDraft.auto_dock || "off") : configDraft[name],
         byte_array_value: [],
         bool_array_value: [],
         integer_array_value: [],
@@ -1008,7 +1022,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       } else {
         setConfigTouched(false);
         setNotice(
-          `CONFIG CONFIRMED · ${configDraft.operator_profile ? `${configDraft.operator_profile.toUpperCase()} operator · ` : ""}${MOCAP_LABELS[configDraft.mocap_source] ?? "UNKNOWN"} · ${configDraft.table_side} · ${configDraft.gripper_profile} · ${configDraft.pants_profile.toUpperCase()}`,
+          `CONFIG CONFIRMED · ${configDraft.operator_profile ? `${configDraft.operator_profile.toUpperCase()} operator · ` : ""}${MOCAP_LABELS[configDraft.mocap_source] ?? "UNKNOWN"} · ${configDraft.table_side} · ${configDraft.gripper_profile} · ${configDraft.pants_profile.toUpperCase()} · auto-dock ${configDraft.auto_dock || "off"}`,
         );
       }
     } catch (error) {
@@ -1023,13 +1037,15 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       snapshot.lifecycleState === "FAILED"
         ? "清理上次失败会话并重新 START？系统会先停止残留进程、恢复厂商服务并收集日志，再启动到 PASSIVE。请确认机器人有物理支撑，硬件急停可触及。"
         : snapshot.field?.mode === "KERNEL"
-        ? "Start Kernel Mode with the selected CSV? Confirm the robot is physically supported and the hardware E-stop is reachable. Runner starts in PASSIVE; X/Ready runs the receive policy with local stance-foot odometry. Serve completion returns to Stand. No mocap or Planner will be started."
+        ? snapshot.lifecycleConfig.auto_dock === "on"
+          ? "Start Kernel Mode with Auto-dock and the selected CSV? Confirm the robot is physically supported and the hardware E-stop is reachable. Runner starts in PASSIVE. Mocap and the base-pose relay start; the Planner does not. Reposition walks to the serve pose only after you press it."
+          : "Start Kernel Mode with the selected CSV? Confirm the robot is physically supported and the hardware E-stop is reachable. Runner starts in PASSIVE; X/Ready runs the receive policy with local stance-foot odometry. Serve completion returns to Stand. No mocap or Planner will be started."
         : "Start STEP 0/1/2A/2B/4/5 now? Confirm the robot is physically supported and the hardware E-stop is reachable. The Runner will start in PASSIVE.",
     );
     if (accepted) {
       await invoke("startLifecycle");
     }
-  }, [invoke, snapshot.field?.mode, snapshot.lifecycleState]);
+  }, [invoke, snapshot.field?.mode, snapshot.lifecycleConfig.auto_dock, snapshot.lifecycleState]);
 
   const killAllAndCollect = useCallback(async () => {
     const accepted = window.confirm(
@@ -1091,6 +1107,19 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     isFresh(snapshot, TOPICS.runnerFault, now, 1_000), runnerFault: snapshot.runnerFault !== false,
     mode: snapshot.runnerMode, telemetryFresh: teleopFresh, state: teleop, pending: busy.teleop === true,
     xboxFresh, xbox: snapshot.xboxPreview, estop: estopAsserted });
+  const autoDock = snapshot.lifecycleConfig.auto_dock === "on";
+  const dockFresh = isFresh(snapshot, TOPICS.dockState, now, 1000);
+  const dockState = dockFresh ? snapshot.dockState : undefined;
+  const serveQuiet = snapshot.serveState == undefined ||
+    ["UNAVAILABLE", "IDLE", "COMPLETE"].includes(snapshot.serveState);
+  const dockBlocked = dockRepositionReason({
+    autoDock: snapshot.lifecycleConfig.auto_dock,
+    runnerFresh: runnerFresh && isFresh(snapshot, TOPICS.runnerMode, now, 1_000) &&
+      isFresh(snapshot, TOPICS.runnerFault, now, 1_000),
+    runnerFault: snapshot.runnerFault !== false,
+    mode: snapshot.runnerMode, baseFresh, serveActive: snapshot.serving === true || !serveQuiet,
+    pending: busy.dock === true,
+  });
   const xboxVelocity = xboxFresh ? snapshot.xboxPreview?.velocity : undefined;
   const velocityText = (values: number[] | undefined) => values == undefined
     ? "vx — · vy — · yaw —"
@@ -1232,7 +1261,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       <fieldset className="robot-controls" disabled={Boolean(pendingTarget)}>
       <div className="source-row">
         <div className="source-block">
-          <div className="eyebrow">A3 SOURCE · 1.8.18</div>
+          <div className="eyebrow">A3 SOURCE · 1.8.19</div>
           <div className="source-value">
             <span>{context.dataSourceProfile?.toUpperCase() ?? "ROS 2"} · CONTROL :8766</span>
             <span
@@ -1416,6 +1445,24 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             <option value="new_20261015">New · close 850 / open 1500 · force 1 / speed 100</option>
           </select>
         </label>
+        <div className="table-side-selector" role="group" aria-label="Auto-dock">
+          <div>
+            <div className="eyebrow">AUTO-DOCK</div>
+            <div className="helper">On starts mocap and the base-pose relay with Kernel and shows Reposition. Off leaves Kernel unchanged.</div>
+          </div>
+          {(["off", "on"] as const).map((value) => (
+            <button key={value} type="button"
+              className={(configDraft.auto_dock || "off") === value ? "side-selected" : ""}
+              aria-pressed={(configDraft.auto_dock || "off") === value}
+              disabled={!lifecycleStopped || lifecycleBusy}
+              onClick={() => {
+                setConfigTouched(true);
+                setConfigDraft((current) => ({ ...current, auto_dock: value }));
+              }}>
+              {value === "on" ? "On" : "Off"}
+            </button>
+          ))}
+        </div>
         {snapshot.lifecycleConfig.operator_profile != undefined && <div className="table-side-selector" role="group" aria-label="Operator computer">
           <div>
             <div className="eyebrow">OPERATOR COMPUTER</div>
@@ -1790,11 +1837,12 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
               isFresh(snapshot, TOPICS.plannerDiagnostics, now, 2_500) && snapshot.planeMode?.configurable === true}
             onApply={applyPlaneMode}
           />
+        {autoDock && <p className="helper" role="status">{formatDockStatus(dockState)}</p>}
         <div className="action-grid">
           <ActionButton
             label="Stand"
             detail={
-              snapshot.runnerMode === "TELEOP"
+              snapshot.runnerMode === "TELEOP" || snapshot.runnerMode === "DOCK"
                 ? "STOP AND SETTLE · waits for the feet, then enters Stand"
                 : serveWorkflowActive
                 ? "PHASE-AWARE ABORT · recovery stays in this Runner"
@@ -1808,6 +1856,14 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             next={nextStep === "stand"}
             onClick={() => void invoke("stand")}
           />
+          {autoDock && <ActionButton
+            label="Reposition"
+            detail={dockBlocked ?? "Walk to the serve pose, then stay in Stand"}
+            disabled={dockBlocked != undefined}
+            busy={busy.dock === true}
+            completed={dockState?.[2] === 5}
+            onClick={() => void invoke("dock")}
+          />}
           <div className="ready-controls">
           <ActionButton
             label="Ready"

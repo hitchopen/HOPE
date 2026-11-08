@@ -276,6 +276,27 @@ class LifecycleModeTest(unittest.TestCase):
         self.assertTrue(any("start-base" in argv for argv in calls))
         self.assertTrue(any("start-planner" in argv for argv in calls))
 
+    def test_kernel_auto_dock_keeps_mocap_and_base_relay_without_planner(self):
+        config = LifecycleConfig(laptop_wifi_ip="10.0.0.2", hdu_wifi_ip="10.0.0.3",
+            mdu_internal_ip="10.42.10.12", motive_ip="", table_side="P1",
+            auto_dock="on", revision=1)
+        calls = []
+        backend = self.backend(calls)
+        session = "model21800_20260912T010203Z"
+        backend.start(config, session, lambda event: None, "KERNEL", "a" * 64)
+        self.assertTrue(any("reconnect-laptop" in argv for argv in calls))
+        self.assertTrue(any("start-base" in argv for argv in calls))
+        self.assertFalse(any("start-planner" in argv for argv in calls))
+        self.assertFalse(any("prepare-laptop" in argv for argv in calls))
+        runner = next(argv for argv in calls if "start-runner" in argv)
+        preflight = next(argv for argv in calls if "preflight-mdu" in argv)
+        self.assertEqual(runner[-1], "on")
+        self.assertEqual(preflight[-1], "on")
+        calls.clear()
+        backend.kill_all_and_collect(config, session, lambda event: None, "KERNEL")
+        self.assertTrue(any("stop-capture-laptop" in argv for argv in calls))
+        self.assertFalse(any(argv[-1] == "collect" for argv in calls))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -11,6 +11,7 @@ import sys
 sys.path.insert(0, str(FOXGLOVE_DIR / "a3"))
 
 from hope_lifecycle_core import (  # noqa: E402
+    SCHEMA6_CONFIG_FIELDS,  # noqa: E402
     CONFIG_FIELDS, LEGACY_CONFIG_FIELDS, OPERATOR_CONFIG_FIELDS,
     LifecycleConfig,
     apply_config_updates,
@@ -54,6 +55,7 @@ class LifecycleConfigTests(unittest.TestCase):
                 "gripper_profile": "legacy",
                 "pants_profile": "v2", "mocap_source": "none",
                 "vrpn_ip": "", "vrpn_port": "3883", "vrpn_units": "mm",
+                "auto_dock": "off",
             },
         )
 
@@ -134,6 +136,14 @@ class LifecycleConfigTests(unittest.TestCase):
             capture_output=True, text=True, timeout=5,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
+        docked = subprocess.run(
+            ["bash", "-c", functions + '\nparse_common "$@"; printf %s "$AUTO_DOCK"', "parse-test",
+             "model21800_20261006T120000Z", "10.44.167.48", "10.44.84.152",
+             "10.42.10.12", "169.254.10.221", "P1", "KERNEL", "DEFAULT", "legacy", "on"],
+            capture_output=True, text=True, timeout=5,
+        )
+        self.assertEqual(docked.returncode, 0, docked.stderr)
+        self.assertEqual(docked.stdout, "on")
 
     def test_ipv4_validation_is_canonical_and_rejects_special_addresses(self):
         self.assertEqual(validate_ipv4("hdu_wifi_ip", "172.23.20.135"), "172.23.20.135")
@@ -184,7 +194,24 @@ class LifecycleConfigTests(unittest.TestCase):
             save_config_atomic(path, config)
             self.assertEqual(load_config(path), config)
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
-            self.assertEqual(json.loads(path.read_text())["schema_version"], 6)
+            self.assertEqual(json.loads(path.read_text())["schema_version"], 7)
+
+    def test_auto_dock_defaults_off_and_survives_schema_six_clients(self):
+        current = self.valid_config(revision=3)
+        self.assertEqual(current.auto_dock, "off")
+        selected = apply_config_updates(current, list({**current.values(), "auto_dock": "on"}.items()))
+        self.assertEqual(selected.auto_dock, "on")
+        self.assertEqual(config_from_document(config_to_document(selected)).auto_dock, "on")
+        historical = [(name, selected.values()[name]) for name in SCHEMA6_CONFIG_FIELDS]
+        preserved = apply_config_updates(selected, historical)
+        self.assertEqual(preserved.auto_dock, "on")
+        document = config_to_document(selected)
+        document["schema_version"] = 6
+        document.pop("auto_dock")
+        self.assertEqual(config_from_document(document).auto_dock, "off")
+        for invalid in ("", "ON", "true", None, 1):
+            with self.subTest(auto_dock=invalid), self.assertRaisesRegex(ValueError, "auto_dock"):
+                apply_config_updates(current, list({**current.values(), "auto_dock": invalid}.items()))
 
     def test_unconfirmed_or_malformed_documents_fail(self):
         document = config_to_document(self.valid_config(revision=1))

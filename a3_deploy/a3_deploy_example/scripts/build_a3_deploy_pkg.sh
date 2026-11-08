@@ -755,6 +755,11 @@ if teleop_policy_dir:
 elif teleop_destination.exists():
     shutil.rmtree(teleop_destination)
 
+dock_yaml = gear_root / "assets" / "a3_runtime" / "dock" / "dock.yaml"
+if not dock_yaml.is_file():
+    raise SystemExit(f"dock config missing {dock_yaml}")
+copy_into(dock_yaml, "dock")
+
 def unique_existing(paths):
     seen = set()
     out = []
