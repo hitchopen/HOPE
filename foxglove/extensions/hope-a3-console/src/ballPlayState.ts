@@ -5,6 +5,7 @@ export type BallPlayState = {
   local_stopped: boolean;
   session_id: string;
   state: "INVALID" | "OPPONENT_RALLY" | "RALLY" | "OPPONENT_SERVE" | "SERVE";
+  substate?: string;
   reason: string;
   forecast_advisory?: string;
   generation: string;
@@ -30,6 +31,7 @@ export function decodeBallPlayState(value: unknown): BallPlayState | undefined {
         typeof p.local_stopped !== "boolean" ||
         (p.local_stopped && (p.state !== "INVALID" || p.forwarding || p.serve_armed || p.receive_armed)) ||
         typeof p.state !== "string" || !["INVALID", "OPPONENT_RALLY", "RALLY", "OPPONENT_SERVE", "SERVE"].includes(p.state) ||
+        (p.substate != undefined && typeof p.substate !== "string") ||
         (p.forecast_advisory != undefined && typeof p.forecast_advisory !== "string") ||
         (p.observation_missing != undefined && typeof p.observation_missing !== "boolean") ||
         typeof p.reason !== "string" || typeof p.generation !== "string" || !/^\d+$/.test(p.generation) ||

@@ -329,13 +329,7 @@ void FlightPacketizerNode::pose_callback(
   const bool new_generation = sync_play_state();
   if (!accepted) { publish_play_state(); return; }
   last_frame_id_ = frame;
-  if (play_state_.receive_armed()) {
-    // Ready requests reception without proving serve history. Pass the first usable
-    // exposure now; a flight packet still requires a qualified trajectory fit.
-    if (play_state_.sample_usable()) publish_gated_pose(*message, source_ns);
-    publish_play_state(); return;
-  }
-  if (play_state_.state() == PlayState::INVALID || play_state_.serve_armed()) {
+  if (play_state_.state() == PlayState::INVALID || play_state_.waiting_for_launch()) {
     publish_play_state(); return;
   }
   if (!play_state_.sample_usable()) { publish_play_state(); return; }
@@ -549,7 +543,8 @@ void FlightPacketizerNode::publish_play_state() {
       play_state_.generation(), play_state_.may_forward(), play_state_.history_known(),
       play_state_.return_confirmed(), play_state_.serve_armed(), play_state_.receive_armed(),
       play_state_.striker_bounces(), play_state_.receiver_bounces(),
-      play_state_.local_stopped(), local_intent_revision_, play_state_.observation_missing());
+      play_state_.local_stopped(), local_intent_revision_, play_state_.observation_missing(),
+      std::string_view(play_state_.substate_name()));
   const auto now = steady_now_ns();
   const bool changed = !last_state_key_ || key != *last_state_key_;
   if (!changed && now - state_publish_ns_ < 100'000'000LL) return;
@@ -562,6 +557,7 @@ void FlightPacketizerNode::publish_play_state() {
         << ",\"intent_revision\":" << std::quoted(std::to_string(local_intent_revision_))
         << ",\"local_stopped\":" << (play_state_.local_stopped() ? "true" : "false")
         << ",\"state\":" << std::quoted(play_state_name(play_state_.state()))
+        << ",\"substate\":" << std::quoted(play_state_.substate_name())
         << ",\"reason\":" << std::quoted(play_state_.reason())
         << ",\"forecast_advisory\":" << std::quoted(play_state_.forecast_advisory())
         << ",\"generation\":" << std::quoted(std::to_string(play_state_.generation()))

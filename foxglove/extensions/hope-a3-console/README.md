@@ -1,7 +1,8 @@
 # HOPE A3 Console
 
-Console 1.9.13 displays the operator computer's five ball-flight states beside
-Runner status, including forwarding eligibility and separate forecast advisories.
+Console 1.9.14 displays the operator computer's five ball-flight states beside
+Runner status, with the Score Board phase or observed fault, forwarding eligibility
+and separate forecast advisories.
 It reads the local C++ packetizer at `http://127.0.0.1:8768/ball-state`; state
 labels are not sent to A3. Install the matching packetizer with this Console.
 Desktop requires importing the runtime's private `hope-ball-controls.key` once
@@ -21,12 +22,13 @@ not stop local observation or eligible forwarding. A local intent failure is
 shown separately without blocking a robot request. No classifier state or
 state-derived command is sent to A3.
 
-Only opponent states enable ball forwarding. Pelvis/base traffic is independent,
+Only qualified opponent flights enable either ball output. Ready keeps the gate
+closed until flight evidence arrives. Pelvis/base traffic is independent,
 and filtering runs in C++ regardless of panel rendering. Both Ubuntu and macOS
 use the same classifier after P1/P2 conversion; see
 [state rules, installation and verification](../../../docs/operations/laptop_ball_states.md).
 
-Download `hopeopen.hope-a3-console-1.9.13.foxe` from this directory and open it in
+Download `hopeopen.hope-a3-console-1.9.14.foxe` from this directory and open it in
 Foxglove Desktop's Extensions screen to install the console. No Node.js build is
 needed for this prebuilt release. Import
 [`model21800_console.json`](../../layouts/model21800_console.json) and connect to
@@ -271,7 +273,7 @@ ROS 2 message-latency card.
 ## Public release
 
 The current installer is
-[Console 1.9.13](hopeopen.hope-a3-console-1.9.13.foxe), built from this directory's
+[Console 1.9.14](hopeopen.hope-a3-console-1.9.14.foxe), built from this directory's
 source. Install its matching HDU/MDU services and relays, then confirm the
 operator profile and model17400/PPQ004 selections before START.
 
