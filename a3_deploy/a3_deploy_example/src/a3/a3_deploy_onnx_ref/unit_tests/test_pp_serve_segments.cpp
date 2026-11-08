@@ -40,6 +40,28 @@ TEST(ServeSegments, AnnotatedBundleAndPolicyBinding) {
   EXPECT_THROW(b.RequirePolicy(std::string(64,'0'),b.deploy_sha256),std::invalid_argument);
   EXPECT_THROW(b.RequirePolicy(b.policy_sha256,std::string(64,'0')),std::invalid_argument);
 }
+TEST(ServeSegments, V23Model12600BindsItsOwnPolicyAndPreservesServe) {
+  const auto motions = SegmentPath().parent_path().parent_path() / "motions";
+  PpServe025FullbodyTimeline current, previous;
+  std::string error;
+  ASSERT_TRUE(current.LoadCsv((motions / "v23-12600.csv").string(), error)) << error;
+  ASSERT_TRUE(previous.LoadCsv((motions / "a3p_op3_serve025_v23_branch110_model14600.csv").string(), error)) << error;
+  const auto& bundle = current.segments();
+  EXPECT_EQ(bundle.branch_frame, 110U);
+  EXPECT_EQ(bundle.policy_ready_frame, 76U);
+  EXPECT_EQ(bundle.commands[2].size(), 87U);
+  EXPECT_EQ(bundle.policy_sha256, "bd6f128405fb1600ad381209ec1ef73b12024c3aacb1c6f4b54c7114cf6080aa");
+  EXPECT_EQ(bundle.deploy_sha256, "db4be6efca4fa14c154721487c9c7f5351ab3e8c861b6818cf17c08be2ef50d5");
+  EXPECT_NO_THROW(bundle.RequirePolicy(bundle.policy_sha256, bundle.deploy_sha256));
+  EXPECT_THROW(bundle.RequirePolicy(previous.segments().policy_sha256,
+      previous.segments().deploy_sha256), std::invalid_argument);
+  for (std::size_t frame=0; frame<468; ++frame) {
+    EXPECT_TRUE(current.At(frame).q_sdk.isApprox(previous.At(frame).q_sdk, 0));
+    EXPECT_TRUE(current.At(frame).qd_sdk.isApprox(previous.At(frame).qd_sdk, 0));
+    EXPECT_EQ(current.At(frame).event, previous.At(frame).event);
+  }
+}
+
 TEST(ServeSegments, V23SelectsFrame110InBothModesAndRetainsLegacyServe) {
   PpServe025FullbodyTimeline t; std::string error;
   ASSERT_TRUE(t.LoadCsv((SegmentPath().parent_path().parent_path() / "motions" /

@@ -96,6 +96,7 @@ if(BUILD_TESTING)
   ament_add_pytest_test(p1_calibration_test test/test_p1_calibration.py)
   ament_add_pytest_test(public_sticker_integration_test test/test_public_sticker_integration.py)
   ament_add_pytest_test(p1_marker_cad_calibration_server_test test/test_p1_marker_cad_calibration_server.py)
+  ament_add_pytest_test(base_pose_jump_guard_test test/test_base_pose_jump_guard.py)
 endif()
 
 ament_package()

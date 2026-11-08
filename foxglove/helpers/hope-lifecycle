@@ -26,10 +26,12 @@ readonly LAPTOP_SHARE="${HOPE_LAPTOP_SHARE:-${XDG_DATA_HOME:-$HOME/.local/share}
 readonly LAPTOP_USER="${HOPE_LAPTOP_USER:-$(id -un)}"
 readonly ROBOT_USER="${HOPE_ROBOT_USER:-agi}"
 readonly HDU_WS="${HOPE_HDU_WS:-$HOME/hope_ws}"
+readonly HDU_OVERLAY="${HOPE_HDU_OVERLAY:-$HDU_WS/install_model21800_fix}"
 readonly LAPTOP_SESSION=hope-optitrack
 readonly HDU_BASE_SESSION=hope-base
 readonly HDU_PLANNER_SESSION=hope-planner
-readonly HDU_RUNNER_TRANSPORT_SESSION=hope-runner-transport
+readonly HDU_RUNNER_TRANSPORT_SESSION=hope-runner-transport # legacy cleanup only
+readonly HDU_TRANSPORT_GATEWAY_SESSION=hope-transport-gateway
 readonly MDU_ELINK_SESSION=hope-elink
 readonly MDU_HAL_SESSION=hope-hal
 readonly MDU_RUNNER_SESSION=hope-runner
@@ -657,10 +659,14 @@ preflight_hdu() {
   require_user "$ROBOT_USER" PREFLIGHT
   python3 "$(dirname "$SELF")/hope_wifi_policy.py" check || \
     die PREFLIGHT WIFI_POLICY_NOT_READY
+  tmux_exists "$HDU_TRANSPORT_GATEWAY_SESSION" && \
+    die PREFLIGHT MANAGED_TRANSPORT_GATEWAY_PRESENT
   tmux_exists "$HDU_BASE_SESSION" && die PREFLIGHT MANAGED_BASE_PRESENT
   tmux_exists "$HDU_PLANNER_SESSION" && die PREFLIGHT MANAGED_PLANNER_PRESENT
   tmux_exists "$HDU_RUNNER_TRANSPORT_SESSION" && \
     die PREFLIGHT MANAGED_RUNNER_TRANSPORT_PRESENT
+  pgrep -u "$ROBOT_USER" -f '[h]ope-transport-gateway' >/dev/null && \
+    die PREFLIGHT UNMANAGED_TRANSPORT_GATEWAY_PRESENT
   pgrep -u "$ROBOT_USER" -f '[h]ope_world.launch.py' >/dev/null && die PREFLIGHT UNMANAGED_BASE_PRESENT
   pgrep -u "$ROBOT_USER" -f '[h]ope-base-pose-transport-relay' >/dev/null && \
     die PREFLIGHT UNMANAGED_BASE_RELAY_PRESENT
@@ -669,8 +675,8 @@ preflight_hdu() {
   pgrep -u "$ROBOT_USER" -f '(^|/)hope_planner_cpp_node([[:space:]]|$)' >/dev/null && \
     die PREFLIGHT UNMANAGED_PLANNER_PRESENT
   if [[ "$FIELD_MODE" == KERNEL ]]; then
-    [[ -x /usr/local/libexec/hope-runner-transport-relay ]] || \
-      die PREFLIGHT RUNNER_TRANSPORT_RELAY_MISSING
+    [[ -x /usr/local/libexec/hope-transport-gateway ]] || \
+      die PREFLIGHT TRANSPORT_GATEWAY_MISSING
     [[ -r /opt/ros/jazzy/setup.bash ]] || die PREFLIGHT ROS_MISSING
     [[ -x "$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh" ]] || \
       die PREFLIGHT DDS_WRAPPER_MISSING
@@ -683,12 +689,12 @@ preflight_hdu() {
   fi
   [[ -r "$HDU_WS/install/local_setup.bash" ]] || \
     die PREFLIGHT HDU_BASE_OVERLAY_MISSING
-  [[ -r "$HDU_WS/install_model21800_fix/local_setup.bash" ]] || \
+  [[ -r "$HDU_OVERLAY/local_setup.bash" ]] || \
     die PREFLIGHT HDU_OVERLAY_MISSING
   [[ -x /usr/local/libexec/hope-base-pose-transport-relay ]] || \
     die PREFLIGHT BASE_TRANSPORT_RELAY_MISSING
-  [[ -x /usr/local/libexec/hope-runner-transport-relay ]] || \
-    die PREFLIGHT RUNNER_TRANSPORT_RELAY_MISSING
+  [[ -x /usr/local/libexec/hope-transport-gateway ]] || \
+    die PREFLIGHT TRANSPORT_GATEWAY_MISSING
   static_peers="$(network_static_peers)" || \
     die PREFLIGHT HDU_DDS_PEERS_INVALID
   static_peer_list_contains "$static_peers" "$LAPTOP_WIFI_IP" || \
@@ -698,17 +704,17 @@ preflight_hdu() {
   set +u
   source /opt/ros/jazzy/setup.bash
   source "$HDU_WS/install/local_setup.bash"
-  source "$HDU_WS/install_model21800_fix/local_setup.bash"
+  source "$HDU_OVERLAY/local_setup.bash"
   set -u
   messages_prefix="$(ros2 pkg prefix hope_msgs 2>/dev/null)" || \
     die PREFLIGHT HOPE_MSGS_MISSING
-  [[ "$messages_prefix" == "$HDU_WS/install_model21800_fix/hope_msgs" ]] || \
+  [[ "$messages_prefix" == "$HDU_OVERLAY/hope_msgs" ]] || \
     die PREFLIGHT HOPE_MSGS_STALE
   ros2 interface show hope_msgs/msg/BallFlightPacket >/dev/null 2>&1 || \
     die PREFLIGHT BALL_FLIGHT_PACKET_MISSING
   planner_prefix="$(ros2 pkg prefix hope_planner_cpp 2>/dev/null)" || \
     die PREFLIGHT PLANNER_PACKAGE_MISSING
-  [[ "$planner_prefix" == "$HDU_WS/install_model21800_fix/hope_planner_cpp" ]] || \
+  [[ "$planner_prefix" == "$HDU_OVERLAY/hope_planner_cpp" ]] || \
     die PREFLIGHT PLANNER_OVERLAY_STALE
   [[ -x "$planner_prefix/lib/hope_planner_cpp/hope_planner_cpp_node" ]] || \
     die PREFLIGHT PLANNER_EXECUTABLE_MISSING
@@ -893,6 +899,32 @@ check_serve_hal_clock_package() {
     die "$1" SERVE_HAL_CLOCK_ABI_OR_PACKAGE_CHANGED
 }
 
+check_runner_log_directory() {
+  # The wrapper creates logs before launching the process. Catch a root-owned
+  # fresh deployment without its writable runtime directory before HAL stops.
+  if [[ -e "$MDU_DEPLOY/logs" || -L "$MDU_DEPLOY/logs" ]]; then
+    [[ -d "$MDU_DEPLOY/logs" && -w "$MDU_DEPLOY/logs" && -x "$MDU_DEPLOY/logs" ]] || return 1
+  else
+    [[ -w "$MDU_DEPLOY" && -x "$MDU_DEPLOY" ]] || return 1
+  fi
+}
+
+check_gripper_wire_contract() (
+  # Same read-only check as the Runner wrapper, before HAL is changed.
+  set +u
+  source /opt/ros/jazzy/setup.bash
+  set -u
+  export LD_LIBRARY_PATH="$MDU_DEPLOY:$MDU_DEPLOY/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+  local bridge_wire native_wire
+  bridge_wire="$(python3 "$MDU_DEPLOY/tools/a3p_gripper_bridge.py" \
+    --grip-source "$MDU_DEPLOY/tools/grip.py" --gripper-profile "$GRIPPER_PROFILE" \
+    --print-release-wire)" || return 1
+  native_wire="$(timeout 20 "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" \
+    --inspect-serve-release-wire --gripper-profile "$GRIPPER_PROFILE" \
+    --gripper-profiles "$MDU_DEPLOY/tools/gripper_profiles.json")" || return 1
+  [[ -n "$bridge_wire" && "$native_wire" == "$bridge_wire" ]]
+)
+
 preflight_mdu() {
   require_user "$ROBOT_USER" PREFLIGHT
   tmux_exists "$MDU_ELINK_SESSION" && die PREFLIGHT MANAGED_ELINK_PRESENT
@@ -905,6 +937,7 @@ preflight_mdu() {
   check_t3_hardware_config PREFLIGHT
   check_elink_process_presence PREFLIGHT
   check_serve_hal_clock_package PREFLIGHT
+  check_runner_log_directory || die PREFLIGHT RUNNER_LOG_DIRECTORY_NOT_WRITABLE
   command -v python3 >/dev/null || die PREFLIGHT PYTHON3_MISSING
   [[ -x "$MDU_DEPLOY/run_a3_pingpong.sh" ]] || die PREFLIGHT RUNNER_PACKAGE_MISSING
   [[ -x "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" ]] || \
@@ -978,6 +1011,7 @@ preflight_mdu() {
   fi
   [[ -s "$MDU_DEPLOY/tools/a3p_gripper_bridge.py" ]] || \
     die PREFLIGHT GRIPPER_BRIDGE_MISSING
+  check_gripper_wire_contract || die PREFLIGHT GRIPPER_WIRE_CONTRACT_INVALID
   command -v tmux >/dev/null || die PREFLIGHT TMUX_MISSING
   emit PREFLIGHT COMPLETE MDU_READY
 }
@@ -1083,7 +1117,7 @@ run_base() {
   } > "$hdu_dir/artifact_sha256.txt"
   local dds_wrap="$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh"
   "$dds_wrap" --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
-    python3 /usr/local/libexec/hope-base-pose-transport-relay \
+    /usr/local/libexec/hope-base-pose-transport-relay \
     > >(tee -a "$hdu_dir/base_relay.log") 2>&1
 }
 
@@ -1101,7 +1135,7 @@ start_base() {
   for attempt in {1..20}; do
     if tmux_exists "$HDU_BASE_SESSION" && \
        pgrep -u "$ROBOT_USER" -f \
-         '^python3 /usr/local/libexec/hope-base-pose-transport-relay([[:space:]]|$)' \
+         '^/usr/local/libexec/hope-base-pose-transport-relay([[:space:]]|$)' \
          >/dev/null; then
       emit BASE_RELAY COMPLETE HDU_TRANSPORT_RELAY_RUNNING
       return 0
@@ -1113,8 +1147,8 @@ start_base() {
   die BASE_RELAY HDU_TRANSPORT_RELAY_START_FAILED
 }
 
-run_runner_transport() {
-  require_user "$ROBOT_USER" RUNNER_TRANSPORT
+run_transport_gateway() {
+  require_user "$ROBOT_USER" TRANSPORT_GATEWAY
   set +u
   source /opt/ros/jazzy/setup.bash
   if [[ "$FIELD_MODE" != KERNEL ]]; then
@@ -1126,41 +1160,44 @@ run_runner_transport() {
   {
     date -u --iso-8601=seconds
     uname -a
-    sha256sum /usr/local/libexec/hope-runner-transport-relay
-  } > "$hdu_dir/runner_transport_artifact_sha256.txt"
+    sha256sum /usr/local/libexec/hope-transport-gateway
+  } > "$hdu_dir/transport_gateway_artifact_sha256.txt"
   local dds_wrap="$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh"
+  # One dual-homed participant retains the existing Fast DDS peer/interface
+  # selection. Lifecycle starts it only after the field Runner exists.
   "$dds_wrap" --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
-    /usr/local/libexec/hope-runner-transport-relay \
-    > >(tee -a "$hdu_dir/runner_transport_relay.log") 2>&1
+    /usr/local/libexec/hope-transport-gateway \
+    > >(tee -a "$hdu_dir/transport_gateway.log") 2>&1
 }
 
-start_runner_transport() {
-  require_user "$ROBOT_USER" RUNNER_TRANSPORT
-  tmux_exists "$HDU_RUNNER_TRANSPORT_SESSION" && \
-    die RUNNER_TRANSPORT ALREADY_RUNNING
+start_transport_gateway() {
+  require_user "$ROBOT_USER" TRANSPORT_GATEWAY
+  tmux_exists "$HDU_TRANSPORT_GATEWAY_SESSION" && \
+    die TRANSPORT_GATEWAY ALREADY_RUNNING
   local hdu_dir="/tmp/hope_real/$SESSION_ID/hdu"
-  local relay_log="$hdu_dir/runner_transport_relay.log"
+  local relay_log="$hdu_dir/transport_gateway.log"
   local attempt log_start=1
-  # The log is append-only across relay restarts in the same Runner session.
+  # Base packets are not an admission requirement. Health is fresh Runner
+  # transport plus endpoints. The log is append-only across gateway restarts.
   # Only this attempt's output can establish readiness.
   if [[ -f "$relay_log" ]]; then
     log_start=$(( $(stat -c %s -- "$relay_log") + 1 ))
   fi
-  start_tmux "$HDU_RUNNER_TRANSPORT_SESSION" "$SELF" _run-runner-transport \
+  start_tmux "$HDU_TRANSPORT_GATEWAY_SESSION" "$SELF" _run-transport-gateway \
     "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
     "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" "$FIELD_MODE" "$SERVE_CSV_SHA" "$GRIPPER_PROFILE" || \
-    die RUNNER_TRANSPORT ALREADY_RUNNING
+    die TRANSPORT_GATEWAY ALREADY_RUNNING
   for ((attempt = 0; attempt < 60; attempt++)); do
     if [[ -r "$relay_log" ]] && \
-       tail -c "+$log_start" -- "$relay_log" | grep -F -- "RUNNER TRANSPORT HEALTHY" >/dev/null; then
-      emit RUNNER_TRANSPORT COMPLETE BIDIRECTIONAL_DDS_HEALTHY
+       tail -c "+$log_start" -- "$relay_log" | grep -F -- "TRANSPORT GATEWAY HEALTHY" >/dev/null; then
+      emit TRANSPORT_GATEWAY COMPLETE BIDIRECTIONAL_DDS_HEALTHY
       return 0
     fi
-    tmux_exists "$HDU_RUNNER_TRANSPORT_SESSION" || break
+    tmux_exists "$HDU_TRANSPORT_GATEWAY_SESSION" || break
     sleep 0.25
   done
-  stop_tmux "$HDU_RUNNER_TRANSPORT_SESSION"
-  die RUNNER_TRANSPORT BIDIRECTIONAL_DDS_NOT_HEALTHY
+  stop_tmux "$HDU_TRANSPORT_GATEWAY_SESSION"
+  die TRANSPORT_GATEWAY BIDIRECTIONAL_DDS_NOT_HEALTHY
 }
 
 run_planner() {
@@ -1168,7 +1205,7 @@ run_planner() {
   set +u
   source /opt/ros/jazzy/setup.bash
   source "$HDU_WS/install/local_setup.bash"
-  source "$HDU_WS/install_model21800_fix/local_setup.bash"
+  source "$HDU_OVERLAY/local_setup.bash"
   set -u
   local hdu_dir="/tmp/hope_real/$SESSION_ID/hdu"
   mkdir -p "$hdu_dir"
@@ -1463,7 +1500,7 @@ import sys
 text = Path(sys.argv[1]).read_text(errors="replace")
 clean = re.sub(r"\x1b\[[0-9;]*m.*?\x1b\[0m", "", text, flags=re.S)
 required = ("waist", "leg", "arm", "neck", "pelvis_imu", "torso_imu")
-ready = all(re.search(r"(?:^|\s)" + name + r"\s+ready=yes(?![A-Za-z_])", clean)
+ready = all(re.search(r"(?:^|\s)" + name + r"\s+ready=\s*yes(?![A-Za-z_])", clean)
             for name in required)
 bridge = "serve025 bridge ready; startup sent no gripper command" in text
 sys.exit(0 if ready and (bridge or sys.argv[2] == "receive_only") else 1)
@@ -1530,13 +1567,92 @@ stop_mdu() {
   # systemd active alone does not mean its ELink child/listener has appeared.
   # This is a bounded passive proc check, not a vendor IPC connection/reset.
   check_elink_process_presence RUNNER_HAL 8
-  emit RUNNER_HAL COMPLETE AGIBOT_PM_RESTORED
+  emit RUNNER_HAL COMPLETE AGIBOT_PM_STARTED_ELINK_PRESENT
+}
+
+verify_vendor_mdu() {
+  require_user "$ROBOT_USER" VENDOR_RESTORE
+  # Read-only, after STOP on both robot boards. Never infer vendor readiness
+  # from systemd/ELink presence, restart a controller, or synthesize PASSIVE.
+  python3 - <<'PY'
+import json
+import sys
+import time
+import urllib.request
+
+
+def rpc(port, service, method):
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}/rpc/aimdk.protocol.{service}/{method}",
+        data=b"{}", headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(request, timeout=2) as response:
+        value = json.load(response)
+    if str(value.get("header", {}).get("code")) != "0":
+        raise ValueError(f"{method}: unsuccessful response")
+    return value
+
+
+def vendor_restore_status():
+    state = rpc(51011, "SystemService", "GetSystemState")
+    mode = state.get("cur_state")
+    if mode == "Failed":
+        return "VENDOR_SM_FAILED"
+    # IN_READY is an FSM transition status: Failed can have it too.
+    if mode not in {"Ready", "Manual", "EStop"} or state.get("cur_status") != "SystemStatus_IN_READY":
+        return "VENDOR_SM_NOT_READY"
+    infos = rpc(50081, "EmAppService", "GetAllAppInfos")["infos"]
+    for app in ("sm", "mc", "skillpilot", "hal_ethercat", "hal_elink"):
+        matches = [info for info in infos if info.get("app") == app]
+        if len(matches) != 1 or matches[0].get("state") != "State_RUNNING" or int(matches[0].get("pid", -1)) <= 0:
+            return "VENDOR_REQUIRED_APP_NOT_RUNNING"
+    states = rpc(51011, "SystemService", "GetSmModuleStatus")["states"]
+    nodes = {item["node_name"] for item in states if item.get("module_states")}
+    if not {"health_monitor0", "health_monitor1"}.issubset(nodes):
+        return "VENDOR_HEALTH_MONITOR_UNAVAILABLE"
+    info = rpc(56322, "MotionControlActionService", "GetAction").get("info", {})
+    if (info.get("current_action") != "MotionControlAction_PASSIVE"
+            or info.get("status") != "MotionControlActionStatus_RUNNING"):
+        return "VENDOR_MC_NOT_PASSIVE"
+    # This verifies the restored vendor control stack, not physical support
+    # or authorization to power off. The vendor shutdown interlock stays on.
+    return "AGIBOT_PM_RESTORED"
+
+
+def verify_vendor_restore(timeout_s=120):
+    deadline = time.monotonic() + timeout_s
+    consecutive = 0
+    reason = "VENDOR_RESTORE_UNAVAILABLE"
+    while time.monotonic() < deadline:
+        try:
+            reason = vendor_restore_status()
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            print(f"vendor restore probe: {exc}", file=sys.stderr)
+            reason = "VENDOR_RESTORE_UNAVAILABLE"
+        consecutive = consecutive + 1 if reason == "AGIBOT_PM_RESTORED" else 0
+        if consecutive >= 2:
+            return True, reason
+        if reason == "VENDOR_SM_FAILED":
+            return False, reason
+        time.sleep(1)
+    return False, reason if reason != "AGIBOT_PM_RESTORED" else "VENDOR_RESTORE_UNSTABLE"
+
+
+if __name__ == "__main__":
+    success, reason = verify_vendor_restore()
+    print(f"HOPE_LIFECYCLE_V1 step=VENDOR_RESTORE state={'COMPLETE' if success else 'FAILED'} reason={reason}")
+    sys.exit(0 if success else 1)
+PY
 }
 
 stop_hdu() {
   require_user "$ROBOT_USER" PLANNER_BASE
-  stop_tmux "$HDU_RUNNER_TRANSPORT_SESSION"
-  emit RUNNER_TRANSPORT COMPLETE RUNNER_TRANSPORT_STOPPED
+  stop_tmux "$HDU_TRANSPORT_GATEWAY_SESSION"
+  emit TRANSPORT_GATEWAY COMPLETE TRANSPORT_GATEWAY_STOPPED
+  # Clean up sessions left by an older installation too.
+  if tmux_exists "$HDU_RUNNER_TRANSPORT_SESSION"; then
+    stop_tmux "$HDU_RUNNER_TRANSPORT_SESSION"
+    emit RUNNER_TRANSPORT COMPLETE RUNNER_TRANSPORT_STOPPED
+  fi
   stop_tmux "$HDU_PLANNER_SESSION"
   emit PLANNER COMPLETE PLANNER_STOPPED
   stop_tmux "$HDU_BASE_SESSION"
@@ -1668,6 +1784,7 @@ main() {
       ;;
     field-assets-mdu)
       require_user "$ROBOT_USER" FIELD_ASSETS
+      resolve_mdu_deployment || die FIELD_ASSETS POLICY_BUNDLE_INVALID
       # Match the packaged Runner's dynamic-library environment. Sourcing
       # these files starts no HAL, gripper or ROS node.
       set +u
@@ -1719,18 +1836,19 @@ main() {
     start-laptop) start_laptop ;;
     reconnect-laptop) reconnect_laptop ;;
     start-base) start_base ;;
-    start-runner-transport) start_runner_transport ;;
+    start-transport-gateway) start_transport_gateway ;;
     start-planner) start_planner ;;
     start-hal) start_hal ;;
     start-runner) start_runner ;;
     stop-mdu) stop_mdu; audit_stopped_policy ;;
+    verify-vendor-mdu) verify_vendor_mdu ;;
     stop-hdu) stop_hdu ;;
     stop-laptop) stop_laptop ;;
     stop-capture-laptop) stop_laptop_capture ;;
     collect) collect_logs ;;
     _run-laptop) run_laptop ;;
     _run-base) run_base ;;
-    _run-runner-transport) run_runner_transport ;;
+    _run-transport-gateway) run_transport_gateway ;;
     _run-planner) run_planner ;;
     _run-elink) run_elink ;;
     _run-hal) run_hal ;;

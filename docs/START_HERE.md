@@ -5,7 +5,8 @@ The October 11–13 runtime updates retain the published model and training tree
 
 | Work | Entry |
 | --- | --- |
-| New-machine installation and container selection | [DISTROBOX_SETUP.md](DISTROBOX_SETUP.md) |
+| Laptop environment installation and container selection | [DISTROBOX_SETUP.md](DISTROBOX_SETUP.md) |
+| New A3 robot / replaced board / fresh BSP: system baseline and acceptance | [New robot commissioning](operations/new_robot_commissioning.md) |
 | Isaac training, source launcher and motion inputs | [public Isaac quickstart](../QUICKSTART_A3_ISAAC.md) |
 | ROS workspace and native Runner builds | [build_and_test.md](operations/build_and_test.md) |
 | Complete deployment and native Gate 3 command sequence | [deploy_and_gate3.md](operations/deploy_and_gate3.md) |

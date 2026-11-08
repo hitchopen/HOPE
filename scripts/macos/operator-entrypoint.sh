@@ -52,6 +52,8 @@ ln -sfn /work/foxglove/helpers/hope-lifecycle "$operator_home/.local/libexec/hop
   printf 'export HOPE_LAPTOP_USER=%q\n' "$operator_user"
   printf 'export HOPE_ROBOT_USER=agi\n'
   printf 'export HOPE_LAPTOP_RUNTIME=direct\n'
+  # Reachable only through Docker's host-loopback port mapping, never via HDU.
+  printf 'export HOPE_BALL_STATUS_BIND=0.0.0.0\n'
   printf 'export HOPE_LAPTOP_SHARE=/work/foxglove/laptop\n'
 } > "$operator_home/.config/hope-foxglove/lifecycle.env"
 install -m 600 /operator-config/client_key "$operator_home/.ssh/id_ed25519"

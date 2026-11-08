@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const test = require('node:test');
 const ts = require('typescript');
 const output = {};
-vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/planeMode.ts'), 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText, {exports:output});
+Object.assign(output, require('./loadSource.cjs')('planeMode'));
 const {decodePlaneMode, planeModeRequest} = output;
 const diag = (values) => ({status:[{name:'hope_planner_cpp/realtime',values:Object.entries(values).map(([key,value])=>({key,value}))}]});
 test('keeps requested mode distinct from the last published flight', () => {

@@ -34,7 +34,7 @@ class Dispatched(Exception):
 def backend_namespace(environment):
     # Load the actual service constants/backend without requiring ROS on macOS.
     source = SUPERVISOR.read_text()
-    backend = source[source.index('LIFECYCLE_HELPER = '):source.index('\nclass HopeLifecycleSupervisor')]
+    backend = source[source.index('LIFECYCLE_HELPER = '):source.index('\nclass LifecycleModule')]
     namespace = dict(os=os, re=re, Path=Path, subprocess=subprocess, json=json,
                      HelperEvent=HelperEvent, LifecycleConfig=LifecycleConfig,
                      parse_helper_event=parse_helper_event, validate_session_id=validate_session_id)
@@ -128,9 +128,9 @@ class OperatorProfileTests(unittest.TestCase):
                     ssh_calls = [argv for argv in calls if argv[0] == "/usr/bin/ssh"]
                     host_index = 1 + len(namespace["SSH_OPTIONS"])
                     laptop_calls = [argv for argv in ssh_calls if argv[host_index] != "agi@10.42.10.12"]
-                    self.assertEqual(len(laptop_calls), 7)
+                    self.assertEqual(len(laptop_calls), 8)
                     self.assertEqual({argv[host_index + 2] for argv in laptop_calls},
-                                     {"preflight-laptop", "prepare-laptop", "stop-capture-laptop",
+                                     {"preflight-laptop", "prepare-laptop", "reconnect-laptop", "stop-capture-laptop",
                                       "collect", "record-control", "field-assets-laptop", "ball-model-laptop"})
                     for argv in laptop_calls:
                         if profile == "linux":
@@ -159,7 +159,8 @@ class OperatorProfileTests(unittest.TestCase):
                 for argv in calls:
                     if any(a in argv for a in ("ball-model-hdu", "ball-model-laptop")):
                         continue
-                    self.assertEqual(argv[-3:], [mode, "DEFAULT", "new_20261015"])
+                    end = argv.index(mode) + 3 if "reconnect-laptop" in argv else len(argv)
+                    self.assertEqual(argv[end-3:end], [mode, "DEFAULT", "new_20261015"])
 
     def test_kernel_mode_never_contacts_either_operator(self):
         namespace = backend_namespace({})

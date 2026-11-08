@@ -318,6 +318,16 @@ reward targets, and deploy compatibility here first.
 - Normalization: per-term Unoise with `enable_corruption` on the policy group (values in the actor
   table above).
 
+## Fixed HOME with runtime racket planes
+
+`fixed_session_anchor_v1` policies advertise schema-5 support. A fixed
+station is independent of the per-flight racket plane: Planner may select
+`measured_base_x + model_plane_x`, while Runner keeps the station and recovery
+target at the original HOME. The actor still observes `HOME - measured_base`
+for its station error and `racket_target - measured_base` for its target.
+The existing HOME identity and model-relative target support checks remain
+enforced; selecting a dynamic plane does not expand support or recapture HOME.
+
 ## Update Rule
 
 Any observation, action, scaling, normalization, latency, command frequency, or joint-order change must update this file and the relevant gate docs.

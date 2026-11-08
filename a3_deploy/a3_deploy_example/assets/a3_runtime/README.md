@@ -25,8 +25,8 @@ ping-pong package and are not the default public workflow.
   All 468 frames play before the return to Stand. Non-right-arm fields and
   release timing are preserved. v12 remains a historical reference; v13 was
   rejected after hardware jitter feedback.
-- `robots/A3PingPong-with-gripper/`: reviewed URDF and all referenced meshes;
-  see its README for the 20 visual-mesh collision fallbacks.
+- [0807 robot model with OP3 gripper](robots/A3PingPong-with-gripper/README.md)
+  and its relative mesh files.
 - Timing and validation limits are in
   [Runner and serving](../../../../docs/operations/runtime_xbox.md).
 

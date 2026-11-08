@@ -25,7 +25,8 @@ consumes -- the same output contract as ``avatar_pro_vrpn_relay``:
   latencies in the optional raw trace;
 * orientation handling is fail-closed for UCB_P1/UCB_P2/PPT: an invalid body
   quaternion drops that pose instead of pretending it is identity. The ball
-  remains position-only and may use identity when its orientation is absent.
+  remains position-only with quaternion (0,0,0,0) when orientation is invalid,
+  matching the ChingMu/VRPN contract for unobserved spin.
 
 ``/poses`` is published ONLY when the incoming frame contains the ball entry
 (occluded ball -> the driver omits it) so a stale ball position is never
@@ -57,7 +58,8 @@ from source_time_rate_gate import SourceTimeRateGate
 from operator_heartbeat import OperatorHeartbeat
 from table_side_transform import (
     normalize_table_side,
-    transform_pose_xyzw,
+    transform_position_xyz,
+    transform_quaternion_xyzw,
 )
 
 
@@ -317,9 +319,9 @@ class OptitrackMctRelay(Node):
             if key == "ball":
                 ball_in_frame = True
                 if orientation_status == "valid":
-                    # A separate topic preserves orientation validity. /poses
-                    # remains position-load-bearing and may carry identity for
-                    # a single-marker/temporarily orientation-less ball.
+                    # The legacy orientation-only topic emits measured poses;
+                    # both pose arrays retain position-only samples with the
+                    # zero quaternion sentinel for unobserved spin.
                     ball_pose_orientation_valid = True
                 continue  # ball is emitted last, after the rigid bodies
             self._pose_publishers[key].publish(stamped)
@@ -368,7 +370,7 @@ class OptitrackMctRelay(Node):
         if self._debug_csv is None:
             return
         accepted = normalized is not None
-        sanitized = orientation_status == "ball_identity"
+        sanitized = orientation_status == "ball_orientation_invalid"
         normalized_values = (
             (
                 normalized.position.x,
@@ -437,7 +439,7 @@ class OptitrackMctRelay(Node):
         out.header = normalized.header
         out.point = normalized.pose.position
         self._ball_pub.publish(out)
-        if self._publish_tf:
+        if self._publish_tf and _valid_quat(normalized.pose.orientation):
             self._broadcast_tf("ball", normalized)
         # Publish /poses synchronized to the BALL update only (see module doc).
         if self._publish_pose_array:
@@ -457,13 +459,18 @@ class OptitrackMctRelay(Node):
         if not all(math.isfinite(v) for v in
                    (out.position.x, out.position.y, out.position.z)):
             return None, "dropped_invalid_position"
-        if _valid_quat(pose.orientation):
-            norm = math.sqrt(
-                pose.orientation.x * pose.orientation.x
-                + pose.orientation.y * pose.orientation.y
-                + pose.orientation.z * pose.orientation.z
-                + pose.orientation.w * pose.orientation.w
-            )
+        norm = math.sqrt(
+            pose.orientation.x * pose.orientation.x
+            + pose.orientation.y * pose.orientation.y
+            + pose.orientation.z * pose.orientation.z
+            + pose.orientation.w * pose.orientation.w
+        )
+        orientation_valid = _valid_quat(pose.orientation)
+        if key == "ball":
+            # Match VRPN and the C++ packetizer's ball validity range. Do not
+            # normalize an invalid norm into an apparently measured rotation.
+            orientation_valid = orientation_valid and 0.5 <= norm <= 1.5
+        if orientation_valid:
             out.orientation.x = pose.orientation.x / norm
             out.orientation.y = pose.orientation.y / norm
             out.orientation.z = pose.orientation.z / norm
@@ -478,34 +485,29 @@ class OptitrackMctRelay(Node):
                 )
             return None, "dropped_invalid"
         else:
-            # Ball prediction consumes only the tracked center position.
-            out.orientation.w = 1.0
-            orientation_status = "ball_identity"
+            # ROS Quaternion defaults to identity: explicitly write the invalid
+            # sentinel so loss/reacquisition cannot invent a rotation delta.
+            out.orientation.x = out.orientation.y = 0.0
+            out.orientation.z = out.orientation.w = 0.0
+            orientation_status = "ball_orientation_invalid"
             if name not in self._sanitized_orientation_names:
                 self._sanitized_orientation_names.add(name)
                 self.get_logger().info(
-                    f"'{name}' has no orientation; retaining its position-only "
-                    "ball sample with identity orientation"
+                    f"'{name}' has invalid orientation; retaining its position-only "
+                    "ball sample with a zero quaternion (unobserved spin)"
                 )
-        position, quaternion = transform_pose_xyzw(
+        position = transform_position_xyz(
             (out.position.x, out.position.y, out.position.z),
-            (
-                out.orientation.x,
-                out.orientation.y,
-                out.orientation.z,
-                out.orientation.w,
-            ),
             self._table_side,
             self._table_length_m,
             self._table_width_m,
         )
         out.position.x, out.position.y, out.position.z = position
-        (
-            out.orientation.x,
-            out.orientation.y,
-            out.orientation.z,
-            out.orientation.w,
-        ) = quaternion
+        if orientation_valid:
+            (out.orientation.x, out.orientation.y,
+             out.orientation.z, out.orientation.w) = transform_quaternion_xyzw(
+                (out.orientation.x, out.orientation.y,
+                 out.orientation.z, out.orientation.w), self._table_side)
         normalized.pose = out
         return normalized, orientation_status
 

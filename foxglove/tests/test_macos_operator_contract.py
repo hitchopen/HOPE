@@ -38,7 +38,8 @@ def container(cfg):
                        {"Destination": "/operator-config", "Source": str(operator.CONFIG.resolve())},
                        {"Destination": f"/home/{cfg['laptop_user']}", "Name": "hope-macos-operator-home"}],
             "HostConfig": {"PortBindings": {"2222/tcp": [
-                {"HostIp": "127.0.0.1", "HostPort": str(cfg["ssh_port"])}]}}}
+                {"HostIp": "127.0.0.1", "HostPort": str(cfg["ssh_port"])}],
+                "8768/tcp": [{"HostIp": "127.0.0.1", "HostPort": "8768"}]}}}
 
 
 class MacOperatorContractTests(unittest.TestCase):
@@ -166,7 +167,9 @@ useradd() { printf '%s\\n' "$@"; }
     def test_reused_container_requires_matching_identity_mounts_and_loopback_port(self):
         cfg = config()
         operator.verify_container_contract(cfg, container(cfg))
-        changes = [lambda c: c["Config"].update(Labels={}),
+        changes = [lambda c: c["HostConfig"]["PortBindings"].pop("8768/tcp"),
+                   lambda c: c["HostConfig"]["PortBindings"]["8768/tcp"][0].update(HostIp="0.0.0.0"),
+                   lambda c: c["Config"].update(Labels={}),
                    lambda c: c["Config"].update(Labels={operator.CONTRACT_LABEL: "2"}),
                    lambda c: c["Config"].update(Env=["HOPE_OPERATOR_USER=dongc1"]),
                    lambda c: c["Mounts"][0].update(Source="/other/checkout"),
@@ -199,6 +202,7 @@ useradd() { printf '%s\\n' "$@"; }
                     redirect_stdout(StringIO()):
                 operator.up(cfg)
             argv = run.call_args_list[1].args[0]
+            self.assertIn("127.0.0.1:8768:8768", argv)
             self.assertIn(f"HOPE_OPERATOR_USER={cfg['laptop_user']}", argv)
             self.assertIn(f"HOPE_OPERATOR_HELPER={cfg['laptop_helper']}", argv)
             self.assertIn(f"type=volume,src=hope-macos-operator-home,dst=/home/{cfg['laptop_user']}", argv)

@@ -525,7 +525,9 @@ void PpServeController::ProcessRequests_(
       // to hold during a long arm raise. Recover official stand first, within
       // this same PREPARE request, then run the original loading transition.
       if (recover_stand)
-        entry_transition_.Begin(entry_command_, stand, kPrepareStandSeconds, .25);
+        // Cross-fade complete torque laws: raw actor setpoints contain support
+        // offsets that must not be amplified by the larger Stand stiffness.
+        entry_transition_.BeginImpedance(entry_command_, stand, kPrepareStandSeconds);
       state_.store(recover_stand ? ServeControllerState::kPreparingStand
                                 : ServeControllerState::kTransitionToLoad,
                    std::memory_order_release);

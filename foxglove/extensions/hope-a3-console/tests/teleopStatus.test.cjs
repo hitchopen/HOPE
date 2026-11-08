@@ -7,12 +7,13 @@ const ts = require('typescript');
 const source = fs.readFileSync(path.join(__dirname, '../src/teleopStatus.ts'), 'utf8');
 const exportsObject = {};
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
-vm.runInNewContext(code, { exports: exportsObject, ArrayBuffer, DataView });
+Object.assign(exportsObject, require('./loadSource.cjs')('teleopStatus'));
 const { decodeTeleopState, xboxInputFresh, teleopEntryReason } = exportsObject;
+const english = require('./loadSource.cjs')('i18n').createTranslator('en');
 const xbox = { connected: true, lt: false, enabled: false, axes: [0, 0, 0] };
 const entry = (runnerFresh, runnerFault, mode, telemetryFresh, state, pending, extra = {}) =>
   teleopEntryReason({ runnerFresh, runnerFault, mode, telemetryFresh, state, pending,
-    xboxFresh: true, xbox, estop: false, ...extra });
+    xboxFresh: true, xbox, estop: false, ...extra }, english);
 const state = [1, 123456, 1, 0, .02, 0, 0, 0, 0, 0];
 
 test('CDR Float64Array and JSON arrays both unlock teleop in Stand', () => {

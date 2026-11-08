@@ -13,9 +13,11 @@ from hope_lifecycle_core import LifecycleConfig  # noqa: E402
 from hope_monitor_core import NtpProbeResult  # noqa: E402
 from hope_time_calibration_core import (  # noqa: E402
     CHRONYC,
+    GUARDED_CLOCK,
     CHRONY_BURST_UNIT,
     HDU_CONSOLIDATED_CONTROL_GROUP,
     HDU_CONSOLIDATED_CONTROL_SCRIPT,
+    HDU_NATIVE_CONTROL_EXECUTABLE,
     HDU_CONSOLIDATED_CONTROL_UNIT,
     HDU_CONTROL_PROCESS_PATTERNS,
     HDU_FOXGLOVE_UNITS,
@@ -52,6 +54,8 @@ class FakeMachine:
         consolidated=False,
         split_units_loaded=True,
     ):
+        self.adapter_available = False
+        self.adapter_fail = None
         self.calls: list[tuple[str, ...]] = []
         self.active = set(HDU_FOXGLOVE_UNITS) | set(HDU_VENDOR_UNITS) | set(HDU_PTP_UNITS) | {
             "chrony.service"
@@ -112,7 +116,11 @@ class FakeMachine:
         stdout = ""
         stderr = ""
 
-        if command[0] == SYSTEMCTL:
+        if command[0] == GUARDED_CLOCK:
+            returncode = 0 if self.adapter_available and command[1] != self.adapter_fail else 1
+            stderr = "adapter unavailable or refused" if returncode else ""
+            stdout = "GUARDED_CLOCK_ADAPTER_V1" if command[1] == "--check" and not returncode else ""
+        elif command[0] == SYSTEMCTL:
             verb = command[1]
             if verb == "cat":
                 returncode = 0 if command[2] in self.loaded else 1
@@ -272,6 +280,109 @@ class TimeCalibrationStatusTests(unittest.TestCase):
 
 
 class TimeCalibrationOrderingTests(unittest.TestCase):
+    def test_masked_optional_legacy_units_allow_calibration_and_stay_masked(self):
+        machine = FakeMachine(consolidated=True)
+        def run(argv, **kwargs):
+            if argv[:2] == [SYSTEMCTL, "show"] and argv[-1] in HDU_SPLIT_CONTROL_UNITS:
+                return subprocess.CompletedProcess(argv, 0, "LoadState=masked\nActiveState=inactive\n", "")
+            return machine(argv, **kwargs)
+        backend = self.backend(machine, failing_ntp(), passing_ntp(), passing_ntp())
+        backend._run = run
+        backend.calibrate(self.config(), lambda *_: None, handoff_delay_s=0.)
+        for call in machine.calls:
+            if call[:2] == (SYSTEMCTL, "start"):
+                self.assertFalse(set(HDU_SPLIT_CONTROL_UNITS).intersection(call))
+
+    def test_masked_required_owner_still_rejects_before_clock_mutation(self):
+        machine = FakeMachine(consolidated=True)
+        def run(argv, **kwargs):
+            if argv[:2] == [SYSTEMCTL, "show"] and argv[-1] == HDU_CONSOLIDATED_CONTROL_UNIT:
+                return subprocess.CompletedProcess(argv, 0, "LoadState=masked\nActiveState=inactive\n", "")
+            return machine(argv, **kwargs)
+        backend = self.backend(machine, failing_ntp());backend._run = run
+        with self.assertRaisesRegex(CalibrationRejected, "HDU_CONTROL_UNIT_MASKED"):
+            backend.calibrate(self.config(), lambda *_: None, handoff_delay_s=0.)
+        self.assertFalse(any(call[:2] == (SYSTEMCTL, "stop") for call in machine.calls))
+
+    def test_guarded_vendor_bsp_rejects_before_stopping_or_recovering_mdu(self):
+        machine = FakeMachine(legacy_ptp=True)
+        machine.file_overrides["/opt/agibot/entry/run_agibot.sh"] = (
+            'python3 "${DIR}/system/timesync_guard.py" &\n'
+        )
+        backend = TimeCalibrationBackend(
+            "agi", robot_home="/home/agi", run=machine,
+            read_text=machine.read_text, sleep=lambda _seconds: None,
+        )
+        active_before = machine.active.copy()
+        with self.assertRaisesRegex(CalibrationRejected, "GUARDED_BSP_REQUIRES_PAIRED_REBOOT"):
+            backend.calibrate(self.config(), lambda _progress: None, handoff_delay_s=0.0)
+        self.assertEqual(machine.active, active_before)
+        self.assertFalse(any(c[:2] in ((SYSTEMCTL, "stop"), (SYSTEMCTL, "start"),
+                                      (SYSTEMCTL, "restart")) for c in machine.calls))
+        self.assertFalse(any(c[-1].startswith("time-calibration-") for c in machine.calls))
+
+    def test_guarded_adapter_arms_only_after_step_and_acks_before_mdu_restore(self):
+        machine = FakeMachine(legacy_ptp=True)
+        machine.adapter_available = True
+        machine.file_overrides["/opt/agibot/entry/run_agibot.sh"] = 'python3 "${DIR}/system/timesync_guard.py" &'
+        backend = self.backend(machine, failing_ntp(), passing_ntp(), passing_ntp())
+        backend.calibrate(self.config(), lambda _progress: None, handoff_delay_s=0)
+        calls = machine.calls
+        arm = calls.index((GUARDED_CLOCK, "--arm", self.config().mdu_internal_ip, "agi"))
+        step = calls.index((SYSTEMCTL, "restart", "agibot-clock-bootstrap.service"))
+        ack = calls.index((GUARDED_CLOCK, "--verify"))
+        restore = next(i for i, c in enumerate(calls) if c[-1] == "time-calibration-restore-mdu")
+        self.assertLess(step, arm)
+        self.assertLess(arm, ack)
+        self.assertLess(ack, restore)
+        self.assertIn((GUARDED_CLOCK, "--revoke"), calls[ack:restore])
+
+    def test_guarded_adapter_failure_revokes_and_keeps_mdu_consumers_stopped(self):
+        for failure in ("--arm", "--verify"):
+            with self.subTest(failure=failure):
+                machine = FakeMachine(legacy_ptp=True)
+                machine.adapter_available = True
+                machine.adapter_fail = failure
+                machine.file_overrides["/opt/agibot/entry/run_agibot.sh"] = 'python3 "${DIR}/system/timesync_guard.py" &'
+                backend = self.backend(machine, failing_ntp(), passing_ntp(), passing_ntp())
+                with self.assertRaises(CalibrationFailure):
+                    backend.calibrate(self.config(), lambda _progress: None, handoff_delay_s=0)
+                self.assertIn((GUARDED_CLOCK, "--revoke"), machine.calls)
+                self.assertFalse(any(c[-1] == "time-calibration-restore-mdu" for c in machine.calls))
+                self.assertNotIn("agibot_pm.service", machine.active)
+
+    def test_consolidated_receipt_restores_only_prior_active_operations_services(self):
+        old_units = HDU_REQUIRED_CONTROL_UNITS
+        saved = CalibrationStatus(boot_id="same-boot", active_hdu_foxglove=old_units)
+        restored = status_from_document(status_to_document(saved))
+        self.assertEqual(restored.active_hdu_foxglove, old_units)
+        machine = FakeMachine(consolidated=True)
+        backend = self.backend(machine)
+        backend._restore_control_plane(restored.active_hdu_foxglove)
+        starts = [c for c in machine.calls if c[:2] == (SYSTEMCTL, "start")]
+        self.assertEqual(len(starts), 1)
+        self.assertEqual(starts[0].count("hope-lifecycle-supervisor.service"), 1)
+        self.assertNotIn("hope-observer.service", starts[0])
+        self.assertNotIn("hope-command-proxy.service", starts[0])
+
+    def test_active_transport_rejects_clock_step_before_mutation(self):
+        for process, reason in (("hope-transport-gateway", "HDU_TRANSPORT_GATEWAY_IS_RUNNING"),
+                                ("hope-base-pose-transport-relay", "HDU_BASE_RELAY_IS_RUNNING")):
+            with self.subTest(process=process):
+                machine = FakeMachine()
+
+                def run(argv, **kwargs):
+                    if argv[:2] == ["/usr/bin/pgrep", "-f"] and process in argv[-1]:
+                        machine.calls.append(tuple(argv))
+                        return subprocess.CompletedProcess(argv, 0, "123\n", "")
+                    return machine(argv, **kwargs)
+
+                backend = TimeCalibrationBackend("agi", robot_home="/home/agi", run=run)
+                with self.assertRaisesRegex(CalibrationRejected, reason):
+                    backend.preflight(self.config())
+                self.assertFalse(any(c[:2] in ((SYSTEMCTL, "stop"), (SYSTEMCTL, "start"),
+                                              (SYSTEMCTL, "restart")) for c in machine.calls))
+
     @staticmethod
     def config():
         return LifecycleConfig(
@@ -625,6 +736,18 @@ class TimeCalibrationOrderingTests(unittest.TestCase):
                     self.backend(machine, failing_ntp()).calibrate(self.config(), lambda _p: None, handoff_delay_s=0)
                 self.assert_no_step(machine)
 
+    def test_native_consolidated_owner_requires_exact_path_and_owned_cgroup(self):
+        for valid in (True, False):
+            machine = FakeMachine(consolidated=True, split_units_loaded=False)
+            machine.owner_properties["ExecStart"] = "{ path=" + HDU_NATIVE_CONTROL_EXECUTABLE + " ; }"
+            machine.file_overrides["/proc/3566/cmdline"] = HDU_NATIVE_CONTROL_EXECUTABLE + ("\0--ros-args\0" if valid else ".old\0")
+            backend = self.backend(machine, failing_ntp(), read_text=machine.read_text)
+            if valid:
+                self.assertEqual(backend._verified_consolidated_group(), HDU_CONSOLIDATED_CONTROL_GROUP)
+            else:
+                with self.assertRaisesRegex(CalibrationRejected, "OWNER_PROCESS_MISSING"):
+                    backend._verified_consolidated_group()
+
     def test_consolidated_owner_process_identity_change_is_not_accepted(self):
         machine = FakeMachine(consolidated=True)
         reads = [0]
@@ -883,13 +1006,16 @@ class TimeCalibrationOrderingTests(unittest.TestCase):
             self.backend(run, failing_ntp()).calibrate(self.config(), lambda _p: None, handoff_delay_s=0)
         self.assert_no_step(machine)
 
-    def test_already_qualified_clock_is_not_stepped(self):
+    def test_explicit_resync_of_healthy_clock_steps_once_and_restores_services(self):
         machine = FakeMachine()
-        with self.assertRaisesRegex(CalibrationRejected, "CLOCK_ALREADY_QUALIFIED"):
-            self.backend(machine, passing_ntp()).calibrate(self.config(), lambda _p: None, handoff_delay_s=0)
-        self.assert_no_step(machine)
-        self.assertFalse(any(c[0] == SYSTEMCTL and c[1] in {"stop", "start", "restart"}
-                             for c in machine.calls))
+        progress = []
+        self.backend(machine, passing_ntp(), passing_ntp(), passing_ntp()).calibrate(
+            self.config(), progress.append, handoff_delay_s=0)
+        self.assertEqual(progress[-1].step, "COMPLETE")
+        self.assertTrue(progress[-1].hard_step_attempted)
+        self.assertEqual(machine.calls.count(
+            (SYSTEMCTL, "restart", "agibot-clock-bootstrap.service")), 1)
+
 
     def test_bootstrap_failure_does_not_retry_or_restart_robot_services(self):
         machine = FakeMachine()

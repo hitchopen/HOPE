@@ -1,6 +1,7 @@
 #include "hope_planner_cpp/swing_side_support.hpp"
 #include "hope_planner_cpp/planner_node.hpp"
 #include "hope_planner_cpp/future_contact_parameters.hpp"
+#include "hope_planner_cpp/wire_identity_state.hpp"
 #include "hope_planner_cpp/hit_speed_scale_state.hpp"
 #include "hope_planner_cpp/ball_y_filter_state.hpp"
 #include "hope_planner_cpp/ball_y_filter_markers.hpp"
@@ -84,6 +85,15 @@ std::int64_t PlannerNode::wall_now_ns() noexcept {
 
 PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
     : rclcpp::Node("hope_planner", options) {
+  const auto identity_path = declare_parameter<std::string>("wire_identity_state_file", "");
+  if (!identity_path.empty()) {
+    const auto range = reserve_wire_identity_range(identity_path,
+        static_cast<std::uint64_t>(wall_now_ns() / 1000));
+    schema2_packer_ = Schema2Packer(range.begin, range.end);
+    RCLCPP_INFO(get_logger(), "Planner wire identity reserved: begin=%llu end=%llu",
+        static_cast<unsigned long long>(range.begin),
+        static_cast<unsigned long long>(range.end));
+  }
   declare_parameter<std::string>("ball_rigid_body_name", "pingpong_ball");
   ball_pose_index_ = static_cast<int>(declare_parameter<int>("ball_pose_index", 0));
   input_qos_depth_ = std::clamp(

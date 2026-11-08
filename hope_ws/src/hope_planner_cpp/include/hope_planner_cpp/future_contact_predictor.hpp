@@ -12,14 +12,21 @@ struct FutureContactConfig {
   double tangential_gain = BallPhysics{}.table_tangential_gain;
   double omega_scale = 1.0;
   double min_coherence = 0.4;
+  // In spin-aware control, an unknown incoming spin is not evidence of zero
+  // slip at a future table contact. Wait for an observed post-contact arc.
+  // The physical model remains available explicitly for legacy/offline replay.
+  bool require_spin_for_future_contact = true;
 };
 
 // Shared by the causal packet preview and the receiving Planner. Unusable
-// orientation selects the existing effective zero-spin model, never a reject.
+// orientation still permits free flight, but cannot finalize an unobserved
+// table contact in spin-aware control. A later measured arc can resolve it.
 // Magnus is opt-in and shares the estimator's segment-consistent spin.
 // No change to an already published strike deadline.
 class FutureContactPredictor {
  public:
+  static constexpr const char* kUnobservedSpinContact =
+      "future_contact_spin_unobserved";
   FutureContactPredictor(BallPhysics fallback, PlannerConfig planner,
                          TableParams table, FutureContactConfig config = {})
       : config_(validate(config)), fallback_(fallback, planner, table),
@@ -42,9 +49,16 @@ class FutureContactPredictor {
     // A measured contact can create spin even when the incoming orientation
     // was unavailable. Preserve that zero-prior impulse from the state fit.
     const Vec3 prior = state.spin_model_enabled ? effective.omega_rad_s : Vec3::Zero();
-    return fallback_.predict_with_spin(state, x_hit, prior,
+    StrikeTarget result = fallback_.predict_with_spin(state, x_hit, prior,
         config_.magnus_enabled ? SpinPhysicsMode::kVenueGripBounceAndMagnus
                                : SpinPhysicsMode::kVenueGripBounce);
+    if (config_.require_spin_for_future_contact &&
+        (config_.spin_enabled || config_.magnus_enabled) &&
+        result.valid && result.predicted_bounces > 0) {
+      result.valid = false;
+      result.reason = kUnobservedSpinContact;
+    }
+    return result;
   }
 
  private:

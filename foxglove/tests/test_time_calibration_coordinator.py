@@ -96,20 +96,19 @@ def test_stale_missing_future_or_nonfinite_evidence_rejects(subject, field, rece
     assert_rejected_without_worker(subject)
 
 
-@pytest.mark.parametrize("field,value", [("_lifecycle_busy", True), ("_ntp_gate", True)])
-def test_busy_or_already_qualified_rejects(subject, field, value):
-    setattr(subject.node, field, value)
+def test_busy_lifecycle_rejects(subject):
+    subject.node._lifecycle_busy = True
     assert_rejected_without_worker(subject)
 
 
 @pytest.mark.parametrize("state,attempted", [("RUNNING", False), ("INTERRUPTED", False),
-                                            ("FAILED_SAFE_STOP", False), ("COMPLETE", True)])
+                                            ("FAILED_SAFE_STOP", False), ("REJECTED", True)])
 def test_maintenance_or_previous_attempt_blocks_request(subject, state, attempted):
     subject.node._status = replace(subject.node._status, state=state, hard_step_attempted=attempted)
     assert_rejected_without_worker(subject)
 
 
-@pytest.mark.parametrize("change", ["running", "busy", "qualified", "expired", "future",
+@pytest.mark.parametrize("change", ["running", "busy", "expired", "future",
                                     "maintenance_running", "failed", "attempted"])
 def test_interlock_acquisition_rechecks_latest_evidence_before_accepting(subject, change):
     def acquire_after_change():
@@ -117,8 +116,6 @@ def test_interlock_acquisition_rechecks_latest_evidence_before_accepting(subject
             subject.node._lifecycle_state = "RUNNING"
         elif change == "busy":
             subject.node._lifecycle_busy = True
-        elif change == "qualified":
-            subject.node._ntp_gate = True
         elif change == "expired":
             subject.clock[0] += 2.0
         elif change == "future":
@@ -128,7 +125,7 @@ def test_interlock_acquisition_rechecks_latest_evidence_before_accepting(subject
         elif change == "failed":
             subject.node._status = replace(subject.node._status, state="FAILED_SAFE_STOP")
         else:
-            subject.node._status = replace(subject.node._status, state="COMPLETE", hard_step_attempted=True)
+            subject.node._status = replace(subject.node._status, state="REJECTED", hard_step_attempted=True)
         return subject.token
     subject.acquire.side_effect = acquire_after_change
     assert_rejected_without_worker(subject, acquired=True)
@@ -170,3 +167,27 @@ def test_confirmed_state_is_persisted_while_callback_lock_is_held(subject):
         assert not status.hard_step_attempted
     subject.save.side_effect = inspect_save
     assert request(subject).success
+
+
+@pytest.mark.parametrize("state", ["IDLE", "COMPLETE"])
+@pytest.mark.parametrize("ntp_pass", [False, True])
+def test_explicit_resync_accepts_healthy_clock_and_completed_previous_request(subject, state, ntp_pass):
+    subject.node._status = replace(subject.node._status, state=state,
+                                   hard_step_attempted=(state == "COMPLETE"))
+    subject.node._ntp_gate = ntp_pass
+    assert request(subject).success
+    assert subject.node._status.state == "RUNNING"
+    assert not subject.node._status.hard_step_attempted
+    subject.node._pool.submit.assert_called_once()
+    subject.node._backend.calibrate.assert_not_called()
+    assert not request(subject).success
+    subject.node._pool.submit.assert_called_once()
+
+
+def test_clock_becoming_healthy_during_lock_acquisition_does_not_cancel_manual_request(subject):
+    def acquire():
+        subject.node._ntp_gate = True
+        return subject.token
+    subject.acquire.side_effect = acquire
+    assert request(subject).success
+    subject.node._pool.submit.assert_called_once()

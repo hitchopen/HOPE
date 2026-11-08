@@ -1,7 +1,9 @@
-export const MOCAP_LABELS: Record<string, string> = {
-  none: "无动捕 · Runner only",
+import { message as msg, LocalText } from "./i18n";
+
+export const MOCAP_LABELS: Record<string, LocalText> = {
+  none: msg("mocapSetup.noMocapRunnerOnly"),
   motive: "Motive · NatNet",
-  vrpn: "青瞳 / CMTracker · VRPN",
+  vrpn: msg("mocapSetup.chingmuCmtrackerVrpn"),
 };
 
 // This is a copyable command for the Laptop HOST, from the repository root.

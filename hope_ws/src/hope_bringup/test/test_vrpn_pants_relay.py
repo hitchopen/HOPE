@@ -97,6 +97,30 @@ def test_unconfirmed_import_bad_timestamp_and_jump_do_not_produce_valid_base(ros
     base.destroy_node()
 
 
+def test_burst_pose_noise_stays_valid_but_large_jump_still_invalidates(ros):
+    import math
+    base = load('hope_base_pose_flat_relay').BasePoseFlatRelay()
+    output = []
+    base._pub.publish = output.append
+    base._pelvis_pub.publish = lambda msg: None
+    stamp = base.get_clock().now().nanoseconds
+    def send(delta_ns, x, degrees):
+        half_angle = math.radians(degrees) / 2
+        doc = observation(Selection('v4', 'P1', 2), load_profiles(),
+                          divmod(stamp + delta_ns, 10**9), (x, 0., 0.),
+                          (0., 0., math.sin(half_angle), math.cos(half_angle)))
+        base._vrpn_pose_cb(String(data=json.dumps(doc)))
+        return output[-1].data[1]
+    try:
+        assert send(0, 0., 0.) == 1
+        assert send(25_000, .0000357, .0137) == 1
+        assert send(50_000, .009, 2.9) == 1
+        assert send(75_000, .2, 2.9) == 0
+        assert send(3_333_333, .001, .2) == 1
+    finally:
+        base.destroy_node()
+
+
 @pytest.mark.parametrize('hz', [150, 300])
 def test_player_start_evidence_is_30hz_while_base_observations_remain_full_rate(ros, hz):
     relay = load('avatar_pro_vrpn_relay').AvatarProVrpnRelay()
@@ -162,3 +186,23 @@ def test_planner_full_stream_preserves_all_300hz_ball_exposures(ros, side):
         assert len(msg.poses) == 1
         assert msg.poses[0].position.x == pytest.approx(2.0 if side == 'P1' else .74)
     relay.destroy_node()
+
+@pytest.mark.parametrize('hz',[150,300])
+@pytest.mark.parametrize('side',['P1','P2'])
+def test_pelvis_flat_publishes_in_same_callback_without_any_ball(ros,hz,side):
+    relay=load('avatar_pro_vrpn_relay').AvatarProVrpnRelay()
+    base=load('hope_base_pose_flat_relay').BasePoseFlatRelay()
+    output=[];base._pub.publish=output.append
+    relay._observation_pub.publish=base._vrpn_pose_cb
+    relay._config_cb(String(data=json.dumps(dict(revision=1,pants_profile='v4',table_side=side,
+        state='STOPPED',busy=False,mocap_source='vrpn',vrpn_ip='192.168.100.99',
+        vrpn_port='3883',vrpn_units='mm'))))
+    try:
+        for i in range(30):
+            source=pose(relay)
+            relay._on_pose('/vrpn_mocap/UCB_'+side+'/pose','UCB_'+side,source)
+            assert len(output)==i+1  # Synchronous end-to-end into flat base wire.
+            assert output[-1].data[1]==1
+            time.sleep(1/hz)
+    finally:
+        relay.destroy_node();base.destroy_node()

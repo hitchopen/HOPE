@@ -27,6 +27,7 @@ from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPo
 from std_msgs.msg import Bool, Float64MultiArray, String
 
 from base_pose_contract import (
+    BasePoseJumpGuard,
     FLAG_EXTRINSIC_CALIBRATED,
     FLAG_POLICY_Z_OFFSET_APPLIED,
     FLAG_QUATERNION_VALID,
@@ -90,6 +91,8 @@ class BasePoseFlatRelay(Node):
         self.declare_parameter("max_source_age_s", 0.10)
         self.declare_parameter("max_linear_speed_mps", 3.0)
         self.declare_parameter("max_angular_speed_rps", 8.0)
+        self.declare_parameter("jump_linear_tolerance_m", 0.01)
+        self.declare_parameter("jump_angular_tolerance_deg", 3.0)
 
         self._offset = tuple(
             float(v) for v in self.get_parameter("marker_to_base_xyz").value
@@ -159,6 +162,17 @@ class BasePoseFlatRelay(Node):
         )
         self._max_angular_speed = float(
             self.get_parameter("max_angular_speed_rps").value
+        )
+        self._jump_guard = BasePoseJumpGuard(
+            self._max_linear_speed, self._max_angular_speed,
+            float(self.get_parameter("jump_linear_tolerance_m").value),
+            math.radians(float(self.get_parameter("jump_angular_tolerance_deg").value)),
+        )
+        self.get_logger().info(
+            "BASE JUMP GUARD tolerance=%.1fmm/%.1fdeg speed=%.1fm/s/%.1frad/s window=20ms"
+            % (self._jump_guard.linear_tolerance_m * 1000,
+               math.degrees(self._jump_guard.angular_tolerance_rad),
+               self._max_linear_speed, self._max_angular_speed)
         )
         calibration_sha = str(self.get_parameter("calibration_sha256").value)
         world_sha = str(self.get_parameter("world_frame_sha256").value)
@@ -277,6 +291,7 @@ class BasePoseFlatRelay(Node):
                 # Switching while stopped starts a different frame/asset history.
                 self._last_input_source_ns = self._last_source_ns = None
                 self._last_base_position = self._last_base_quaternion = None
+                self._jump_guard.reset()
             self._vrpn_selection = selection
             self._table_side = selection.side
             self._expected_marker_frame = selection.body
@@ -507,41 +522,7 @@ class BasePoseFlatRelay(Node):
             )
             position = tuple(float(v) for v in candidate[5:8])
             quaternion = tuple(float(v) for v in candidate[8:12])
-            if self._last_source_ns is not None:
-                dt = (source_ns - self._last_source_ns) * 1.0e-9
-                if dt <= 0.0:
-                    raise ValueError("non-positive source timestep")
-                if self._last_base_position is not None:
-                    distance = math.sqrt(
-                        sum(
-                            (a - b) ** 2
-                            for a, b in zip(position, self._last_base_position)
-                        )
-                    )
-                    if distance / dt > self._max_linear_speed:
-                        raise ValueError(
-                            f"base linear jump {distance / dt:.2f}m/s exceeds limit"
-                        )
-                if self._last_base_quaternion is not None:
-                    dot = min(
-                        1.0,
-                        max(
-                            -1.0,
-                            abs(
-                                sum(
-                                    a * b
-                                    for a, b in zip(
-                                        quaternion, self._last_base_quaternion
-                                    )
-                                )
-                            ),
-                        ),
-                    )
-                    angular_speed = 2.0 * math.acos(dot) / dt
-                    if angular_speed > self._max_angular_speed:
-                        raise ValueError(
-                            f"base angular jump {angular_speed:.2f}rad/s exceeds limit"
-                        )
+            self._jump_guard.observe(source_ns, position, quaternion)
             out.data = candidate
             self._last_input_source_ns = input_source_ns
             self._last_source_ns = source_ns

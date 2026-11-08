@@ -3,7 +3,7 @@
 Mac users: see [macOS development and operator setup](docs/operations/macos_deployment.md).
 The operator backend supports any normal Mac login, with explicit Mac/Linux
 profiles and separate configurable container/robot accounts; no personal Mac
-username or local administrator account is hardcoded. Console 1.8.18 includes
+username or local administrator account is hardcoded. Console 1.9.13 includes
 operator, gripper and NatNet/VRPN selectors. The final Mac build includes both
 mocap workspaces, uses the `hope` container group, and preserves schema-5 venue
 settings through the combined schema-6 backend. It does not deploy to the robot
@@ -35,6 +35,11 @@ automatic vendor `Manual`/joint-control activation. Until handheld E-stop is
 qualified during HOPE play, credit only a verified wired E-stop in HOPE sessions.
 Follow the matched-component installation and hardware validation requirements
 in those guides before deployment.
+The local [native operations port](foxglove/a3/native/README.md) moves ROS sensor
+processing, observer output and fixed Runner dispatch/ACK tracking to C++ while
+retaining Python hardware orchestration. It isolates diagnostic traffic, adds
+explicit same-boot session recovery and exposes latency/queue metrics. Its guide
+covers parity tests, CPU measurement and attended deployment qualification.
 
 Current deployment: [build and deployment](docs/operations/deploy_and_gate3.md#model17400-pr87-runtime-alignment),
 [shared ball physics](docs/operations/ball_physics_calibration.md),
@@ -49,11 +54,13 @@ HOPE is an open platform for humanoid robot table tennis, developed by [Hitch In
 
 This repository contains the full HOPE stack for the Agibot A3: Isaac Lab training for a **unified forehand/backhand whole-body policy** (the deploy-grade 110-D `hitter_pure` rally line, proven on real A3 hardware), a **no-spin planner** in both Python and low-latency C++ (ROS 2), a **MuJoCo/AimRT simulation with a real ball plant** for closed-loop evaluation, and the **native C++ A3 deploy runner** (`a3_pingpong`) — plus the preserved HOPE **reference design documents**, the **challenge rulebooks**, and the A3 source assets, reference software and mounting hardware indexed in [agibot/README.md](agibot/README.md).
 
-The current printable mounting hardware is the
-[v3 pelvis marker shell](agibot/mocap_sticker_shell_v3/README.md) and the
-[right wrist paddle flange](agibot/right_wrist_paddle_flange/README.md).
-Their component guides link the release STLs, printing instructions and marker
-transforms to `pelvis_link`.
+The H3002 right hand has two body options with a shared cap. The integrated
+wrist and hand mounts to the A3 metal collar. The hand-only body mounts to the
+original 45-degree flange. [H3002 right hand](agibot/right_wrist_hand_unified/README.md) ·
+[Right wrist paddle flange](agibot/right_wrist_paddle_flange/README.md)
+
+The v3 pelvis marker shell guide includes the printable halves and marker
+transforms to `pelvis_link`. [V3 pelvis marker shell](agibot/mocap_sticker_shell_v3/README.md)
 
 ## How To Read This Repository
 
@@ -128,6 +135,29 @@ mocap configuration relay (`hope-mocap-config-transport`) run in C++.
 Build, stopped-state migration, rollback and qualification requirements are in
 the [monitor deployment guide](foxglove/README.md#native-monitor-migration-and-verification)
 and [configuration relay guide](foxglove/README.md#native-mocap-configuration-transport).
+
+The Ubuntu/macOS operator computer classifies five ball-flight states in C++
+after P1/P2 coordinate conversion. Only `OPPONENT_RALLY` and `OPPONENT_SERVE`
+forward ball data to A3; pelvis/base poses bypass this gate. Explicit local
+Ready initializes `OPPONENT_SERVE`, Serve initializes `SERVE`, and Stand/Stop
+holds `INVALID` until another local Ready/Serve. Runner mode, serve phase and
+lifecycle feedback never change this classifier or its gate; local intents do
+not wait for robot acknowledgement. Console 1.9.13 uses a local HTTP endpoint.
+No classifier state or state-derived robot command is sent to A3. Desktop local
+controls require one-time private pairing; web access uses an exact Foxglove
+origin check. A held ego serve waits for a fresh ballistic launch, which can
+establish a new flight with or without Ready. Hand-carried motion does not
+qualify; an uninterrupted incoming return becomes `OPPONENT_RALLY`.
+
+Forecast violations are advisory. Observed incoming violations close the gate.
+Observation loss pauses output and clears old fits/retries while preserving the
+logical state; fresh qualified observations resume output without another button
+press. Sustained measured 3D speed below 0.10 m/s also invalidates either
+rally direction after a 40 ms measurement window plus 100 ms confirmation.
+Serve states are exempt from this speed rule. Clock-step recovery clears old
+flight data before requalification. See the [state rules, client installation
+and verification guide](docs/operations/laptop_ball_states.md). This update runs
+on the operator computer and does not require A3 software changes.
 
 ## Train and export your own
 

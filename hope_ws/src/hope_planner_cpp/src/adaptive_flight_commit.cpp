@@ -105,6 +105,19 @@ bool AdaptiveFlightCommit::evaluate(
         prediction_.planner, prediction_.table, prediction_.future_contact);
     const StrikeTarget strike = predictor.predict(state, prediction_.planner.x_hit,
                                                   spin_.estimate());
+    const bool unresolved_contact =
+        strike.reason == FutureContactPredictor::kUnobservedSpinContact ||
+        (prediction_.future_contact.require_spin_for_future_contact &&
+         (prediction_.future_contact.spin_enabled || prediction_.future_contact.magnus_enabled) &&
+         (state.reason == "contact_confirmation_pending" ||
+          state.reason == "post_bounce_segment_not_ready"));
+    if (unresolved_contact) {
+      // A timer must not publish an earlier pre-contact candidate after newer
+      // evidence has invalidated its spin/contact assumption. Keep ingesting
+      // the original exposures; do not reset the estimator's contact history.
+      have_saved_ = false;
+      deadline_s_ = std::numeric_limits<double>::infinity();
+    }
     if (strike.valid && state.sample_count > 0 &&
         state.sample_count <= latest_.sample_count) {
       saved_ = latest_;
@@ -117,7 +130,8 @@ bool AdaptiveFlightCommit::evaluate(
       const double reserve = config_.policy_lead_s + config_.transport_budget_s +
           config_.solve_budget_s + config_.policy_tick_s;
       // Until submission, the latest valid physical prediction owns timing.
-      // Invalid partial contact fits and source stalls cannot move this clock.
+      // Unresolved contact assumptions invalidate the saved clock above;
+      // source stalls still cannot fabricate a new physical deadline.
       deadline_s_ = strike.strike_source_time_s - reserve;
     }
   }

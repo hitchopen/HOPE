@@ -42,8 +42,8 @@ TEST(PredictionEventOrder, DescendingCrossingPrecedesSameStepContact) {
     config.integrate_dt_s = 0.0001;
     const auto fine = TrajectoryPredictor(contact_only_physics(), config, {}).predict_with_spin(
         state, 0.9995, Vec3::Zero(), mode);
-    EXPECT_FALSE(coarse.valid);
-    EXPECT_EQ(coarse.reason, "dead_ball");
+    EXPECT_TRUE(coarse.valid);
+    EXPECT_EQ(coarse.reason, "prediction_valid");
     EXPECT_EQ(coarse.predicted_bounces, 0);
     EXPECT_NEAR(coarse.strike_source_time_s, 12.00025, 1e-10);
     EXPECT_NEAR(coarse.ball_position.z(), state.position.z() - 0.00025, 1e-10);
@@ -72,11 +72,32 @@ TEST(PredictionEventOrder, LaterImpactReversalDoesNotHideEarlierCrossing) {
   const auto mode = SpinPhysicsMode::kVenueGripBounce;
   const auto strike = TrajectoryPredictor(contact_only_physics(), {}, {}).predict_with_spin(
       incoming(mode), 0.9995, Vec3(0.0, 500.0, 0.0), mode);
-  EXPECT_FALSE(strike.valid);
-  EXPECT_EQ(strike.reason, "dead_ball");
+  EXPECT_TRUE(strike.valid);
+  EXPECT_EQ(strike.reason, "prediction_valid");
   EXPECT_EQ(strike.predicted_bounces, 0);
   EXPECT_NEAR(strike.strike_source_time_s, 12.00025, 1e-10);
   EXPECT_NEAR(strike.ball_velocity.x(), -2.0, 1e-10);
+}
+
+TEST(PredictionEventOrder, LowDescendingCrossingsHaveNoPolicyHeightCutoff) {
+  for (auto mode : {SpinPhysicsMode::kLegacyNoSpin,
+                    SpinPhysicsMode::kVenueGripBounce,
+                    SpinPhysicsMode::kVenueGripBounceAndMagnus,
+                    SpinPhysicsMode::kNakashimaBounce,
+                    SpinPhysicsMode::kNakashimaBounceAndMagnus}) {
+    for (double height : {0.03, 0.049, 0.05, 0.051}) {
+      SCOPED_TRACE(static_cast<int>(mode));
+      SCOPED_TRACE(height);
+      auto state = incoming(mode);
+      state.position.z() = height + 0.00025;
+      const auto strike = TrajectoryPredictor(contact_only_physics(), {}, {}).predict_with_spin(
+          state, 0.9995, Vec3::Zero(), mode);
+      ASSERT_TRUE(strike.valid) << strike.reason;
+      EXPECT_EQ(strike.predicted_bounces, 0);
+      EXPECT_NEAR(strike.ball_position.z(), height, 1e-10);
+      EXPECT_NEAR(strike.ball_velocity.z(), -1.0, 1e-10);
+    }
+  }
 }
 
 }  // namespace

@@ -1,3 +1,5 @@
+import { defaultTranslator, Translator } from "./i18n";
+
 // Foxglove's CDR decoder delivers Float64MultiArray.data as a typed array.
 // JSON data sources deliver an ordinary array; support both representations.
 const PHASES = ["IDLE", "ENTRY", "ALIGN", "SETTLE", "VERIFY", "DONE", "FAILED"];
@@ -29,23 +31,28 @@ export function dockRepositionReason({ autoDock, runnerFresh, runnerFault, mode,
   baseFresh: boolean;
   serveActive: boolean;
   pending: boolean;
-}): string | undefined {
-  if (autoDock !== "on") { return "Auto-dock is off."; }
-  if (!runnerFresh) { return "Start the system and wait for Runner status."; }
-  if (runnerFault) { return "Runner reports a command fault."; }
-  if (mode === "DOCK") { return "Reposition is in progress. Stand stops it and waits for the feet."; }
-  if (serveActive) { return "Finish or abort the serve before Reposition."; }
-  if (mode !== "PD_STAND") { return "Select Stand before Reposition."; }
-  if (!baseFresh) { return "Wait for a fresh base pose."; }
-  if (pending) { return "Mode request pending."; }
+}, t: Translator = defaultTranslator): string | undefined {
+  if (autoDock !== "on") { return t("dockStatus.autoDockIsOff"); }
+  if (!runnerFresh) { return t("dockStatus.startTheSystemAndWaitForRunnerStatus"); }
+  if (runnerFault) { return t("dockStatus.runnerReportsACommandFault"); }
+  if (mode === "DOCK") { return t("dockStatus.repositionIsInProgressStandStopsIt"); }
+  if (serveActive) { return t("dockStatus.finishOrAbortTheServeBeforeReposition"); }
+  if (mode !== "PD_STAND") { return t("dockStatus.selectStandBeforeReposition"); }
+  if (!baseFresh) { return t("dockStatus.waitForAFreshBasePose"); }
+  if (pending) { return t("dockStatus.modeRequestPending"); }
   return undefined;
 }
 
-export function formatDockStatus(state: number[] | undefined): string {
-  if (state == undefined) { return "WAITING FOR DOCK TELEMETRY"; }
+export function formatDockStatus(state: number[] | undefined, t: Translator = defaultTranslator): string {
+  if (state == undefined) { return t("dockStatus.waitingForDockTelemetry"); }
   const phase = PHASES[state[2] ?? -1] ?? "UNKNOWN";
   const result = RESULTS[state[9] ?? -1] ?? "UNKNOWN";
   const reason = REASONS[state[10] ?? -1] ?? "UNKNOWN";
   const yawDeg = ((state[6] ?? 0) * 180) / Math.PI;
-  return `${phase} · dx ${(state[4] ?? 0).toFixed(3)} m · dy ${(state[5] ?? 0).toFixed(3)} m · dyaw ${yawDeg.toFixed(1)} deg · distance ${(state[7] ?? 0).toFixed(3)} m · attempt ${state[3] ?? 0} · ${(state[8] ?? 0).toFixed(1)} s · ${result}${reason === "NONE" ? "" : ` · ${reason}`}`;
+  return t("dockStatus.line", {
+    phase, dx: (state[4] ?? 0).toFixed(3), dy: (state[5] ?? 0).toFixed(3),
+    dyaw: yawDeg.toFixed(1), distance: (state[7] ?? 0).toFixed(3),
+    attempt: state[3] ?? 0, elapsed: (state[8] ?? 0).toFixed(1), result,
+    reason: reason === "NONE" ? "" : ` · ${reason}`,
+  });
 }

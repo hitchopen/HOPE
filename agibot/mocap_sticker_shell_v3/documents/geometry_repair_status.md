@@ -1,3 +1,18 @@
+# Exterior engraving update - 2026-11-01
+
+The v3 halves now include the rear HITCH OPEN wordmark and all 17 circle/X/circled-X
+station symbols, plus the second rear line "○ P1 · X P2" below HITCH OPEN.
+Only shallow exterior cuts were made. Current identities and
+checks are in printability_validation.json and engraving_validation.json.
+Both current STL files are one closed, consistently wound component; all 17
+protected mounts, 12 mm top planes, blind bores, seam and cooling vent checks pass.
+No marker coordinate, pelvis frame, optical asset or fitting interior changed.
+The smallest sampled material path beneath engraving is 1.836 mm at the brand.
+MeshLab self-intersections and physical fit/strength were not rerun or qualified.
+
+The sections below describe the unengraved 2026-10-11 restoration baseline;
+its hashes and mesh counts are historical rather than current release identities.
+
 # Printable geometry verification
 
 **2026-10-11: rear-only restoration; 17 stations, seven front and ten rear.**

@@ -1,7 +1,7 @@
 # Deployment and native Gate 3 command sequence
 
 Runtime workflow ported from the October 11–13 updates and adapted to the
-public `main` layout and package builder. The installation guide is
+public `main` layout and package builder. New-robot baseline acceptance is described below. The Laptop installation guide is
 [DISTROBOX_SETUP.md](../DISTROBOX_SETUP.md). Commands below build/package or
 inspect locally; simulation and hardware operations are identified separately.
 The native deployment project in this checkout is `a3_deploy/a3_deploy_example/`.
@@ -9,6 +9,9 @@ The native deployment project in this checkout is `a3_deploy/a3_deploy_example/`
 ## 0. 怎样才算成功
 
 本文前半部分保留构建和部署命令，后半部分是现场操作顺序。
+**新机器人、换板或重刷 BSP 必须先完成[首次安装与部署验收](new_robot_commissioning.md)。**
+“部署”包含网络/SSH、依赖、HDU NTP、Laptop NTP、MDU PTP、服务及按模式需要的
+动捕电脑时间验收；不能默认新机已继承旧机基线。Time Calibration 不负责首次安装。
 球参数的标定项目、当前系数与消费者见 [球物理校准](ball_physics_calibration.md)；
 USB 手柄安装和按键见 [Runner / Xbox](runtime_xbox.md)。
 本次文档更新只核对本地代码，没有连接机器人、启停服务或执行仿真。
@@ -17,7 +20,8 @@ USB 手柄安装和按键见 [Runner / Xbox](runtime_xbox.md)。
 | --- | --- | --- |
 | 电脑端构建/模型加载 | 指定 ONNX 与 deploy.yaml 完整且同一次导出；x86 包构建成功；实际 Runner `--inspect-policy` 成功；需要的 ROS 消息/Planner 和 MuJoCo 已安装 | 电脑端包可加载；还没有闭环通过结论 |
 | 电脑端 Gate3 | 相同模型、指定场景的完整运行成功退出；`run.json.certification_pass=true`；物理球、机器人、Planner、完整收尾/归档证据满足场景要求 | 这一版本/场景的仿真通过 |
-| 机器人部署/启动 | 目标机上的 ARM 程序、策略与配置 SHA 符合本次版本；实际 PID 指向该版本；生命周期最终 `RUNNING`，Runner 新鲜反馈 `PASSIVE`，tick 与关节/IMU 接收在更新 | 实机部署启动成功；未证明能接球 |
+| 新机器人系统基线 | 本机身份、网络/SSH、依赖、HDU NTP、Laptop NTP、MDU PTP、有效服务配置与重启后持久性逐项有当前证据；按模式核对动捕电脑时间 | 首次系统安装验收通过；不代表应用或运动通过 |
+| 机器人应用部署/启动 | 目标机上的 ARM 程序、策略与配置 SHA 符合本次版本；实际 PID 指向该版本；生命周期最终 `RUNNING`，Runner 新鲜反馈 `PASSIVE`，tick 与关节/IMU 接收在更新 | 应用部署启动成功；系统基线缺项仍须报告，未证明能接球 |
 | 实机输入就绪 | 动捕、世界/pelvis 坐标、时钟、球包、HDU→MDU 传输及手柄按需通过；Record ON 后三机同段确认 | 可以开始相应的有人值守测试 |
 | 实机击球验收 | 预先约定的快/慢球、连续多球协议；实际接触、合法回球、回位及摔倒/故障逐球记录，达到事先写明的目标 | 只对本次策略/场地/测试覆盖范围确认效果 |
 
@@ -288,7 +292,7 @@ HDU Planner 与 MDU Runner 是两个独立产物；x86 ELF 不能复制去冒充
 | 控制归属 | 当前 Runner、HAL、厂商控制服务、残留仿真 | 身体命令只有一个 owner。使用 lifecycle 管理，不再叠加另一套手动 Runner/厂商控制器 |
 | 网络 | Laptop↔HDU，HDU↔MDU，HDU→Laptop 的免交互 SSH；Motive 到 Laptop 的独立网口/路由 | 每条实际使用的链路可用。Motive link-local 地址不能填进 HDU Wi-Fi 栏 |
 | Foxglove | `ws://<HDU-IP>:8766`；Console、Runner/lifecycle 新鲜状态与服务 | 8766 控制连接成功且状态更新时间在推进；8765 是只读端，页面静态显示不是连接证据 |
-| 时钟 | Laptop/HDU/MDU 的同步状态、源时间/接收时间、源年龄是否异常 | 没有负龄/大跳变或持续陈旧；不把 ROS 接收时间替换成相机曝光时间来掩盖延迟 |
+| 时钟 | HDU 选中 NTP 上游、Leap Normal、绝对 correction ≤10 ms；Laptop 选中当前 HDU；MDU PTP 所有权/SLAVE/gmPresent 与同步偏差；按模式检查动捕电脑时间 | 保存每机当前输出和持续更新的原始时间证据，见[时间验收](new_robot_commissioning.md#3-ntpptp-必须验收到哪一层)；没有负龄/大跳变或持续陈旧，不能替换源时间掩盖延迟 |
 | 坐标 | 近端左桌角原点、桌面 z=0、+X 向对方、+Z 向上、P1/P2、机器人胸前方向 | 转换后的球/机器人同时符合规范，机器人正对球桌时 heading 正确；进入 READY 前确认 |
 | 动捕 | `Ball`（兼容 `ball`）及选定 `UCB_P1/UCB_P2`，rigid body 有效与时间推进 | 不只是能 ping Motive；需要实际 NatNet ModelDef 与连续帧 |
 | 标定 | Motive Asset 状态、有效 pelvis/world receipt、独立 `x_hit` | `ASSET MATCHED` 只证明模型定义；还要确认安装/世界坐标与实际击球平面 |

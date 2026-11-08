@@ -30,8 +30,9 @@ Process presence is not a substitute for physical safety verification.
 | [code_deployment/](code_deployment/) | Vendor C++ deployment example, body-drive I/O, runtime configuration and packaging. Start with the [deployment README](code_deployment/a3_deploy_example/README.md) and [RobotIOBackend guide](code_deployment/a3_deploy_example/README_robot_io_backend.md). |
 | [A3_MuJoCo_Sim/](A3_MuJoCo_Sim/README.md) | Vendor AimRT/MuJoCo simulation reference; implementation under `aimrt_mujoco_sim/`. |
 | [ntp_sync/](ntp_sync/README.md) | A3 HDU Chrony and supervised HDU-to-MDU PTP clock synchronization; includes installation, verification and recovery procedures. |
-| [mocap_sticker_shell_v3/](mocap_sticker_shell_v3/README.md) | Dual-mode pelvis marker shell: printable halves, OpenSCAD preview, instructions, marker-to-`pelvis_link` tables, geometry validation, and OptiTrack/ChingMu asset definitions. |
+| [mocap_sticker_shell_v3/](mocap_sticker_shell_v3/README.md) | Dual-mode pelvis marker shell: engraved HITCH OPEN and P1/P2 station symbols, printable halves, OpenSCAD preview, instructions, marker-to-`pelvis_link` tables, geometry validation, and OptiTrack/ChingMu asset definitions. |
 | [right_wrist_paddle_flange/](right_wrist_paddle_flange/README.md) | Current 45-degree right wrist paddle flange: hollow connector cavity, smooth exterior reinforcement, printable STL and printing/fit notes. |
+| [right_wrist_hand_unified/](right_wrist_hand_unified/README.md) | Two H3002 bodies with one shared cap. Choose the integrated A3 collar mount or the hand-only body for the original 45-degree flange. |
 | [agibot_left_gripper_serve_addon.STL](agibot_left_gripper_serve_addon.STL) | Developer-supplied left-gripper serving fixture. **Metre-scale coordinates; see the printing scale warning below.** |
 
 ## Robot models and software boundaries
@@ -97,6 +98,21 @@ The hollow connector space, mounting interfaces and screw passages are retained,
 with smooth outward reinforcement across the external wall. Import the STL in
 **millimetres at 100% scale**. The component README and linked print notes give
 the dimensions, geometry checks and assembly guidance.
+
+## H3002 right hand
+
+Choose either body and use the same cap. The integrated wrist and hand from
+PR #117 mounts directly to the A3 metal collar and requires soluble support
+filament in its long internal wiring cavity. The hand-only body has a solid
+keyed plug that mounts to the original 45-degree flange with four M4×10 screws
+inserted from outside the hand-side ring. Print that body and its cap
+entirely in PETG or entirely in PLA, including any removable supports.
+[H3002 release files and assembly guide](right_wrist_hand_unified/README.md)
+
+Print either body and the shared cap with the flat paddle-holding faces down.
+Both bodies use the PR #117 grip geometry and five M4×20 grip fasteners.
+The nominal red-face datum is (210.210, 32.078, 32.036) mm in the wrist yaw
+frame, with the red face toward +Y and the handle at 45° in X–Z.
 
 ## Pelvis marker hardware
 

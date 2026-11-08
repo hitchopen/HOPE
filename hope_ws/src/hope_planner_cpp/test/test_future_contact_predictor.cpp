@@ -22,8 +22,9 @@ BallPhysics physics() {
   p.table_friction_cap_mu = 2.0;
   return p;
 }
-TEST(FutureContactPredictor, MissingAndIncoherentSpinPreserveLegacyPrediction) {
+TEST(FutureContactPredictor, ExplicitLegacyReplayPreservesZeroSpinPrediction) {
   FutureContactConfig c; c.spin_enabled = true;
+  c.require_spin_for_future_contact = false;
   PlannerConfig planner; planner.adaptive_predict_horizon = true;
   FutureContactPredictor predictor(physics(), planner, {}, c);
   const auto expected = TrajectoryPredictor(physics(), planner, {}).predict_with_spin(
@@ -41,6 +42,59 @@ TEST(FutureContactPredictor, MissingAndIncoherentSpinPreserveLegacyPrediction) {
     EXPECT_DOUBLE_EQ(actual.strike_source_time_s, expected.strike_source_time_s);
     EXPECT_EQ(actual.ball_position, expected.ball_position);
   }
+}
+TEST(FutureContactPredictor, UnknownSpinCannotFinalizeFutureTableContact) {
+  FutureContactConfig c; c.spin_enabled = true; c.magnus_enabled = true;
+  FutureContactPredictor predictor(physics(), {}, {}, c);
+  for (int kind = 0; kind < 3; ++kind) {
+    SpinEstimate spin;
+    spin.valid = kind != 0;
+    spin.coherence = kind == 2 ? 1. : .39;
+    spin.omega_rad_s = Vec3(0., -50., 0.);
+    if (kind == 2) spin.omega_rad_s.x() = std::numeric_limits<double>::quiet_NaN();
+    const auto result = predictor.predict(incoming_state(), .4, spin);
+    EXPECT_FALSE(result.valid);
+    EXPECT_EQ(result.reason, FutureContactPredictor::kUnobservedSpinContact);
+    EXPECT_GT(result.predicted_bounces, 0);
+  }
+}
+TEST(FutureContactPredictor, UnknownSpinStillAllowsMeasuredFreeFlight) {
+  FutureContactConfig c; c.spin_enabled = true; c.magnus_enabled = true;
+  auto state = incoming_state();
+  state.position = Vec3(.6, -.7, .35);
+  state.velocity = Vec3(-2., 0., 1.);
+  state.bounce_epoch_active = true;
+  const auto result = FutureContactPredictor(physics(), {}, {}, c).predict(state, .4, {});
+  const auto expected = TrajectoryPredictor(physics(), {}, {}).predict_with_spin(
+      state, .4, Vec3::Zero(), SpinPhysicsMode::kVenueGripBounceAndMagnus);
+  ASSERT_TRUE(result.valid);
+  EXPECT_EQ(result.predicted_bounces, 0);
+  EXPECT_EQ(result.ball_position, expected.ball_position);
+  EXPECT_EQ(result.ball_velocity, expected.ball_velocity);
+  EXPECT_DOUBLE_EQ(result.strike_source_time_s, expected.strike_source_time_s);
+}
+TEST(FutureContactPredictor, ReliableSpinRetainsPhysicalFrictionAndExactPrediction) {
+  FutureContactConfig c; c.spin_enabled = true; c.magnus_enabled = true;
+  c.tangential_gain = physics().table_tangential_gain;
+  SpinEstimate spin; spin.valid = true; spin.coherence = .9;
+  spin.omega_rad_s = Vec3(0., 40., 0.);
+  const auto result = FutureContactPredictor(physics(), {}, {}, c).predict(incoming_state(), .4, spin);
+  const auto expected = TrajectoryPredictor(physics(), {}, {}).predict_with_spin(
+      incoming_state(), .4, spin.omega_rad_s, SpinPhysicsMode::kVenueGripBounceAndMagnus);
+  ASSERT_TRUE(result.valid);
+  EXPECT_EQ(result.predicted_bounces, 1);
+  EXPECT_EQ(result.ball_velocity, expected.ball_velocity);
+  EXPECT_DOUBLE_EQ(result.strike_source_time_s, expected.strike_source_time_s);
+}
+TEST(FutureContactPredictor, EstimatorSegmentQualityCannotBeOverriddenByExternalSpin) {
+  FutureContactConfig c; c.spin_enabled = true;
+  auto state = incoming_state(); state.spin_model_enabled = true;
+  state.physics_spin.valid = false;
+  SpinEstimate external; external.valid = true; external.coherence = .9;
+  external.omega_rad_s = Vec3(0., -40., 0.);
+  const auto result = FutureContactPredictor(physics(), {}, {}, c).predict(state, .4, external);
+  EXPECT_FALSE(result.valid);
+  EXPECT_EQ(result.reason, FutureContactPredictor::kUnobservedSpinContact);
 }
 TEST(FutureContactPredictor, SpinChangesContactTimeInPhysicalDirection) {
   FutureContactConfig c; c.spin_enabled = true;

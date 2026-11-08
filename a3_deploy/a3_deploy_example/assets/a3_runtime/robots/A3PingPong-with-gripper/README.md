@@ -1,7 +1,7 @@
 # A3 ping-pong model with OP3 gripper
 
-Operator-supplied URDF and its referenced meshes. All mesh URLs are relative to the URDF, so this package can be moved with its directory structure intact.
+Use [the 0807 model](urdf/model.urdf) with the adjacent `meshes/` directory. It has 31 movable body joints. The left OP3 linkage is fixed at its zero pose. Each visual and collision pair references the same local STL.
 
-Mesh filename case is corrected for Linux. The supplied package did not contain 20 gripper collision meshes; those collision entries now explicitly reference the corresponding supplied visual meshes. This is a loading fallback, not validated collision geometry. The duplicated pelvis IMU link declaration is deduplicated, retaining the declaration that references its supplied collision mesh. Joint transforms, unique-link inertias and limits are preserved. The linkage has no calibrated closed-loop jaw motion; do not infer a held-ball center from a linkage origin.
+Both elbow joint origins are 10 mm forward along the parent frame's X axis. Both ankle pitch joint origins have zero lateral offset. Link names are case-sensitive, including `right_wrist_yaw_Link`.
 
-The held-ball release site and physical release delay still need calibration. This URDF alone does not establish reliable ball interception or collision safety.
+Jaw motion, the held-ball release site, physical release delay and collision geometry still require hardware validation.

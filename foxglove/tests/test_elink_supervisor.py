@@ -34,7 +34,7 @@ def node(tmp_path, monkeypatch):
     monkeypatch.setattr(module, "release_hardware_operation_lock", Mock())
     monkeypatch.setattr(module.time, "sleep", Mock())
     n = SimpleNamespace(
-        _lock=threading.Lock(), _state="RUNNING", _busy=False, _field_busy=False,
+        _lock=threading.Lock(), _stopping=False, _closed=False, _state="RUNNING", _busy=False, _field_busy=False,
         _session_id="session-a", _session_mode="KERNEL", _step="RUNNER",
         _last_result="START_COMPLETE_RUNNER_PASSIVE", _config=SimpleNamespace(revision=1),
         _elink_fault=PersistentElinkFault(tmp_path / "fault.json"),

@@ -237,5 +237,60 @@ TEST(AdaptiveFlightCommit, RejectsNonFiniteBudgets) {
   p.estimator.min_span_s = 0.04;
   EXPECT_NO_THROW(IncomingTrajectory(config(), p));
 }
+TEST(AdaptiveFlightCommit, UnknownSpinWaitsForCleanMeasuredBounceWithoutChangingFriction) {
+  auto p = physics();
+  // The observed synthetic arc has rolling incoming spin (zero table slip).
+  // Its quaternion is unavailable; the nominal material coefficients remain
+  // nonzero, so a zero-spin pre-contact assumption would slow it incorrectly.
+  p.observed_physics.table_tangential_gain = .4;
+  p.future_physics = p.observed_physics;
+  p.future_contact.spin_enabled = true;
+  auto c = config(); c.adaptive.transport_budget_s = .03;
+  IncomingTrajectory tr(c, p);
+  TrajectorySnapshot packet;
+  int count = 0;
+  for (int i = -90; i < 180; ++i) {
+    const auto u = tr.observe(incoming(i / kHz, 2.0));
+    if (u.snapshot_ready) { packet = u.snapshot; ++count; }
+    if (i / kHz < kBounce + .08) EXPECT_FALSE(u.snapshot_ready);
+  }
+  ASSERT_EQ(count, 1);
+  ASSERT_GT(packet.sample_count, 0U);
+  EXPECT_GT(packet.samples[0].source_time_s, 100.0 + kBounce + .008);
+  BatchPhysicsEstimator receiver(p.observed_physics, p.estimator);
+  for (std::size_t i = 0; i < packet.sample_count; ++i) receiver.push(packet.samples[i]);
+  const auto state = receiver.estimate();
+  ASSERT_TRUE(state.valid);
+  const auto strike = FutureContactPredictor(p.future_physics, p.planner, {},
+                                             p.future_contact).predict(state, .15, {});
+  ASSERT_TRUE(strike.valid);
+  EXPECT_EQ(strike.predicted_bounces, 0);
+  EXPECT_NEAR(strike.strike_source_time_s, 100.61, .002);
+  EXPECT_FALSE(tr.poll(101.).snapshot_ready);
+}
+TEST(AdaptiveFlightCommit, LostSpinInvalidatesSavedPreContactDeadline) {
+  auto p = physics(); p.future_contact.spin_enabled = true;
+  p.future_contact.tangential_gain = p.future_physics.table_tangential_gain;
+  auto c = config().adaptive;
+  c.policy_lead_s = .435; c.transport_budget_s = .03;
+  AdaptiveFlightCommit commit(c, p);
+  TrajectorySnapshot candidate, output;
+  candidate.one_shot.net_cross_source_time_s = 100.;
+  for (int i = -24; i <= 24; ++i) {
+    auto sample = incoming(i/kHz, 2.0);
+    sample.orientation_valid = true;
+    sample.orientation = Eigen::Quaterniond(Eigen::AngleAxisd(
+        5. * i/kHz, Vec3::UnitY()));
+    candidate.samples[candidate.sample_count++] = sample;
+  }
+  ASSERT_FALSE(commit.consider(candidate, 100.08, output));
+  // A new exposure explicitly loses the orientation; a timer cannot revive
+  // the older otherwise-fresh candidate while waiting for a contact fit.
+  candidate.samples[candidate.sample_count++] = incoming(.09, 2.0);
+  ASSERT_FALSE(commit.consider(candidate, 100.09, output));
+  // Old saved sample at .08 is only 45 ms old: source-age admission alone
+  // would allow the stale pre-contact prediction at its .12 deadline.
+  EXPECT_FALSE(commit.poll(100.125, output));
+}
 }  // namespace
 }  // namespace hope_planner_cpp

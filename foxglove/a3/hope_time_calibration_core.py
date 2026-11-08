@@ -60,17 +60,22 @@ HDU_REQUIRED_CONTROL_UNITS = tuple(
 )
 HDU_CONSOLIDATED_CONTROL_UNIT = "hope-lifecycle-supervisor.service"
 HDU_CONSOLIDATED_CONTROL_SCRIPT = "/usr/local/bin/hope_operations.py"
+HDU_NATIVE_CONTROL_EXECUTABLE = "/usr/local/libexec/hope-operations"
 HDU_CONSOLIDATED_CONTROL_GROUP = "/system.slice/hope-lifecycle-supervisor.service"
 HDU_CONTROL_PROCESS_PATTERNS = (
     ("OBSERVER", "(^|/)[h]ope_observer[.]py([[:space:]]|$)"),
     ("COMMAND_PROXY", "(^|/)[h]ope_command_proxy[.]py([[:space:]]|$)"),
     ("OPERATIONS", "(^|/)[h]ope_operations[.]py([[:space:]]|$)"),
+    ("OPERATIONS_NATIVE", "(^|/)[h]ope-operations([[:space:]]|$)"),
+    ("OPERATIONS_WORKER", "(^|/)[h]ope_operations_worker[.]py([[:space:]]|$)"),
 )
 PTP_PROCESSES = ("ptp4l", "phc2sys")
 HDU_RUNTIME_PATTERNS = (
     ("RUNNER", "[a]3_deploy_onnx_ref_pingpong"),
     ("PLANNER", "(^|/)hope_planner_cpp_node([[:space:]]|$)"),
     ("BASE_RELAY", "[h]ope_base_pose_transport_relay"),
+    ("BASE_RELAY", "(^|/)hope-base-pose-transport-relay([[:space:]]|$)"),
+    ("TRANSPORT_GATEWAY", "(^|/)hope-transport-gateway([[:space:]]|$)"),
 )
 HDU_VENDOR_PATTERNS = (
     ("HAL", "[a]imrt_main_hal"),
@@ -88,6 +93,7 @@ ENV = "/usr/bin/env"
 REMOTE_SUDO = "/usr/bin/sudo"
 LIFECYCLE_HELPER = "/usr/local/libexec/hope-lifecycle"
 CHRONYC = "/usr/bin/chronyc"
+GUARDED_CLOCK = "/usr/local/libexec/hope-guarded-clock"
 CHRONY_BURST_UNIT = "hope-chrony-burst.service"
 TEST = "/usr/bin/test"
 SS = "/usr/bin/ss"
@@ -291,6 +297,7 @@ class TimeCalibrationBackend:
             robot_home = pwd.getpwnam(robot_user).pw_dir
         if not robot_home.startswith("/") or any(character.isspace() for character in robot_home):
             raise ValueError("robot account home must be an absolute path without whitespace")
+        self._guarded_restore = False
         self._robot_user = robot_user
         self._robot_home = robot_home
         self._run = run
@@ -347,7 +354,7 @@ class TimeCalibrationBackend:
                 raise CalibrationFailure(f"HDU_UNIT_STATE_UNKNOWN: {unit}")
             fields[key] = value
         if (set(fields) != {"LoadState", "ActiveState"}
-                or fields["LoadState"] not in {"loaded", "not-found"}
+                or fields["LoadState"] not in {"loaded", "not-found", "masked"}
                 or fields["ActiveState"] not in {
                     "active", "inactive", "failed", "activating", "deactivating", "reloading"}):
             raise CalibrationFailure(f"HDU_UNIT_STATE_UNKNOWN: {unit}")
@@ -383,14 +390,15 @@ class TimeCalibrationBackend:
                 or not fields["MainPID"].isdigit() or int(fields["MainPID"]) <= 0
                 or fields["ControlGroup"] != HDU_CONSOLIDATED_CONTROL_GROUP
                 or fields["KillMode"] != "control-group"
-                or re.search(r"(?<![\w./-])" + re.escape(HDU_CONSOLIDATED_CONTROL_SCRIPT)
-                             + r"(?=$|[\s;'\"])", fields["ExecStart"]) is None):
+                or not any(re.search(r"(?<![\w./-])" + re.escape(owner)
+                                     + r"(?=$|[\s;'\"])", fields["ExecStart"])
+                           for owner in (HDU_CONSOLIDATED_CONTROL_SCRIPT, HDU_NATIVE_CONTROL_EXECUTABLE))):
             raise CalibrationRejected("HDU_CONSOLIDATED_OWNER_UNVERIFIED")
         return fields
 
     def _verified_consolidated_group(self) -> str:
         # On consolidated HDUs the systemd MainPID is the DDS shell wrapper.
-        # Prove the real Python child, not just a description/ExecStart token,
+        # Prove the real operations child, not just a description/ExecStart token,
         # belongs to the one service that will be stopped and restored.
         before = self._consolidated_owner_properties()
         group = before["ControlGroup"]
@@ -403,8 +411,10 @@ class TimeCalibrationBackend:
                 process = Path("/proc") / pid
                 try:
                     argv = self._read_text(process / "cmdline").rstrip("\0").split("\0")
-                    if (len(argv) < 2 or argv[1] != HDU_CONSOLIDATED_CONTROL_SCRIPT
-                            or re.fullmatch(r"python(?:3(?:\.\d+)?)?", Path(argv[0]).name) is None):
+                    python_owner = (len(argv) >= 2 and argv[1] == HDU_CONSOLIDATED_CONTROL_SCRIPT
+                                    and re.fullmatch(r"python(?:3(?:\.\d+)?)?", Path(argv[0]).name) is not None)
+                    native_owner = bool(argv and argv[0] == HDU_NATIVE_CONTROL_EXECUTABLE)
+                    if not (python_owner or native_owner):
                         continue
                     first_stat = self._read_text(process / "stat")
                     first_start = first_stat.rsplit(")", 1)[1].split()[19]
@@ -430,6 +440,8 @@ class TimeCalibrationBackend:
     def _snapshot_control_plane(self) -> ControlPlaneSnapshot:
         states = {unit: self._unit_state(unit) for unit in HDU_FOXGLOVE_UNITS}
         for unit, (loaded, state) in states.items():
+            if loaded == "masked" and (unit not in HDU_SPLIT_CONTROL_UNITS or state not in {"inactive", "failed"}):
+                raise CalibrationRejected(f"HDU_CONTROL_UNIT_MASKED: {unit}")
             if state in {"activating", "deactivating", "reloading"}:
                 raise CalibrationRejected(f"HDU_CONTROL_UNIT_TRANSITIONING: {unit}")
             if loaded == "not-found" and state != "inactive":
@@ -585,6 +597,8 @@ class TimeCalibrationBackend:
                     raise CalibrationFailure(f"HDU_PTP_TOPOLOGY_CHANGED: {unit}")
                 continue
             optional_control = unit in HDU_SPLIT_CONTROL_UNITS and unit not in control.active_units
+            if loaded == "masked" and not (optional_control and state in {"inactive", "failed"}):
+                raise CalibrationFailure(f"HDU_CLOCK_CONSUMER_MASKED: {unit}")
             if ((loaded != "loaded" and unit not in HDU_VENDOR_UNITS and not optional_control)
                     or state not in {"inactive", "failed"}):
                 raise CalibrationFailure(f"HDU_CLOCK_CONSUMER_NOT_STOPPED: {unit}")
@@ -608,6 +622,7 @@ class TimeCalibrationBackend:
                 raise CalibrationFailure(f"HDU_CLOCK_PROCESS_REMAINS: {process}")
 
     def preflight(self, config: LifecycleConfig) -> tuple[str, ...]:
+        self._guarded_restore = False
         if config.revision < 1:
             raise CalibrationRejected("CONFIG_NOT_CONFIRMED")
         if not self._is_active("chrony.service"):
@@ -620,6 +635,26 @@ class TimeCalibrationBackend:
             if self._process_present("-f", pattern):
                 raise CalibrationRejected(f"HDU_{label}_IS_RUNNING")
         ptp_units = self._preflight_ptp_units()
+        if not ptp_units:
+            try:
+                launcher = self._read_text(Path("/opt/agibot/entry/run_agibot.sh"))
+            except FileNotFoundError:
+                launcher = ""  # Older layouts need not use this launcher.
+            except OSError as exc:
+                raise CalibrationRejected("HDU_VENDOR_LAUNCHER_UNREADABLE") from exc
+            if "system/timesync_guard.py" in launcher:
+                # Original BSPs still fail before any MDU mutation. The pinned
+                # adapter permits only a receipt-bound, post-step restoration.
+                try:
+                    adapter = self._checked([GUARDED_CLOCK, "--check"], timeout_s=5.0,
+                                            label="verify guarded BSP restoration adapter")
+                    if adapter.strip() != "GUARDED_CLOCK_ADAPTER_V1":
+                        raise CalibrationFailure("guarded BSP adapter protocol mismatch")
+                except CalibrationFailure as exc:
+                    raise CalibrationRejected(
+                        f"GUARDED_BSP_REQUIRES_PAIRED_REBOOT: {exc}"
+                    ) from exc
+                self._guarded_restore = True
         missing_ptp = [
             process
             for process in PTP_PROCESSES
@@ -632,11 +667,8 @@ class TimeCalibrationBackend:
         result = self._ntp_probe(max_offset_ms=10.0, max_skew_ppm=0.0)
         if result.error:
             raise CalibrationRejected(f"NTP_PROBE_UNAVAILABLE: {result.error[:240]}")
-        if result.gate_pass:
-            raise CalibrationRejected(
-                f"CLOCK_ALREADY_QUALIFIED: offset={result.offset_ms:+.3f}ms "
-                f"skew_audit={result.skew_ppm:.3f}ppm"
-            )
+        # A healthy clock is still eligible for an explicit attended resync.
+        # Probe availability, stopped consumers and post-step qualification stay required.
         self._remote_mdu(
             config, "time-calibration-recover-mdu", timeout_s=180.0
         )
@@ -711,6 +743,12 @@ class TimeCalibrationBackend:
         """Best-effort safe stop: keep robot services down, restore diagnostics."""
 
         errors: list[str] = []
+        if self._guarded_restore:
+            try:
+                self._checked([GUARDED_CLOCK, "--revoke"], timeout_s=5.0,
+                              label="revoke guarded BSP restoration receipt")
+            except Exception as exc:
+                errors.append(f"GUARDED_RECEIPT_REVOKE={exc}")
         try:
             self._remote_mdu(config, "time-calibration-stop-mdu", timeout_s=120.0)
         except Exception as exc:  # noqa: BLE001 - collect every recovery failure
@@ -876,6 +914,11 @@ class TimeCalibrationBackend:
                 raise CalibrationFailure(f"CLOCK_NOT_QUALIFIED_AFTER_HARD_STEP: {detail}")
 
             report("HDU_RESTORE", "RESTORING_HDU_VENDOR_PTP_CHAIN")
+            if self._guarded_restore:
+                self._checked(
+                    [GUARDED_CLOCK, "--arm", config.mdu_internal_ip, self._robot_user],
+                    timeout_s=30.0, label="arm one-use guarded BSP PTP restoration",
+                )
             if active_ptp:
                 self._start_units(active_ptp, label="restore HDU PTP services")
                 self._wait_units_active(active_ptp, timeout_s=30.0)
@@ -885,6 +928,11 @@ class TimeCalibrationBackend:
             if active_ptp:
                 self._start_units(active_vendor, label="restore HDU vendor services")
 
+            if self._guarded_restore:
+                self._checked([GUARDED_CLOCK, "--verify"], timeout_s=10.0,
+                              label="verify guarded BSP restoration acknowledgement")
+                self._checked([GUARDED_CLOCK, "--revoke"], timeout_s=5.0,
+                              label="clear guarded BSP restoration receipt")
             report("MDU_RESTORE", "RESTORING_MDU_PTP_AND_VENDOR_SERVICES")
             self._remote_mdu(config, "time-calibration-restore-mdu", timeout_s=180.0)
 

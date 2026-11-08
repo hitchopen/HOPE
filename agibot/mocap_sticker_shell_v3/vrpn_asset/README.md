@@ -1,6 +1,6 @@
 # Shell v3 - P1 / P2 ChingMu assets
 
-One unchanged 17-station shell supports **two distinct 12-sticker installations**.
+One 17-station shell with unchanged marker coordinates supports **two distinct 12-sticker installations**.
 Import [P1.json](P1.json) and [P2.json](P2.json) into ChingMu CMTracker/MCServer.
 The internal body names are **UCB_P1 / UCB_P2** for existing HOPE routing; the
 numeric IDs are 1 / 2. These files follow the supplied CMTracker native JSON
@@ -19,7 +19,8 @@ the flat station faces with trial-fitted flush pins. Leave the other five sites
 bare or nonreflectively capped; verify under IR that they do not appear as markers.
 The [illustrated PDF](../output/pdf/A3_marker_shell_v3_instructions.pdf) gives
 front/rear views, a 360-degree map, sticker coordinates and each asset's indices.
-The print, screw bores, 17-station tables and workbook are unchanged. These
+The current prints add shallow exterior circle/X/circled-X marks and a rear
+HITCH OPEN wordmark. Screw bores, 17-station tables and workbook are unchanged. These
 sticker assets are not suitable for ball-marker centres without measuring the
 installed ball/stud/spacer offsets.
 
@@ -137,7 +138,7 @@ assets are regression fixtures outside the shell release, not player imports.
 ## Reproduce and maintain
 
 [asset_manifest.json](asset_manifest.json) records per-player station order,
-file hashes, source table, frame contract and unchanged printable hashes. The
+file hashes, source table, frame contract and current engraved-printable hashes. The
 two release JSONs are byte-identical to their respective files under
 `hope_ws/src/hope_bringup/config/pants_profiles/`. Their catalog now keeps V4
 marker names and positions per side. Update these together when a pattern changes.

@@ -56,13 +56,14 @@ class PpOperatorHeartbeat {
   }
  private:
   struct Receipt { std::uint64_t sequence = 0; double when = -1.; };
-  // Both links have a one-second deadline measured from challenge issue time,
+  // Console/UI has two seconds; the operator-computer link has one second.
+  // Both deadlines are measured from challenge issue time,
   // never echo receipt time. A late echo cannot renew the original deadline.
-  static constexpr std::array<double, 2> kDeadlineS{1.0, 1.0};
+  static constexpr std::array<double, 2> kDeadlineS{2.0, 1.0};
   const std::uint64_t boot_, session_;
   mutable std::mutex mu_;
   std::uint64_t sequence_ = 0;
-  // Cover the full 1 s UI window at 50 Hz, with scheduling headroom.
+  // Cover the full 2 s UI window at 50 Hz, with scheduling headroom.
   std::array<Receipt, 128> issued_{};
   std::array<Receipt, 2> echoes_{};  // role 1: Console; role 2: configured operator relay
 };

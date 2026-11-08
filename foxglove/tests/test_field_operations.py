@@ -268,7 +268,8 @@ class LifecycleModeTest(unittest.TestCase):
             self.assertEqual(argv[-3:], ["KERNEL", "a" * 64, "legacy"])
         calls.clear()
         backend.kill_all_and_collect(config, session, lambda event: None, "KERNEL")
-        self.assertEqual(len(calls), 2)
+        self.assertEqual(len(calls), 3)
+        self.assertTrue(any("verify-vendor-mdu" in argv for argv in calls))
         self.assertFalse(any("collect" in argv for argv in calls))
         calls.clear()
         backend.exchange_assets = lambda *_: {"configured_model": "ppq004", "runtime": "VERIFIED"}

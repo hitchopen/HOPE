@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstdint>
+#include <stdexcept>
 
 namespace hope_planner_cpp {
 
@@ -21,6 +22,11 @@ struct Schema2Packet {
 
 class Schema2Packer {
  public:
+  explicit Schema2Packer(std::uint64_t seed = 0, std::uint64_t end = (1ULL << 52))
+      : command_sequence_(seed), flight_id_(seed), identity_end_(end) {
+    if (seed >= end || end > (1ULL << 52))
+      throw std::invalid_argument("invalid Planner wire identity range");
+  }
   WireIdentity next_identity(bool valid, std::int64_t steady_now_ns, bool new_physical_flight = false) noexcept;
 
   static Schema2Packet pack(
@@ -38,6 +44,7 @@ class Schema2Packer {
   std::uint64_t flight_id_ = 0;
   std::uint64_t revision_id_ = 0;
   std::int64_t last_valid_steady_ns_ = 0;
+  std::uint64_t identity_end_ = (1ULL << 52);
 };
 
 }  // namespace hope_planner_cpp
