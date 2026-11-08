@@ -5,7 +5,7 @@
     tls: false
     # Whitelist keeps camera H.265 / lidar off the Wi-Fi link by default.
     topic_whitelist:
-      - "^/hope/.*"
+      - "^/hope/(?!live/).*"
       - "^/agivslam/localization/odometry$"
     # The fleet endpoint remains monitoring plus assert-only E-stop. All
     # model_21800 Runner and Planner controls are on the opt-in 8766 bridge.

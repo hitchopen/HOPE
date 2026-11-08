@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Local Foxglove endpoint: native ROS service/state bridge plus Host scene.
+set -eo pipefail
+source "$HOME/.config/hope-foxglove/laptop-runtime.env"
+source /opt/ros/jazzy/setup.bash
+source "$HOPE_LIFECYCLE_ROOT/hope_ws/install/local_setup.bash"
+set -u
+# Keep DDS on the robot-route IPv4, including discovery of local publishers.
+# A mixed loopback/NIC participant can hit Fast DDS partial-bind cleanup crashes.
+# The WebSocket listener remains loopback-only in the Host bridge parameters.
+display_peer="$(ip -o -4 route get "$HOPE_LIFECYCLE_HDU_IP" | awk '{for (i=1; i<=NF; ++i) if ($i == "src") {print $(i+1); exit}}')"
+[[ -n "$display_peer" ]] || { echo '[display] no IPv4 source for robot route' >&2; exit 1; }
+runtime_dir="${XDG_RUNTIME_DIR:-/tmp/hope-host-bridge-$UID}/hope-host-bridge"
+mkdir -p "$runtime_dir"
+chmod 700 "$runtime_dir"
+python3 "$HOPE_LIFECYCLE_ROOT/foxglove/laptop/host_bridge_config.py" \
+  "$HOPE_LIFECYCLE_ROOT/foxglove/a3/bridge_params_control.yaml" "$runtime_dir/params.yaml"
+exec "$HOPE_LIFECYCLE_ROOT/hope_ws/install/hope_bringup/lib/hope_bringup/with_fastdds_unicast.sh" \
+  --route-source-addresses --domain-id 232 --peer "$HOPE_LIFECYCLE_HDU_IP" --peer "$display_peer" -- \
+  ros2 run foxglove_bridge foxglove_bridge --ros-args \
+    --params-file "$runtime_dir/params.yaml" -r __node:=hope_host_foxglove_bridge

@@ -23,17 +23,43 @@ import re
 
 from hope_sim2real_control import state_root, process_identity
 
-ROS_TOPICS = [
+LAPTOP_ROS_TOPICS = [
+    "/vrpn_mocap/UCB_P1/timing", "/vrpn_mocap/UCB_P2/timing", "/vrpn_mocap/Ball/timing",
     "/optitrack/poses", "/optitrack/rigid_body_markers", "/optitrack/tf",
-    "/poses", "/rigid_body_markers", "/a3/base_pose_laptop_flat", "/a3/base_pose_flat",
+    "/poses", "/poses/operator_raw", "/poses/planner_full", "/ball/operator_raw_point",
+    "/rigid_body_markers", "/a3/base_pose_laptop_flat", "/a3/base_pose_flat",
     "/UCB_P1/pose", "/UCB_P2/pose", "/ball/pose", "/ball/point", "/ball/flight_packet",
     "/planner/diagnostics",
+    "/hope/runner/session_home_flat", "/hope/runner/session_home_hdu_flat",
     "/racket/command_flat", "/hope/runner/state_flat", "/hope/runner/state_hdu_flat",
     "/hope/runner/control_request_flat", "/hope/runner/control_request_hdu_flat",
     "/hope/runner/summary", "/hope/planner/attempt", "/hope/planner/hit_plane", "/hope/lifecycle/summary",
     "/hope/lifecycle/session_id", "/hope/field/status", "/hope/clock/message_text",
     "/hope/ntp/text", "/hope/ntp/gate_pass", "/hope/base/summary", "/events/rosbag2_messages_lost",
 ]
+
+# Keep acquisition on its originating Host. HDU still records the received
+# flight packet and BOTH sides of its base relay for transport/timing audits;
+# these are deliberately duplicated evidence, unlike raw mocap for display.
+_HDU_EXCLUDED_ACQUISITION = {
+    "/vrpn_mocap/UCB_P1/timing", "/vrpn_mocap/UCB_P2/timing", "/vrpn_mocap/Ball/timing",
+    "/optitrack/poses", "/optitrack/rigid_body_markers", "/optitrack/tf",
+    "/poses", "/poses/operator_raw", "/poses/planner_full", "/ball/operator_raw_point",
+    "/rigid_body_markers", "/UCB_P1/pose", "/UCB_P2/pose", "/ball/pose", "/ball/point",
+}
+HDU_ROS_TOPICS = [topic for topic in LAPTOP_ROS_TOPICS if topic not in _HDU_EXCLUDED_ACQUISITION]
+HDU_ROS_TOPICS.append("/serve/ball_state_flat")
+# Compatibility for existing export/audit consumers; recording uses role lists.
+ROS_TOPICS = LAPTOP_ROS_TOPICS
+
+
+def recording_topics(role):
+    if role == "laptop":
+        return list(LAPTOP_ROS_TOPICS)
+    if role == "hdu":
+        return list(HDU_ROS_TOPICS)
+    raise ValueError("ROS recording requires laptop or hdu role")
+
 
 
 def atomic_json(path, data):
@@ -122,7 +148,7 @@ def recorder_command(role, root, output):
     return ["ros2", "bag", "record", "--storage", "mcap", "--output", str(output / "ros_raw"),
             "--storage-preset-profile", "none", "--max-cache-size", "67108864",
             "--max-bag-size", "268435456", "--disable-keyboard-controls",
-            "--node-name", "hope_sim2real_" + role + "_recorder", "--topics", *ROS_TOPICS]
+            "--node-name", "hope_sim2real_" + role + "_recorder", "--topics", *recording_topics(role)]
 
 
 def recorder_environment(role, root, *, environ=None, ros_prefix=Path("/opt/ros")):

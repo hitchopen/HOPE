@@ -1,0 +1,16 @@
+[Unit]
+Description=HOPE read-only live Foxglove scene
+After=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/hope-foxglove/host-bridge.env
+ExecStart=/usr/bin/distrobox enter hope -- bash ${HOPE_ROOT}/foxglove/helpers/hope-live-scene
+ExecStop=/usr/bin/python3 ${HOPE_ROOT}/foxglove/helpers/hope-live-scene-stop
+Restart=on-failure
+RestartSec=3
+KillMode=control-group
+TimeoutStopSec=15
+
+[Install]
+WantedBy=default.target

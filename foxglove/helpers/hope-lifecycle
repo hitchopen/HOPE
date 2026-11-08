@@ -997,11 +997,23 @@ preflight_mdu() {
   emit PREFLIGHT COMPLETE MDU_READY
 }
 
+refresh_laptop_display() {
+  # These optional Host services read the same runtime receipt at startup.
+  # Refresh both when reconnect writes a new robot/session; do not gate mocap
+  # on visualization being installed or on a Linux user service manager.
+  command -v systemctl >/dev/null || return 0
+  systemctl --user try-restart --no-block \
+    hope-host-bridge.service hope-live-scene.service || \
+    printf '[display] optional Host display refresh unavailable\n' >&2
+}
+
 run_laptop() {
   require_user "$LAPTOP_USER" OPTITRACK
   validate_laptop_mocap
   local runtime_env="$HOME/.config/hope-foxglove/laptop-runtime.env"
   mkdir -p "$(dirname "$runtime_env")"
+  local runtime_env_tmp
+  runtime_env_tmp="$(mktemp "${runtime_env}.tmp.XXXXXX")"
   {
     printf 'HOPE_LIFECYCLE_SESSION_ID=%q\n' "$SESSION_ID"
     printf 'HOPE_LIFECYCLE_HDU_IP=%q\n' "$HDU_WIFI_IP"
@@ -1017,7 +1029,9 @@ run_laptop() {
     printf 'HOPE_LIFECYCLE_PANTS_PROFILE=%q\n' "$PANTS_PROFILE"
     printf 'HOPE_VRPN_PELVIS_ASSET_CONFIRMED=%q\n' "${HOPE_VRPN_PELVIS_ASSET_CONFIRMED:-false}"
     printf 'HOPE_VRPN_WORLD_FRAME_CONFIRMED=%q\n' "${HOPE_VRPN_WORLD_FRAME_CONFIRMED:-false}"
-  } > "$runtime_env"
+  } > "$runtime_env_tmp"
+  mv -f -- "$runtime_env_tmp" "$runtime_env"
+  refresh_laptop_display
   case "${HOPE_LAPTOP_RUNTIME:-distrobox}" in
     direct) exec "$HOPE_ROOT/foxglove/helpers/hope-laptop-container-runtime" ;;
     distrobox) exec /usr/bin/distrobox enter hope -- \
@@ -1059,8 +1073,11 @@ reconnect_laptop() {
   if [[ "$MOCAP_SOURCE" == none ]]; then
     emit MOCAP COMPLETE DISABLED
   else
-    start_laptop
+    # A newly spawned tmux server survives this helper. Keep the lock in this
+    # waiting parent, but close its descriptor before starting detached children.
+    ( exec {connection_lock}>&-; start_laptop )
   fi
+  exec {connection_lock}>&-
 }
 
 start_laptop() {

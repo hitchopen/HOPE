@@ -1,0 +1,17 @@
+[Unit]
+Description=HOPE local Foxglove endpoint (Host display and remote control)
+After=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/hope-foxglove/host-bridge.env
+ExecStartPre=/usr/bin/python3 ${HOPE_ROOT}/foxglove/helpers/hope-host-bridge-stop
+ExecStart=/usr/bin/distrobox enter hope -- bash ${HOPE_ROOT}/foxglove/helpers/hope-host-bridge
+ExecStop=/usr/bin/python3 ${HOPE_ROOT}/foxglove/helpers/hope-host-bridge-stop
+Restart=on-failure
+RestartSec=3
+KillMode=control-group
+TimeoutStopSec=15
+
+[Install]
+WantedBy=default.target

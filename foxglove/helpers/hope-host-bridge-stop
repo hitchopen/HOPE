@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+"""Stop the exact local bridge, including a child outside the distrobox cgroup."""
+import os
+from pathlib import Path
+import select
+import signal
+
+params = str(Path(os.environ.get('XDG_RUNTIME_DIR', f'/tmp/hope-host-bridge-{os.getuid()}'))
+             / 'hope-host-bridge/params.yaml').encode()
+handles = []
+for process in Path('/proc').glob('[0-9]*'):
+    handle = None
+    try:
+        if process.stat().st_uid != os.getuid():
+            continue
+        handle = os.pidfd_open(int(process.name))
+        args = (process / 'cmdline').read_bytes().split(b'\0')
+        if (Path(os.readlink(process / 'exe')).name != 'foxglove_bridge'
+                or b'__node:=hope_host_foxglove_bridge' not in args
+                or b'--params-file' not in args
+                or args[args.index(b'--params-file') + 1] != params):
+            os.close(handle)
+            continue
+        signal.pidfd_send_signal(handle, signal.SIGINT)
+        handles.append(handle)
+    except (OSError, ValueError, IndexError):
+        if handle is not None:
+            os.close(handle)
+for handle in handles:
+    try:
+        if not select.select([handle], [], [], 8)[0]:
+            signal.pidfd_send_signal(handle, signal.SIGTERM)
+            if not select.select([handle], [], [], 4)[0]:
+                raise RuntimeError('Local Foxglove bridge did not stop')
+    finally:
+        os.close(handle)
