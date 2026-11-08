@@ -382,7 +382,7 @@ class FieldOperations:
                     raise ValueError("policy bundle capabilities differ across endpoints")
             receive_only = verified[0].get("receive_only") is True
             required_ball_model = verified[0].get("required_ball_model")
-            if model in {"model17400", "model12000", "model14200", "model14200fusion", "model14200best"} and required_ball_model != "ppq004":
+            if model in {"model17400", "model12000", "model14200", "model14200fusion", "model14200best", "model13800", "model13800astra"} and required_ball_model != "ppq004":
                 raise ValueError("selected model requires PPQ004 bundle capabilities")
             if required_ball_model is not None and required_ball_model not in PROFILES:
                 raise ValueError("policy bundle requires an unsupported ball model")

@@ -9,9 +9,11 @@ import sys
 from hope_field_assets import atomic_write
 
 LEGACY_MODELS = {'model14600', 'model11999', 'model12600'}
-MODELS = LEGACY_MODELS | {'model17400', 'model12000', 'model14200', 'model14200fusion', 'model14200best'}
+MODELS = LEGACY_MODELS | {'model17400', 'model12000', 'model14200', 'model14200fusion', 'model14200best', 'model13800', 'model13800astra'}
 MOCAP_MODELS = MODELS - {'model14600'}
 SERVE_CSV_NAMES = {
+    'model13800': 'v23-13800.csv',
+    'model13800astra': 'v23-13800-astra.csv',
     'model14200': 'v23-14200.csv',
     'model14200fusion': 'v23-14200-fusion.csv',
     'model14200best': 'v23-14200-best.csv',
@@ -51,7 +53,7 @@ def inspect(root, model=None):
     legacy_receive = name == 'model17400' and entry.get('receive_only') is True
     if legacy_receive and entry.get('serve_csv') is not None:
         raise ValueError('receive-only model17400 must not carry a serve CSV')
-    if name in {'model12000', 'model14200', 'model14200fusion', 'model14200best'} or (name == 'model17400' and not legacy_receive) or (
+    if name in {'model12000', 'model14200', 'model14200fusion', 'model14200best', 'model13800', 'model13800astra'} or (name == 'model17400' and not legacy_receive) or (
             name in SERVE_CSV_NAMES and entry.get('receive_only') is False):
         serve = entry.get('serve_csv')
         if (entry.get('required_ball_model') != 'ppq004' or entry.get('receive_only') is not False
