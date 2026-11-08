@@ -1,0 +1,10 @@
+policy_target_support_reference: live_base_v1
+policy_target_empirical_support:
+  contract: super_gate3_empirical_lateral_v1
+  forehand_y_range:
+  - -0.68
+  - -0.24
+  backhand_y_range:
+  - -0.24
+  - 0.4
+  evidence_sha256: 494c4b109b091bb8ce7dd8011b4d86031845c68192b076384f2ece41bf222178

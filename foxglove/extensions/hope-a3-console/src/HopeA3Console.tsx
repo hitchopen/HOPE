@@ -138,7 +138,7 @@ const SERVICES = {
 type ServiceKey = keyof typeof SERVICES;
 type TopicName = (typeof TOPICS)[keyof typeof TOPICS];
 
-type PolicyModel = "model14600" | "model11999" | "model12600" | "model17400" | "model12000";
+type PolicyModel = "model14600" | "model11999" | "model12600" | "model17400" | "model12000" | "model14200" | "model14200fusion" | "model14200best";
 type FieldStatus = {
   player_positions?: { P1: boolean; P2: boolean };
   ball_model_status?: BallModelStatus;
@@ -1466,7 +1466,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       <div className="field-assets">
         <section className="field-card">
           <span className="eyebrow">{t("hopeA3Console.receivePolicy")}</span>
-          <strong>{field?.policy_model === "model12000" ? t("hopeA3Console.12000V2312000ServeReceive") : field?.policy_model === "model17400" ? (field.policy_models?.model17400?.receive_only === true ? t("hopeA3Console.17400ReceiveOnly") : t("hopeA3Console.17400V2317400ServeReceive")) : field?.policy_model === "model12600" ? t("hopeA3Console.12600V2312600ServeReceive") : field?.policy_model === "model11999" ? t("hopeA3Console.11999ReceiveOnly") : field?.policy_model === "model14600" ? t("hopeA3Console.14600ServeReceive") : t("hopeA3Console.noPolicySelected")}</strong>
+          <strong>{field?.policy_model === "model14200" ? t("hopeA3Console.model14200ServeReceive") : field?.policy_model === "model14200fusion" ? t("hopeA3Console.model14200fusionServeReceive") : field?.policy_model === "model14200best" ? t("hopeA3Console.model14200bestServeReceive") : field?.policy_model === "model12000" ? t("hopeA3Console.12000V2312000ServeReceive") : field?.policy_model === "model17400" ? (field.policy_models?.model17400?.receive_only === true ? t("hopeA3Console.17400ReceiveOnly") : t("hopeA3Console.17400V2317400ServeReceive")) : field?.policy_model === "model12600" ? t("hopeA3Console.12600V2312600ServeReceive") : field?.policy_model === "model11999" ? t("hopeA3Console.11999ReceiveOnly") : field?.policy_model === "model14600" ? t("hopeA3Console.14600ServeReceive") : t("hopeA3Console.noPolicySelected")}</strong>
           <div className="field-buttons">
             <button type="button" disabled={!!policyUnavailableReason("model14600")} title={policyUnavailableReason("model14600")}
               aria-pressed={field?.policy_model === "model14600"}
@@ -1480,6 +1480,15 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             <button type="button" disabled={!!policyUnavailableReason("model17400")} title={policyUnavailableReason("model17400")}
               aria-pressed={field?.policy_model === "model17400"}
               onClick={() => void fieldCommand({op: "set_policy_model", model: "model17400"})}>{t("hopeA3Console.17400ServeReceive")}</button>
+            <button type="button" disabled={!!policyUnavailableReason("model14200")} title={policyUnavailableReason("model14200")}
+              aria-pressed={field?.policy_model === "model14200"}
+              onClick={() => void fieldCommand({op: "set_policy_model", model: "model14200"})}>{t("hopeA3Console.model14200ServeReceive")}</button>
+            <button type="button" disabled={!!policyUnavailableReason("model14200fusion")} title={policyUnavailableReason("model14200fusion")}
+              aria-pressed={field?.policy_model === "model14200fusion"}
+              onClick={() => void fieldCommand({op: "set_policy_model", model: "model14200fusion"})}>{t("hopeA3Console.model14200fusionServeReceive")}</button>
+            <button type="button" disabled={!!policyUnavailableReason("model14200best")} title={policyUnavailableReason("model14200best")}
+              aria-pressed={field?.policy_model === "model14200best"}
+              onClick={() => void fieldCommand({op: "set_policy_model", model: "model14200best"})}>{t("hopeA3Console.model14200bestServeReceive")}</button>
             <button type="button" disabled={!!policyUnavailableReason("model12000")} title={policyUnavailableReason("model12000")}
               aria-pressed={field?.policy_model === "model12000"}
               onClick={() => void fieldCommand({op: "set_policy_model", model: "model12000"})}>{t("hopeA3Console.12000ServeReceive")}</button>

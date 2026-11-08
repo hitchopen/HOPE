@@ -2,6 +2,7 @@
 import copy
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 import sys
 import tempfile
@@ -41,6 +42,32 @@ class EvidenceTests(unittest.TestCase):
 
     def test_matching_evidence(self):
         self.assertEqual(self.validate(), self.identity)
+
+    def test_recipe_still_resolves_after_bundle_moves(self):
+        source = self.root / 'source.csv'
+        source.write_bytes(b'original motion')
+        recipe = self.root / 'recipe.json'
+        recipe.write_text(json.dumps({'source_csv': str(source),
+                                     'source_sha256': bundle.digest(source)}))
+        output = self.root / 'bundle'
+        output.mkdir()
+        bundle.copy_portable_recipe(recipe, output / recipe.name)
+        source.unlink()
+        moved = self.root / 'moved'
+        output.rename(moved)
+        copied = json.loads((moved / recipe.name).read_text())
+        self.assertEqual(bundle.digest(moved / copied['source_csv']), copied['source_sha256'])
+
+    def test_installed_static_files_readable_without_losing_executable(self):
+        static = self.root / 'private.yaml'
+        binary = self.root / 'runner'
+        static.write_text('static')
+        binary.write_text('executable')
+        static.chmod(0o600)
+        binary.chmod(0o700)
+        bundle.normalize_static_permissions(self.root)
+        self.assertEqual(static.stat().st_mode & 0o777, 0o644)
+        self.assertEqual(binary.stat().st_mode & 0o777, 0o755)
 
     def test_csv_changed_after_simulation(self):
         self.csv.write_bytes(b"different adaptation")

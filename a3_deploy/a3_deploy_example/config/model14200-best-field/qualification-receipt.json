@@ -1,0 +1,109 @@
+{
+  "status": "SIMULATION_QUALIFIED_FOR_FIELD_INTEGRATION",
+  "created_utc": "2026-11-08T17:40:01.411133+00:00",
+  "policy_sha256": "5344f9a220b953ca4cf4c5c57b536be6f04b5a88d13c0ac19b3f3c00c70adba2",
+  "policy_deploy_yaml_sha256": "94bd36a8fa190e9cdb150d68a3b06045e43952d58343c659e1c21acef629feed",
+  "serve_csv_sha256": "14c75e8e2f17234e26d2498c7b75da9b2f2b8aad48f8e31659901c56fa856630",
+  "runtime_binary_sha256": "1e50fcf3de4f9875946060534bc850674255aede62641211eb2208debbabcac4",
+  "sim_native_library_sha256": "805adbbb6d39162566aa5af144d5532caaa2cd97a40dcdfa0487ff159c151ddd",
+  "geometry_sha256": "7ec4a67d95f3857d526276342b368990044cbe58e6f51a22de70b2076f6073c1",
+  "reference_mode": "live_base_v1",
+  "admission_ranges_m": {
+    "forehand": [
+      -0.68,
+      -0.24
+    ],
+    "backhand": [
+      -0.24,
+      0.4
+    ]
+  },
+  "swing_side_split_y_m": -0.24,
+  "swing_side_hysteresis_y_m": 0.04,
+  "acceptance": "No sampled per-shot window with pelvis height <0.85 m or tilt >0.65 rad. Legal returns, P/V/N and foot posture are reported, not pass/fail criteria.",
+  "continuous_shots_per_sequence": {
+    "outer": 67,
+    "mixed_long": 200
+  },
+  "evidence": [
+    {
+      "name": "bh40-outer",
+      "raw_path": "/home/user/Documents/Codex/2026-11-08/model-u-fusion-13800-gate3-x20-2/work/planner-range-v1/bh40-outer",
+      "run_sha256": "db8f353cb732a97bbc6cc113083d5b54576fe2d4cbec0e13d2c2a364e90c9c51",
+      "analysis_sha256": "1d6609ab4b213f46707596c37139ac4f7f4d6ef2dbfc0bf3c8debd252a720e3a",
+      "raw_manifest_sha256": "a78440e9be277f5d6c9907253f38bdaa08f8eab436685473bbc7c72872ad2454",
+      "dataset_manifest_sha256": "e4594d79f64ab63b9fe5c603b38c4d727b7ee1030d6c90cf0bab2f6c1844e5e3",
+      "summary": {
+        "launched": 402,
+        "planner_valid_shots": 101,
+        "native_engaged_shots": 101,
+        "legal": 64,
+        "fall_affected_windows": 0,
+        "sequences_with_fall": 0
+      },
+      "analysis_file": "analysis.json",
+      "extended_analysis_file": "extended-analysis.json",
+      "extended_analysis_sha256": "a23bb1f597d74be7a8e527a86231920cd3c96113aa27fc211310b40e2be7fbbd"
+    },
+    {
+      "name": "bh40-mixed-long",
+      "raw_path": "/home/user/Documents/Codex/2026-11-08/model-u-fusion-13800-gate3-x20-2/work/planner-range-v1/bh40-mixed-long",
+      "run_sha256": "b8914da7f2d62f5c79ebaa53bba2428f0ebc20be919b9dbafe25ba22c86e3eb1",
+      "analysis_sha256": "b1d8af8793ebde57840e864eabf935d6c23f8d7388130b441a41c33deea3aa90",
+      "raw_manifest_sha256": "eae3debce5e16d65da18ae02f4b120c4f33bf368e01606023a9b7393b38a85c9",
+      "dataset_manifest_sha256": "8c2dd4d9e1683616969c8ab0dcf03a92500a8d5907fa523b14f31a545927b435",
+      "summary": {
+        "launched": 1200,
+        "planner_valid_shots": 885,
+        "native_engaged_shots": 885,
+        "legal": 639,
+        "fall_affected_windows": 0,
+        "sequences_with_fall": 0
+      },
+      "analysis_file": "analysis.json",
+      "extended_analysis_file": "extended-analysis.json",
+      "extended_analysis_sha256": "4beb2e80b80d4c55e66821adfbb2918cc9f9091ee35a47c08f3de224770cd398"
+    }
+  ],
+  "rejected_or_insufficient_candidates": [
+    {
+      "name": "best-v1-outer",
+      "trials": 402,
+      "valid_plans": 281,
+      "fall_windows": 15,
+      "legal": 106
+    },
+    {
+      "name": "bh60-outer",
+      "trials": 402,
+      "valid_plans": 262,
+      "fall_windows": 22,
+      "legal": 81
+    },
+    {
+      "name": "bh45-outer",
+      "trials": 402,
+      "valid_plans": 141,
+      "fall_windows": 0,
+      "legal": 75
+    },
+    {
+      "name": "bh45-mixed-long",
+      "trials": 1200,
+      "valid_plans": 889,
+      "fall_windows": 122,
+      "legal": 582
+    }
+  ],
+  "scope": [
+    "Original best v1 weights, policy deploy.yaml and serve CSV are unchanged.",
+    "Planner and Runner lateral admission must be updated together; actor fixed-HOME observation and training metadata remain unchanged.",
+    "These are sampled simulation results, not hardware qualification or a guarantee for arbitrary targets/orders.",
+    "Right medial-edge support remains unresolved; this range update is not a foot-recovery fix.",
+    "Original-range mixed-long baseline is an additional ongoing control and will be appended separately."
+  ],
+  "deployment_owner_thread": "01a1bb8a-db4e-71c2-887b-8d9187038aeb",
+  "hardware_installed_by_this_receipt": false,
+  "receipt_revision": 2,
+  "revision_reason": "Name both analysis files explicitly; no evidence, model, configuration or numerical result changed."
+}

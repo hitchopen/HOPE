@@ -2,6 +2,9 @@
 
 ## 1.9.17
 
+- Register the three 14200 variants with matched serve CSV selection and
+  preserve installed-bundle verification before selection or startup.
+
 - Remove operator UI/computer challenge echoes and heartbeat admission; managed
   play retains the independent mocap freshness guard.
 

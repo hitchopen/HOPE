@@ -1,6 +1,6 @@
 # HOPE A3 Console
 
-Console 1.9.13 displays the operator computer's five ball-flight states beside
+Console 1.9.17 displays the operator computer's five ball-flight states beside
 Runner status, including forwarding eligibility and separate forecast advisories.
 It reads the local C++ packetizer at `http://127.0.0.1:8768/ball-state`; state
 labels are not sent to A3. Install the matching packetizer with this Console.
@@ -343,3 +343,9 @@ as an applied value. The hardware profile persists the accepted scale across
 restart. Kernel Mode and exact question fixtures do not expose this control.
 Position, normal and strike deadline remain unchanged; landing predictions still
 refer to the original, unscaled solution. This is not physical-hit qualification.
+
+The model selector includes 14200, 14200 Fusion and 14200 Best. Each remains
+disabled until both endpoints verify the matching installed policy and serve
+CSV. The source branch does not install or select any model. The frozen
+14200 Best live-base support deltas are documented under
+`a3_deploy/a3_deploy_example/config/model14200-best-field/`.

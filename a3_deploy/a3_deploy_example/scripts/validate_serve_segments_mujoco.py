@@ -206,7 +206,9 @@ if __name__ == '__main__':
     p.add_argument('--output-dir', type=Path, required=True)
     p.add_argument('--csv', type=Path, default=sim.MOTION_ROOT / 'a3p_op3_serve025_v23_branch110_model14600.csv')
     p.add_argument('--cycles', type=int, default=3)
+    p.add_argument('--model', type=Path, default=sim.DEFAULT_MODEL)
     args = p.parse_args()
+    sim.DEFAULT_MODEL = args.model.resolve()
     if args.cycles < 1: p.error('cycles must be positive')
     # Read timing from the selected bundle; the native parser validates all rows.
     import csv

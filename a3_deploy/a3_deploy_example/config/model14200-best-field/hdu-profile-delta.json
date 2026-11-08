@@ -1,0 +1,17 @@
+{
+  "hope_planner": {
+    "ros__parameters": {
+      "swing_side_reference_mode": "live_base_v1",
+      "swing_side_fh_y_range": [
+        -0.68,
+        -0.24
+      ],
+      "swing_side_bh_y_range": [
+        -0.24,
+        0.4
+      ],
+      "swing_side_split_y": -0.24,
+      "swing_side_hysteresis_y": 0.04
+    }
+  }
+}

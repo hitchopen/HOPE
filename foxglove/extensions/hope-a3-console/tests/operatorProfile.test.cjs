@@ -341,9 +341,9 @@ test('shared scalar decoder preserves finite signed floats and rejects invalid v
 });
 
 test('only verified installed models are selectable and disabled models explain why', () => {
-  const names={model14600:'14600',model12600:'12600 · Serve + receive',model17400:'17400 · Serve + receive',model12000:'12000 · Serve + receive'};
+  const names={model14600:'14600',model12600:'12600 · Serve + receive',model17400:'17400 · Serve + receive',model12000:'12000 · Serve + receive',model14200:'14200 · Serve + receive',model14200fusion:'14200 / 13800 Fusion · Serve + receive',model14200best:'14200 Best · Serve + receive'};
   const installed=Object.fromEntries(Object.keys(names).map(name=>[name,{available:true,reason:''}]));
-  const render=(field)=>panelHarness('linux','STOPPED',false,{mode:'OPTITRACK',policy_models_age_s:1,policy_models_config_revision:1,policy_models:installed,...field},0,[],{lifecycleConfigRevision:1}).render();
+  const render=(field)=>panelHarness('linux','STOPPED',false,{mode:'OPTITRACK',policy_models_age_s:1,policy_models_config_revision:1,policy_models:installed,...field},0,[],{lifecycleConfigRevision:1},{language:'en'}).render();
   const tree=render({});
   for(const name of Object.values(names)) assert.equal(button(tree,name).props.disabled,false);
   assert.equal(button(tree,'11999 · Receive only').props.disabled,true);
@@ -356,7 +356,7 @@ test('only verified installed models are selectable and disabled models explain 
   assert.equal(button(broken,names.model17400).props.title,'MDU model failed verification');
   const kernel=render({mode:'KERNEL'});
   assert.equal(button(kernel,names.model14600).props.disabled,false);
-  for(const model of ['model12600','model17400','model12000']) assert.equal(button(kernel,names[model]).props.disabled,true);
+  for(const model of ['model12600','model17400','model12000','model14200','model14200fusion','model14200best']) assert.equal(button(kernel,names[model]).props.disabled,true);
 });
 
 test('old saved robot target does not restore a pending switch or masquerade as live identity', () => {

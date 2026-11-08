@@ -24,3 +24,6 @@ a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_serve025_edg
 # Annotated bundles retain the original CRLF table followed by generated LF segments.
 a3_deploy/a3_deploy_example/assets/a3_runtime/serve/archive/*.csv -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_serve025_v2*_model14600.csv -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+
+# Serve recipes and receipts identify exact CSV bytes, including CRLF.
+a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/v23-14200*.csv -text whitespace=cr-at-eol

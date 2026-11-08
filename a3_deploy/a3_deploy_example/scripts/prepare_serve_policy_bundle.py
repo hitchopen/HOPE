@@ -15,6 +15,9 @@ from pp_fixed_home_profile import planner_profile
 from prepare_model12000_bundle import architecture, digest, restore_hardware_runtime, write
 
 CSV_NAMES = {
+    'model14200': 'v23-14200.csv',
+    'model14200fusion': 'v23-14200-fusion.csv',
+    'model14200best': 'v23-14200-best.csv',
     'model14600': 'a3p_op3_serve025_v23_branch110_model14600.csv',
     'model12600': 'v23-12600.csv',
     'model17400': 'v23-17400.csv',
@@ -43,6 +46,27 @@ def validate_evidence(recipe, evidence, policy, csv):
                 any(not math.isfinite(v) or abs(v) > 1e-9 for v in b['q_dq_tau_kp_kd']) for b in boundaries):
             raise ValueError('native handoff command continuity not established: ' + name)
     return identity
+
+
+def copy_portable_recipe(source, destination):
+    recipe = json.loads(source.read_text())
+    source_csv = Path(recipe['source_csv'])
+    if not source_csv.is_absolute():
+        source_csv = source.parent / source_csv
+    if digest(source_csv) != recipe['source_sha256']:
+        raise ValueError('recipe source CSV hash mismatch')
+    recipe['source_csv'] = source_csv.name
+    shutil.copy2(source_csv, destination.parent / source_csv.name)
+    write(destination, recipe)
+
+
+def normalize_static_permissions(root):
+    """Installed files must remain readable to the unprivileged runtime user."""
+    for path in [root, *root.rglob('*')]:
+        if path.is_dir():
+            path.chmod(0o755)
+        elif path.is_file():
+            path.chmod(0o755 if path.stat().st_mode & 0o100 else 0o644)
 
 
 def main():
@@ -96,13 +120,14 @@ def main():
     a.output.mkdir(parents=True, exist_ok=False)
     deploy = a.output/'deployment'
     shutil.copytree(a.runner_dist, deploy, symlinks=False, ignore=shutil.ignore_patterns('logs', 'policy'))
-    shutil.copytree(a.policy_dir, deploy/'policy')
+    shutil.copytree(a.policy_dir, deploy/'policy', ignore=shutil.ignore_patterns('.DS_Store', '._*'))
     (deploy/'receive_only.policy_sha256').unlink(missing_ok=True)
     (deploy/'motions').mkdir(exist_ok=True)
     shutil.copy2(a.csv, deploy/'motions'/a.csv.name)
-    shutil.copy2(a.recipe, deploy/'motions'/a.recipe.name)
+    copy_portable_recipe(a.recipe, deploy/'motions'/a.recipe.name)
     if machine == 183:
         restore_hardware_runtime(deploy)
+    normalize_static_permissions(deploy)
     assets = a.output/'field-assets'; assets.mkdir()
     shutil.copy2(a.csv, assets/(identity['csv_sha256']+'.csv'))
     write(a.output/(a.model+'.json'), profile)
@@ -117,7 +142,8 @@ def main():
     write(a.output/'hdu_entry.json', {**entry, 'planner_profile': hdu, 'files': {hdu: digest(a.output/(a.model+'.json'))}})
     write(a.output/'receipt.json', {'model': a.model, 'identity': identity, 'inspection': inspection,
           'native_serve_validation': validation, 'runner_sha256': digest(runner),
-          'inspection_runner_sha256': digest(inspector), 'recipe_sha256': digest(a.recipe),
+          'inspection_runner_sha256': digest(inspector), 'recipe_sha256': digest(deploy/'motions'/a.recipe.name),
+          'source_recipe_sha256': digest(a.recipe),
           'simulation_receipt_sha256': digest(a.simulation_receipt),
           'architecture': 'aarch64' if machine == 183 else 'x86_64',
           'status': 'STAGED_NOT_INSTALLED', 'physical_serve_qualified': False})
