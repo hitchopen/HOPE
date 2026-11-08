@@ -28,4 +28,13 @@ class FixedHomeProfileTest(unittest.TestCase):
         a,x=planner_profile(self.receipt, '/hope/runner/session_home_flat')
         self.assertEqual(a['hope_planner']['ros__parameters']['session_home_input_topic'], '/hope/runner/session_home_flat')
         self.assertAlmostEqual(x,.57)
+    def test_live_base_admission_keeps_station_and_support_bounds(self):
+        original, plane = planner_profile(self.receipt)
+        live, live_plane = planner_profile(self.receipt, support_reference='live_base_v1')
+        expected = copy.deepcopy(original)
+        expected['hope_planner']['ros__parameters']['swing_side_reference_mode'] = 'live_base_v1'
+        self.assertEqual(live, expected)
+        self.assertEqual(live_plane, plane)
+        with self.assertRaises(ValueError):
+            planner_profile(self.receipt, support_reference='unknown')
 if __name__=='__main__':unittest.main()

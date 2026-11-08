@@ -1061,6 +1061,21 @@ int main(int argc, char** argv) {
   pcfg.planner_mode = planner_mode;
   pcfg.kernel_mode = kernel_mode;
   pcfg.shared_session_home = Has(argc, argv, "--shared-session-home");
+  const std::string target_support_reference = cfg["policy_target_support_reference"]
+      ? cfg["policy_target_support_reference"].as<std::string>() : "session_home_v1";
+  if (target_support_reference != "session_home_v1" &&
+      target_support_reference != "live_base_v1")
+    throw std::invalid_argument("policy_target_support_reference must be session_home_v1 or live_base_v1");
+  // This option applies only to localized ball admission. A shared runtime YAML
+  // must not impose an external-base requirement on kernel/serve-only sessions.
+  pcfg.target_support_live_base = target_support_reference == "live_base_v1" &&
+      planner_mode && !kernel_mode && !serve_only;
+  const auto empirical_support = a3_pingpong::ParseEmpiricalLateralSupport(cfg["policy_target_empirical_support"]);
+  if (planner_mode && !kernel_mode && !serve_only) pcfg.empirical_lateral_support = empirical_support;
+  if (pcfg.target_support_live_base && !pcfg.shared_session_home)
+    throw std::invalid_argument("live-base target support requires shared-HOME localized Planner mode");
+  std::printf("[pp support] reference=%s; station observation unchanged\n",
+      pcfg.target_support_live_base ? "live_base_v1" : "session_home_v1");
   if (kernel_mode) {
     pcfg.yaw_align = true;
     std::cout << "[kernel] IMU entry heading + stance-foot odometry; estimated XY/vxy and FK height; no OptiTrack/Planner; not authoritative localization\n";

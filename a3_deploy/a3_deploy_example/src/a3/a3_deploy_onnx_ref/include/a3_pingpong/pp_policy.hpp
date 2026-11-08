@@ -49,6 +49,7 @@
 
 #include "a3_deploy/numeric_safety.hpp"
 #include "a3_deploy/session_home_contract.hpp"
+#include "a3_pingpong/pp_empirical_support.hpp"
 #include "a3_pingpong/pp_footstep_task.hpp"
 #include "a3_pingpong/pp_base_estimator.hpp"
 #include "a3_pingpong/pp_kernel_odometry.hpp"
@@ -129,6 +130,11 @@ struct PpPolicyConfig {
   // loading for old artifacts; formal HitterPingPong deploy always sets it.
   std::string deploy_cfg_path;
   bool shared_session_home = false; // Runner receipt -> Planner schema 4
+  // Admission geometry can follow the measured base independently of the
+  // model's immutable station/recovery observation. Opt in as a paired
+  // Planner/Runner runtime setting; never enlarge the exported support box.
+  bool target_support_live_base = false;
+  EmpiricalLateralSupport empirical_lateral_support;
   bool kernel_mode = false; // No-mocap actor WAIT test; never admits world-frame planner shots.
   int level = 1;                 // 0 = hold wind-up (quasi-stand), 1 = periodic forehand
   bool legs_passive = false;     // hold leg joints at nominal (firm PD) — for a HOISTED demo
@@ -450,6 +456,12 @@ class PpPolicy {
     if ((cfg_.loc_mode == LocMode::kKernelImuLocal) != cfg_.kernel_mode ||
         (cfg_.kernel_mode && (!cfg_.planner_mode || !cfg_.policy_native)))
       throw std::invalid_argument("kernel mode requires the dedicated IMU-local policy-native test configuration");
+    if (cfg_.target_support_live_base &&
+        (!onnx_.is_fixed_home_contract() || !cfg_.shared_session_home ||
+         !cfg_.planner_mode || cfg_.loc_mode != LocMode::kExternalBase))
+      throw std::invalid_argument("live-base target support requires a localized fixed-HOME shared-session policy");
+    if (cfg_.empirical_lateral_support.enabled && !cfg_.target_support_live_base)
+      throw std::invalid_argument("empirical lateral support requires paired live-base admission");
     // RECOVERY ENVELOPE (Layer C) mode. PP_ENVELOPE_MODE=capability (default) is
     // telemetry-only so Gate3 keeps exposing policy failures; production lets L2/L3
     // refuse/expire planner flights. Anything else is a start-up configuration error.
@@ -4948,34 +4960,38 @@ class PpPolicy {
         set_planner_status_("origin_unset");
         return;
       }
-      const Vec2 relative_target =
-          Vec2(pos_w[0], pos_w[1]) - station_session_origin_w_;
+      const Vec2 support_reference = cfg_.target_support_live_base
+          ? Vec2(base_pos[0], base_pos[1]) : station_session_origin_w_;
+      const Vec2 relative_target = Vec2(pos_w[0], pos_w[1]) - support_reference;
       constexpr double kFixedTargetToleranceM = 0.030;
       const auto& pos_box = onnx_.hp_pos_boxes()[eng_clip];
       const bool x_supported = onnx_.is_fixed_home_contract()
           ? (relative_target[0] >= pos_box[0] && relative_target[0] <= pos_box[1])
           : std::fabs(relative_target[0] - reach_offset_clip_[eng_clip][0]) <= kFixedTargetToleranceM;
       const double y_margin = onnx_.is_fixed_home_contract() ? 0. : kFixedTargetToleranceM;
+      const auto effective_y = EffectiveLateralSupport(cfg_.empirical_lateral_support, eng_clip, {hp_y_band_[eng_clip][0], hp_y_band_[eng_clip][1]});
       const bool y_supported =
-          relative_target[1] >= hp_y_band_[eng_clip][0] - y_margin &&
-          relative_target[1] <= hp_y_band_[eng_clip][1] + y_margin;
+          relative_target[1] >= effective_y[0] - y_margin &&
+          relative_target[1] <= effective_y[1] + y_margin;
       if (!x_supported || !y_supported) {
         if ((gate_warn_tick_++ % 25) == 0) {
           std::fprintf(
               stderr,
-              "[pp gate] target outside immutable-station %s "
+              "[pp gate] target outside %s %s "
               "support: relative=(%+.3f,%+.3f), expected x=%+.3f y=[%+.3f,%+.3f]\n",
+              cfg_.target_support_live_base ? "live-base" : "immutable-station",
               sign > 0 ? "FH" : "BH", relative_target[0],
               relative_target[1], reach_offset_clip_[eng_clip][0],
-              hp_y_band_[eng_clip][0], hp_y_band_[eng_clip][1]);
+              effective_y[0], effective_y[1]);
         }
-        ClearPendingStation_(tick_idx, "fixed_station_target_unsupported");
-        set_planner_status_("fixed_station_target_unsupported");
+        const char* reason = cfg_.target_support_live_base
+            ? "live_base_target_unsupported" : "fixed_station_target_unsupported";
+        ClearPendingStation_(tick_idx, reason);
+        set_planner_status_(reason);
         return;
       }
-      // R10 never solves or updates a station from the ball.  The ball only
-      // selects a supported racket target around the immutable MOTION-entry
-      // anchor; XY error in the actor observation is the robot's real drift.
+      // Admission reference does not redefine the station or erase measured
+      // drift from the actor's observation.
       station = station_session_origin_w_;
     }
     if (cfg_.fixed_station_replay) {

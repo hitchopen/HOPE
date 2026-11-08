@@ -2,10 +2,13 @@
 import math
 
 
-def planner_profile(inspection, home_topic='/hope/runner/session_home_hdu_flat'):
+def planner_profile(inspection, home_topic='/hope/runner/session_home_hdu_flat',
+                    support_reference='session_home_v1'):
     if (inspection.get('station_contract') != 'fixed_session_anchor_v1'
             or inspection.get('policy_abi') != 'ball_clock_110_v1'):
         raise ValueError('fixed HOME ball-clock inspection required')
+    if support_reference not in ('session_home_v1', 'live_base_v1'):
+        raise ValueError('unsupported target support reference')
     boxes = inspection.get('position_support')
     velocities = inspection.get('velocity_support')
     for group in (boxes, velocities):
@@ -29,7 +32,7 @@ def planner_profile(inspection, home_topic='/hope/runner/session_home_hdu_flat')
     return {'hope_planner': {'ros__parameters': {
         'racket_flat_schema': 4,
         'session_home_input_topic': home_topic,
-        'swing_side_reference_mode': 'session_home_v1',
+        'swing_side_reference_mode': support_reference,
         'swing_side_fh_y_range': fh[2:4],
         'swing_side_bh_y_range': bh[2:4],
         'swing_side_split_y': (fh[3] + bh[2]) / 2,
