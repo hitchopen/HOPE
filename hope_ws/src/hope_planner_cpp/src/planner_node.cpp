@@ -1,3 +1,4 @@
+#include "hope_planner_cpp/flight_packet_qos.hpp"
 #include "hope_planner_cpp/swing_side_support.hpp"
 #include "hope_planner_cpp/planner_node.hpp"
 #include "hope_planner_cpp/future_contact_parameters.hpp"
@@ -697,11 +698,9 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   rclcpp::SubscriptionOptions ball_options;
   ball_options.callback_group = ball_callback_group_;
   if (flight_packet_input_enabled_) {
-    const auto packet_qos = rclcpp::QoS(rclcpp::KeepLast(1))
-                                .best_effort().durability_volatile();
     flight_packet_subscription_ =
         create_subscription<hope_msgs::msg::BallFlightPacket>(
-            flight_packet_topic_, packet_qos,
+            flight_packet_topic_, flight_packet_qos(),
             std::bind(
                 &PlannerNode::flight_packet_callback, this,
                 std::placeholders::_1),
@@ -978,6 +977,13 @@ void PlannerNode::flight_packet_callback(
       return;
     }
 
+    if (!flight_packet_transport_fresh(message->freeze_wall_unix_ns,
+            message->samples.back().exposure_unix_stamp_ns, receipt_wall_ns)) {
+      flight_packets_invalid_.fetch_add(1, std::memory_order_relaxed);
+      write_receive_audit("stale_transport", false, flight_packet_queue_depth());
+      return;
+    }
+
     TrajectorySnapshot snapshot;
     snapshot.sample_count = message->samples.size();
     snapshot.trajectory_epoch = message->trajectory_epoch;
@@ -1074,6 +1080,9 @@ void PlannerNode::flight_packet_callback(
             identity_key.c_str(), message->payload_hash.c_str());
         return;
       }
+      if (flight_packet_queue_.size() == kFlightPacketHistoryDepth) {
+        flight_packet_queue_.pop_front();
+      }
       flight_packet_queue_.push_back(std::move(snapshot));
       accepted_queue_depth = flight_packet_queue_.size();
     }
@@ -1107,10 +1116,19 @@ void PlannerNode::flight_packet_callback(
 bool PlannerNode::try_take_flight_packet(
     TrajectorySnapshot& snapshot) noexcept {
   std::lock_guard<std::mutex> lock(flight_packet_mutex_);
-  if (flight_packet_queue_.empty()) return false;
-  snapshot = std::move(flight_packet_queue_.front());
-  flight_packet_queue_.pop_front();
-  return true;
+  while (!flight_packet_queue_.empty()) {
+    snapshot = std::move(flight_packet_queue_.front());
+    flight_packet_queue_.pop_front();
+    const auto* last = snapshot.latest_sample();
+    if (last && flight_packet_transport_fresh(
+            snapshot.packet.freeze_wall_unix_ns, last->source_time_ns,
+            wall_now_ns())) return true;
+    flight_packets_invalid_.fetch_add(1, std::memory_order_relaxed);
+    RCLCPP_WARN(get_logger(), "stale_transport before solve: epoch=%llu flight=%llu",
+        static_cast<unsigned long long>(snapshot.trajectory_epoch),
+        static_cast<unsigned long long>(snapshot.snapshot_sequence));
+  }
+  return false;
 }
 
 bool PlannerNode::has_pending_flight_packet() const noexcept {

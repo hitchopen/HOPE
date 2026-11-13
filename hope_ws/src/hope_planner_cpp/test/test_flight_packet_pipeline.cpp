@@ -13,11 +13,14 @@
 #include <tuple>
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <mutex>
 #include <set>
 #include <string>
 #include <thread>
 #include <vector>
+#include <unistd.h>
 
 namespace hope_planner_cpp {
 namespace {
@@ -25,6 +28,77 @@ namespace {
 using namespace std::chrono_literals;
 
 class FlightPacketPipeline : public ::testing::TestWithParam<std::tuple<bool, bool>> {};
+
+TEST(FlightPacketAdmission, ExpiredOriginalTimestampsNeverReachSolver) {
+  ::setenv("ROS_DOMAIN_ID", "229", 1);
+  ::setenv("ROS_LOCALHOST_ONLY", "1", 1);
+  int argc = 0;
+  rclcpp::init(argc, nullptr);
+  const auto audit_path = std::filesystem::temp_directory_path() /
+      ("hope-flight-age-test-" + std::to_string(::getpid()) + ".csv");
+  std::filesystem::remove(audit_path);
+  rclcpp::NodeOptions options;
+  options.append_parameter_override("flight_packet_input_enabled", true);
+  options.append_parameter_override("flight_packet_audit_csv_path", audit_path.string());
+  auto planner = std::make_shared<PlannerNode>(options);
+  auto io = std::make_shared<rclcpp::Node>("flight_packet_age_test");
+  auto publisher = io->create_publisher<hope_msgs::msg::BallFlightPacket>(
+      "/ball/flight_packet", flight_packet_qos());
+  int commands = 0;
+  auto subscriber = io->create_subscription<std_msgs::msg::Float64MultiArray>(
+      "/racket/command_flat", rclcpp::QoS(10).reliable(),
+      [&](const std_msgs::msg::Float64MultiArray::SharedPtr) { ++commands; });
+  rclcpp::executors::SingleThreadedExecutor executor;
+  executor.add_node(planner);
+  executor.add_node(io);
+  const auto discovery_deadline = std::chrono::steady_clock::now() + 5s;
+  while (publisher->get_subscription_count() == 0 &&
+         std::chrono::steady_clock::now() < discovery_deadline) {
+    executor.spin_some(10ms);
+    std::this_thread::sleep_for(5ms);
+  }
+  EXPECT_GT(publisher->get_subscription_count(), 0U);
+  for (int i = 0; i < 3; ++i) {
+    hope_msgs::msg::BallFlightPacket packet;
+    packet.schema_version = kBallFlightPacketSchemaVersion;
+    packet.payload_hash_algorithm = kBallFlightPacketHashAlgorithm;
+    packet.session_id = "age_test";
+    packet.producer_instance_id = "test";
+    packet.trajectory_epoch = i + 1;
+    packet.flight_sequence = i + 1;
+    packet.transmit_count = 1;
+    packet.samples.resize(1);
+    const auto now = io->now().nanoseconds();
+    packet.publish_wall_unix_ns = now;  // A fresh retry must not revive it.
+    packet.freeze_wall_unix_ns = now - (i == 0 ? 200'000'000 : 0);
+    packet.samples.back().exposure_unix_stamp_ns =
+        now + (i == 1 ? -200'000'000 : i == 2 ? 200'000'000 : 0);
+    publisher->publish(packet);
+    executor.spin_some(10ms);
+  }
+  const auto drain_deadline = std::chrono::steady_clock::now() + 200ms;
+  while (std::chrono::steady_clock::now() < drain_deadline) {
+    executor.spin_some(10ms);
+    std::this_thread::sleep_for(2ms);
+  }
+  EXPECT_EQ(commands, 0);
+  executor.remove_node(planner);
+  executor.remove_node(io);
+  planner.reset();  // Flush asynchronous receive auditing.
+  std::ifstream audit(audit_path);
+  std::string row;
+  int stale_rows = 0;
+  while (std::getline(audit, row)) {
+    stale_rows += row.find(",stale_transport,0,") != std::string::npos;
+    EXPECT_EQ(row.find(",accepted,1,"), std::string::npos);
+  }
+  EXPECT_EQ(stale_rows, 3);
+  std::filesystem::remove(audit_path);
+  subscriber.reset();
+  publisher.reset();
+  io.reset();
+  rclcpp::shutdown();
+}
 
 TEST_P(FlightPacketPipeline, ThreeTransmitsProduceOnePlannerCommand) {
   ::setenv("ROS_DOMAIN_ID", "229", 1);
@@ -65,8 +139,7 @@ TEST_P(FlightPacketPipeline, ThreeTransmitsProduceOnePlannerCommand) {
   std::set<std::int64_t> published_source_stamps;
   auto packet_subscription =
       io_node->create_subscription<hope_msgs::msg::BallFlightPacket>(
-          "/ball/flight_packet", rclcpp::QoS(rclcpp::KeepLast(8))
-              .best_effort().durability_volatile(),
+          "/ball/flight_packet", flight_packet_qos(),
           [&packet_messages, &exact_source_stamps, &packet_mutex,
            &payload_hashes, &transmit_indices, &published_source_stamps](
               const hope_msgs::msg::BallFlightPacket::SharedPtr message) {

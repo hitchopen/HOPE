@@ -208,10 +208,22 @@ FlightPacketizerNode::FlightPacketizerNode(const rclcpp::NodeOptions& options)
 
   const auto input_qos = rclcpp::QoS(rclcpp::KeepLast(input_depth))
                              .best_effort().durability_volatile();
-  const auto packet_qos = rclcpp::QoS(rclcpp::KeepLast(1))
-                              .best_effort().durability_volatile();
   packet_publisher_ = create_publisher<hope_msgs::msg::BallFlightPacket>(
-      packet_topic_, packet_qos);
+      packet_topic_, flight_packet_qos());
+  packet_sender_ = std::make_unique<BoundedFlightPacketSender>(
+      [this](hope_msgs::msg::BallFlightPacket output) {
+        try {
+          // Each write records its actual send time without refreshing the
+          // immutable freeze/source timestamps used to expire old flights.
+          output.publish_wall_unix_ns = wall_now_ns();
+          packet_publisher_->publish(output);
+          write_audit(output, output.transmit_index == 0 ? "publish" : "retry");
+        } catch (const std::exception& error) {
+          RCLCPP_ERROR(get_logger(), "flight packet send failed: %s", error.what());
+        } catch (...) {
+          RCLCPP_ERROR(get_logger(), "flight packet send failed");
+        }
+      }, &FlightPacketizerNode::wall_now_ns);
   if (!gated_pose_topic.empty()) gated_pose_publisher_ = create_publisher<geometry_msgs::msg::PoseArray>(
       gated_pose_topic, rclcpp::QoS(1).best_effort().durability_volatile());
   // Local display/button intent only, with no robot state subscriptions. Network I/O
@@ -278,11 +290,17 @@ FlightPacketizerNode::FlightPacketizerNode(const rclcpp::NodeOptions& options)
   RCLCPP_INFO(
       get_logger(),
       "Laptop Flight Packet producer started: input=%s output=%s session=%s "
-      "producer=%s window=%.3fs scheduling=%s legacy_net_delay=%.3fs retries=%zu QoS=best_effort/KeepLast(1)",
+      "producer=%s window=%.3fs scheduling=%s legacy_net_delay=%.3fs retries=%zu QoS=reliable/KeepLast(8)/lifespan100ms bounded_async",
       pose_topic.c_str(), packet_topic_.c_str(), session_id_.c_str(),
       producer_instance_id_.c_str(), trajectory_config_.estimator_window_s,
       trajectory_config_.adaptive.enabled ? "hit_deadline" : "fixed_post_net",
       trajectory_config_.commit_delay_s, retransmit_delays_ms_.size());
+}
+
+FlightPacketizerNode::~FlightPacketizerNode() {
+  if (retransmit_timer_) retransmit_timer_->cancel();
+  // Join before the publisher, audit stream, and logger are destroyed.
+  packet_sender_.reset();
 }
 
 void FlightPacketizerNode::pose_callback(
@@ -499,12 +517,7 @@ void FlightPacketizerNode::publish_copy(
   if (!play_state_.may_forward()) return;
   auto output = base;
   output.transmit_index = transmit_index;
-  // Transport metadata is per attempt and deliberately excluded from the
-  // immutable payload hash.  Keep the freeze timestamp fixed while recording
-  // the actual wall-clock send time of every retry.
-  output.publish_wall_unix_ns = wall_now_ns();
-  packet_publisher_->publish(output);
-  write_audit(output, transmit_index == 0 ? "publish" : "retry");
+  packet_sender_->enqueue(std::move(output), play_state_.generation());
 }
 
 void FlightPacketizerNode::retransmit_due() {
@@ -529,6 +542,8 @@ void FlightPacketizerNode::retransmit_due() {
 }
 
 bool FlightPacketizerNode::sync_play_state() {
+  if (packet_sender_) packet_sender_->set_gate(
+      play_state_.generation(), play_state_.may_forward());
   if (state_generation_ == play_state_.generation()) return false;
   state_generation_ = play_state_.generation();
   trajectory_.reset_phase();

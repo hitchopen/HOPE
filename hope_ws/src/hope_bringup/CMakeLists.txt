@@ -31,6 +31,7 @@ install(PROGRAMS
   scripts/rally_v10_wait_flat.py
   scripts/run_rally_v10_hdu.sh
   scripts/with_fastdds_unicast.sh
+  scripts/with_flight_packet_qos.sh
   DESTINATION lib/${PROJECT_NAME}
 )
 

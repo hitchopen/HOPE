@@ -5,6 +5,7 @@
 #include "hope_planner_cpp/local_play_state_status.hpp"
 #include "hope_planner_cpp/batch_physics_estimator.hpp"
 #include "hope_planner_cpp/spin_estimator.hpp"
+#include "hope_planner_cpp/flight_packet_qos.hpp"
 
 #include <geometry_msgs/msg/pose_array.hpp>
 #include <hope_msgs/msg/ball_flight_packet.hpp>
@@ -27,6 +28,8 @@ class FlightPacketizerNode final : public rclcpp::Node {
  public:
   explicit FlightPacketizerNode(
       const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
+  ~FlightPacketizerNode() override;
+
 
   int local_status_port() const { return local_status_ ? local_status_->port() : 0; }
 
@@ -89,6 +92,7 @@ class FlightPacketizerNode final : public rclcpp::Node {
   rclcpp::Subscription<geometry_msgs::msg::PoseArray>::SharedPtr pose_subscription_;
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr hit_plane_subscription_;
   rclcpp::Publisher<hope_msgs::msg::BallFlightPacket>::SharedPtr packet_publisher_;
+  std::unique_ptr<BoundedFlightPacketSender> packet_sender_;
   std::unique_ptr<LocalPlayStateStatus> local_status_;
   rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr gated_pose_publisher_;
   rclcpp::TimerBase::SharedPtr retransmit_timer_;
