@@ -1,0 +1,249 @@
+--- a/foxglove/helpers/hope_elink_scheduler.py
++++ b/foxglove/helpers/hope_elink_scheduler.py
+@@ -21,13 +21,13 @@
+ 
+ PROC = Path('/proc')
+ MODEL = Path('/agibot/data/info/model')
+-# The checked-in lifecycle and passive HAL observer use this T3 deployment.
+-# These hashes are also recorded in its serve_hal_clock.sha256 manifest.
+-# P1/Ultra uses different config paths and is not an audited startup profile.
+-HARDWARE_PROFILE = 'A3_T3D0_ELINK_HAND_V2'
+-ROBOT_MODEL = 'A3_T3D0'
++# Old P1 field BSP: binary identities and thread roles match the separately
++# maintained hope_elink_scheduler_p1_field.py, verified on c62394c8/90f775f5.
++# Includes current transaction/preflight hardening, not the 20261030 P1 BSP.
++HARDWARE_PROFILE = 'A3_P1D0_ELINK_HAND_V2'
++ROBOT_MODEL = 'A3_P1D0'
+ ELINK_CONFIG = Path('/opt/agibot/config/hal_elink/hal_elink_a3_cfg.yaml')
+-ETHERCAT_CONFIG = Path('/opt/agibot/config/hal_ethercat/hal_ethercat_a3_t3d0_cfg.yaml')
++ETHERCAT_CONFIG = Path('/opt/agibot/config/hal_ethercat/hal_ethercat_a3_p1d0_cfg.yaml')
+ LIBRARY = Path('/opt/agibot/bin/libhal_elink_pkg.so')
+ EXECUTABLE = Path('/opt/agibot/bin/aimrt_main')
+ HASHES = {
+--- a/foxglove/helpers/hope-lifecycle
++++ b/foxglove/helpers/hope-lifecycle
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env bash
+-# HOPE_RUNNER_MODE=model21800
+-# HOPE_HARDWARE_PROFILE=A3_T3D0_ELINK_HAND_V2
++# HOPE_RUNNER_MODE=pure_checkpoints
++# HOPE_HARDWARE_PROFILE=A3_P1D0_ELINK_HAND_V2
+ # Fixed, role-specific process helper for the Runner Laptop/HDU/MDU lifecycle.
+ # The HDU ROS supervisors are the only intended callers. No command, path,
+ # user, environment-variable name, or arbitrary argument is accepted from
+@@ -35,15 +35,15 @@
+ readonly MDU_ELINK_SESSION=hope-elink
+ readonly MDU_HAL_SESSION=hope-hal
+ readonly MDU_RUNNER_SESSION=hope-runner
+-MDU_DEPLOY="${HOPE_MDU_DEPLOY:-/agibot/a3_deploy_model21800}"
++MDU_DEPLOY="${HOPE_MDU_DEPLOY:-/agibot/a3_deploy_build4_serve025}"
+ readonly MDU_ROS_PREFIX=/opt/ros/jazzy
+ readonly MDU_ROS_PYTHON_SITE="${MDU_ROS_PREFIX}/lib/python3.11/site-packages"
+ readonly MDU_VENDOR_ROS_PREFIX=/opt/agibot/share/ros2_package/aimrt_protocol_ros2_package
+ readonly MDU_VENDOR_PYTHON_SITE="${MDU_VENDOR_ROS_PREFIX}/lib/python3.11/site-packages"
+ readonly MDU_ROBOT_MODEL_FILE=/agibot/data/info/model
+-readonly MDU_SUPPORTED_ROBOT_MODEL=A3_T3D0
++readonly MDU_SUPPORTED_ROBOT_MODEL=A3_P1D0
+ readonly MDU_ELINK_CONFIG=/opt/agibot/config/hal_elink/hal_elink_a3_cfg.yaml
+-readonly MDU_HAL_GRIPPER_BASE_CONFIG=/opt/agibot/config/hal_ethercat/hal_ethercat_a3_t3d0_cfg.yaml
++readonly MDU_HAL_GRIPPER_BASE_CONFIG=/opt/agibot/config/hal_ethercat/hal_ethercat_a3_p1d0_cfg.yaml
+ 
+ emit() {
+   local step="$1" state="$2" reason="$3"
+@@ -98,6 +98,14 @@
+   return 1
+ }
+ 
++# Asset verification runs before parse_common during START. Both paths must
++# use the selected installed bundle, including its validator and libraries.
++resolve_mdu_deploy() {
++  if [[ -f /agibot/hope-policy-models/catalog.json ]]; then
++    MDU_DEPLOY="$(python3 /usr/local/lib/hope-foxglove/hope_policy_models.py --root /agibot/hope-policy-models --field deployment)" || return 1
++  fi
++}
++
+ parse_common() {
+   [[ "$#" == 6 || "$#" == 8 || "$#" == 9 || "$#" == 14 || "$#" == 16 ]] || return 1
+   SESSION_ID="$1"
+@@ -106,6 +114,7 @@
+   MDU_INTERNAL_IP="$4"
+   MOTIVE_IP="$5"
+   TABLE_SIDE="$6"
++  resolve_mdu_deploy || return 1
+   FIELD_MODE="${7:-OPTITRACK}"
+   SERVE_CSV_SHA="${8:-DEFAULT}"
+   GRIPPER_PROFILE="${9:-legacy}"
+@@ -137,25 +146,6 @@
+   [[ "$TABLE_SIDE" == P1 || "$TABLE_SIDE" == P2 ]] || return 1
+ }
+ 
+-# Only startup depends on the selected bundle. STOP uses existing process/session
+-# identities and reports bundle damage separately after shutdown has completed.
+-resolve_mdu_deployment() {
+-  if [[ -e /agibot/hope-policy-models || -L /agibot/hope-policy-models ]]; then
+-    local deployment
+-    local -a policy_command=(python3)
+-    [[ "${1:-}" != audit ]] || policy_command=(timeout 5 python3)
+-    deployment="$("${policy_command[@]}" /usr/local/lib/hope-foxglove/hope_policy_models.py --root /agibot/hope-policy-models --field deployment)" || return 1
+-    [[ "$deployment" == NONE ]] || MDU_DEPLOY="$deployment"
+-  fi
+-}
+-
+-audit_stopped_policy() {
+-  if ! resolve_mdu_deployment audit; then
+-    printf '%s\n' 'Selected policy integrity check failed; managed shutdown completed independently.' >&2
+-    emit POLICY WARNING POLICY_BUNDLE_INVALID
+-  fi
+-}
+-
+ require_user() {
+   [[ "$(id -un)" == "$1" ]] || die "$2" WRONG_USER
+ }
+@@ -518,6 +508,9 @@
+     printf 'tracked_marker_frame=%s\n' "$tracked_marker_frame"
+     printf 'world_transform=%s\n' "$world_transform"
+   } > "real_logs/$SESSION_ID/laptop/runtime_frame_config.txt"
++  cp /tmp/build4_full31_pure_model5580_candidate_sha256.txt \
++    "real_logs/$SESSION_ID/laptop/rockchip_candidate_sha256.txt" \
++    2>/dev/null || true
+   {
+     echo 'laptop UTC source for camera exposure and absolute strike deadline:'
+     date -u --iso-8601=ns
+@@ -937,6 +930,17 @@
+       die PREFLIGHT KERNEL_RUNNER_UPDATE_REQUIRED
+     grep -Fq -- '--kernel-mode' "$MDU_DEPLOY/run_a3_pingpong.sh" || \
+       die PREFLIGHT KERNEL_WRAPPER_UPDATE_REQUIRED
++  elif [[ "$MDU_DEPLOY" == /agibot/a3_deploy_model14200_best_v1_20261109 ]]; then
++    # This reviewed best-v1 Runner removed the legacy operator heartbeat CLI.
++    # Require its exact installed identity; retain the legacy gate for other bundles.
++    [[ "$(sha256sum "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" | cut -d ' ' -f 1)" == 30c6c1ed0ddcd385f671d66255e82057a51c75fd2cde0c45f948dd2abf377c35 ]] || \
++      die PREFLIGHT BEST_V1_RUNNER_IDENTITY_CHANGED
++  else
++    grep -aFq -- '--operator-watchdog' "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" || \
++      die PREFLIGHT OPERATOR_WATCHDOG_RUNNER_UPDATE_REQUIRED
++    grep -Fq -- '/hope/runner/operator_echo_flat' \
++      "$MDU_DEPLOY/config/a3_aimrt_config.pingpong_ros2body.yaml" || \
++      die PREFLIGHT OPERATOR_WATCHDOG_CONFIG_UPDATE_REQUIRED
+   fi
+   [[ -s "$MDU_DEPLOY/policy/exported/policy.onnx" ]] || \
+     die PREFLIGHT POLICY_FILE_MISSING
+@@ -952,8 +956,10 @@
+      export LD_LIBRARY_PATH="$MDU_DEPLOY:$MDU_DEPLOY/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}";
+      timeout 20 "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" --inspect-policy --policy-dir "$MDU_DEPLOY/policy") || die PREFLIGHT POLICY_INSPECTION_FAILED
+   else
++  if [[ "$SERVE_CSV_SHA" == DEFAULT ]]; then
+   [[ -s "$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv" ]] || \
+     die PREFLIGHT SERVE025_TIMELINE_MISSING
++  fi
+   # Validate the exact selected bytes with the installed Runner before HAL starts.
+   # Normal and Kernel resolve the same file; only the destination segment differs.
+   local validation_csv="$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv"
+@@ -973,10 +979,8 @@
+     set -u
+     export LD_LIBRARY_PATH="$MDU_DEPLOY:$MDU_DEPLOY/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+     timeout 20 "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" "${validation_args[@]}" 2>&1
+-  )" || {
+-    printf '%s\n' "$validation_output" >&2
+-    die PREFLIGHT SERVE_TIMELINE_INVALID
+-  }
++  )" || \
++    die PREFLIGHT "SERVE_TIMELINE_INVALID: $validation_output"
+   [[ "$validation_output" == *SERVE_STAND_VALID* &&
+      "$validation_output" == *SERVE_TIMELINE_VALID* ]] || \
+     die PREFLIGHT SERVE_VALIDATOR_UPDATE_REQUIRED
+@@ -1115,7 +1119,7 @@
+       /usr/local/libexec/hope-base-pose-transport-relay
+   } > "$hdu_dir/artifact_sha256.txt"
+   local dds_wrap="$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh"
+-  "$dds_wrap" --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
++  "$dds_wrap" --route-source-addresses --filter-direct-routes --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
+     /usr/local/libexec/hope-base-pose-transport-relay \
+     > >(tee -a "$hdu_dir/base_relay.log") 2>&1
+ }
+@@ -1164,7 +1168,7 @@
+   local dds_wrap="$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh"
+   # One dual-homed participant retains the existing Fast DDS peer/interface
+   # selection. Lifecycle starts it only after the field Runner exists.
+-  "$dds_wrap" --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
++  "$dds_wrap" --route-source-addresses --filter-direct-routes --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
+     /usr/local/libexec/hope-transport-gateway \
+     > >(tee -a "$hdu_dir/transport_gateway.log") 2>&1
+ }
+@@ -1253,17 +1257,20 @@
+     policy_profile_args=(--params-file "$attempt_dir/policy_profile.json")
+     sha256sum "$attempt_dir/policy_profile.json" >> "$attempt_dir/artifact_sha256.txt"
+   fi
+-  local -a ball_physics_args=()
++  cp "$HDU_WS/src/hope_planner_cpp/config/return_physics.yaml" "$attempt_dir/return_physics.yaml"
++  sha256sum "$attempt_dir/return_physics.yaml" >> "$attempt_dir/artifact_sha256.txt"
++  local -a ball_physics_args=(--params-file "$attempt_dir/return_physics.yaml")
+   if [[ -f /var/lib/hope-lifecycle/ball_physics.json ]]; then
+     cp /var/lib/hope-lifecycle/ball_physics.json "$attempt_dir/ball_physics.json"
+-    ball_physics_args=(--params-file "$attempt_dir/ball_physics.json")
++    ball_physics_args+=(--params-file "$attempt_dir/ball_physics.json")
+     sha256sum "$attempt_dir/ball_physics.json" >> "$attempt_dir/artifact_sha256.txt"
+   fi
+   dds_wrap="$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh"
+   set +e
+   # Ctrl-C reaches tee too. Keep its pipe open until the Planner has finished
+   # shutdown logging and flushed the asynchronous audit CSV.
+-  "$dds_wrap" --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
++  "$dds_wrap" --route-source-addresses --filter-direct-routes --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" \
++    --flight-packet-qos-topic /ball/flight_packet -- \
+     python3 "$CAPTURE_HELPER" --controlled --role hdu --root "$HDU_WS" \
+       --session-id "$SESSION_ID" --output "$attempt_dir/sim2real" -- \
+     bash -c 'printf "%s\n" "$$" > "$1"; shift; exec "$@"' \
+@@ -1424,7 +1431,12 @@
+     serve_runner_args=()
+     printf 'receive_only=true\n' > "$session_dir/receive_only.txt"
+   fi
+-  local -a field_runner_args=(--planner --shared-session-home)
++  local -a field_runner_args=(--planner --shared-session-home --operator-watchdog)
++  local -a field_fall_args=(--no-fall-guard)
++  if [[ "$MDU_DEPLOY" == /agibot/a3_deploy_model14200_best_v1_20261109 ]]; then
++    field_runner_args=(--planner --shared-session-home)
++    field_fall_args=()
++  fi
+   if [[ "$FIELD_MODE" == KERNEL ]]; then
+     field_runner_args=(--kernel-mode)
+   fi
+@@ -1466,8 +1478,8 @@
+     --session-id "$SESSION_ID" --output "$session_dir/sim2real" -- \
+     taskset -c 4-7 ./run_a3_pingpong.sh \
+     --policy-dir "$PWD/policy" "${field_runner_args[@]}" --policy-native "${serve_runner_args[@]}" \
++    "${field_fall_args[@]}" \
+     --gripper-profile "$GRIPPER_PROFILE" \
+-    --no-fall-guard \
+     --trace-csv "$session_dir/sim2real/runner_trace.csv" \
+     --obs-csv "$session_dir/sim2real/policy_obs_actions.csv" \
+     --start passive --official-stand \
+@@ -1781,7 +1793,7 @@
+       ;;
+     field-assets-mdu)
+       require_user "$ROBOT_USER" FIELD_ASSETS
+-      resolve_mdu_deployment || die FIELD_ASSETS POLICY_BUNDLE_INVALID
++      resolve_mdu_deploy || die FIELD_ASSETS POLICY_BUNDLE_INVALID
+       # Match the packaged Runner's dynamic-library environment. Sourcing
+       # these files starts no HAL, gripper or ROS node.
+       set +u
+@@ -1818,11 +1830,6 @@
+     exit 64
+   }
+   case "$action" in
+-    preflight-mdu|prepare-mdu|start-hal|start-runner|_run-elink|_run-hal|_run-runner)
+-      resolve_mdu_deployment || die PREFLIGHT POLICY_BUNDLE_INVALID
+-      ;;
+-  esac
+-  case "$action" in
+     preflight-laptop) preflight_laptop ;;
+     preflight-hdu) preflight_hdu ;;
+     preflight-mdu) preflight_mdu ;;
+@@ -1837,7 +1844,7 @@
+     start-planner) start_planner ;;
+     start-hal) start_hal ;;
+     start-runner) start_runner ;;
+-    stop-mdu) stop_mdu; audit_stopped_policy ;;
++    stop-mdu) stop_mdu ;;
+     verify-vendor-mdu) verify_vendor_mdu ;;
+     stop-hdu) stop_hdu ;;
+     stop-laptop) stop_laptop ;;

@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "purpose": "historical reconstruction only; not an install profile",
+  "base_commit": "8b50fe400f9aae27d7de03cc66e5cf75160287d4",
+  "source_record": "2026-11-10/new-chat-3/work/alignment/source",
+  "model": "A3_P1D0",
+  "hardware_profile": "A3_P1D0_ELINK_HAND_V2",
+  "vendor_sha256": {
+    "aimrt_main": "9ab4c3fa441b4c13fac543b8778cd650a5e1751cad26fda1f4a918912e113ad6",
+    "libhal_elink_pkg.so": "f83690f1c8a3d7e1f50a7c38bd5ed2ccc01543274b680d548af38f7f154225af"
+  },
+  "files": {
+    "foxglove/helpers/hope_elink_scheduler.py": {
+      "base_sha256": "ac0e355cc80c7054a953400ba44da7441a5c3a1275124987a84bc5976316574d",
+      "historical_sha256": "3e8cb2ea197e5412e676dc5caeb6d5c99c7071d440caca49463649f717e80da2"
+    },
+    "foxglove/helpers/hope-lifecycle": {
+      "base_sha256": "e1819a288a83ed5b14c1389f2987e2e7442f6864da677ed9f6a5664accc92084",
+      "historical_sha256": "425b79b1c96fa973f0a778b4ed8b6c0675a817eb91483eb3b280658b808e598d"
+    }
+  }
+}
