@@ -561,7 +561,11 @@ echo "HDU_PLANNER_OVERLAY_OK"
 的残留目录仍可能返回这个 prefix。以后 Planner 和 `hope_msgs` 源码都没有
 变化时，可以跳过同步和本小节构建。
 
-### 6.3 首次缺少 foxglove_bridge 时构建
+### 6.3 构建本次 release 的 foxglove_bridge
+
+已有可执行文件不证明带有本次兼容/显示优先级补丁。首次安装或 release/补丁变化时
+执行构建；只有本次配方、源码与安装文件的构建回执全部匹配时才可复用。构建完成
+仍需按部署覆盖清单核对两个实际 bridge 进程的 hash、参数和 `fg-display` nice。
 
 ```bash
 cd $HOME/foxglove_a3
@@ -571,20 +575,31 @@ if ! command -v tmux >/dev/null || ! command -v rsync >/dev/null; then
   sudo apt-get install -y tmux rsync
 fi
 
-if [[ ! -x $HOME/hope_foxglove_ws/foxglove-sdk/ros/install/foxglove_bridge/lib/foxglove_bridge/foxglove_bridge ]]; then
-  sudo apt-get update
-  sudo apt-get install --no-install-recommends -y \
-    git ca-certificates libssl-dev zlib1g-dev rapidjson-dev tmux rsync
-  bash $HOME/foxglove_a3/build_foxglove_bridge.sh
-else
-  echo "foxglove_bridge already built"
-fi
+sudo apt-get update
+sudo apt-get install --no-install-recommends -y \
+  git ca-certificates libssl-dev zlib1g-dev rapidjson-dev tmux rsync
+bash $HOME/foxglove_a3/build_foxglove_bridge.sh
+
+(cd $HOME/hope_foxglove_ws/foxglove-sdk/ros && \
+  sha256sum --check $HOME/hope_foxglove_ws/foxglove-build.sha256)
 
 source /opt/ros/jazzy/setup.bash
 source $HOME/hope_foxglove_ws/foxglove-sdk/ros/install/setup.bash
 ros2 pkg prefix foxglove_bridge
 ros2 pkg executables foxglove_bridge
 ```
+
+#### 6.3.1 离线依赖与构建回执
+
+设置 `FOXGLOVE_CPP_SDK_ARCHIVE` 时，在同目录准备 `CPM_0.40.0.cmake`，SHA256
+必须为 `7b354f3a5976c4626c876850c93944e52c83ec59a159ae5de5be7983f0e17a2a`。
+从已审阅的 rosx CPM 版本准备该文件，缺少或 hash 不符时停止；不要跳过校验。
+SDK archive、解压树和 CPM 都有固定 hash，详见构建脚本常量；离线模式仍要求已有
+固定 Git source checkout 和系统依赖，不承诺首次运行完全无需网络。
+
+成功回执包含构建脚本、兼容/显示补丁、已打补丁的源码、CMake cache 和安装文件。
+构建前旧回执移到 `.previous.*`，失败不能留下当前成功标记；旧回执仅保留供追溯。
+它证明构建与文件身份，不证明运行进程已更新或本次物理测试通过。
 
 ### 6.4 安装 fleet monitor、Runner control plane 和 lifecycle supervisor
 

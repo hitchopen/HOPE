@@ -1,0 +1,335 @@
+{
+  "schema": 1,
+  "frozen_source_record": "2026-11-10/new-chat-3/work/alignment/source",
+  "compared_files": 216,
+  "identical_files": 170,
+  "scope": "Source disposition, not current installed/runtime equivalence. Generic recoveries tested separately; hardware/optional feature differences remain explicit.",
+  "recovered_exact_files": [
+    "foxglove/a3/hope_monitor.py",
+    "foxglove/tests/test_monitor_probes_ros.py"
+  ],
+  "differences": [
+    {
+      "path": "foxglove/a3/bridge_params_control.yaml",
+      "staging_sha256": "182217170c7e8d794ee257758dab88b612040ef08ba15693d77c842e820ea9c4",
+      "checkout_sha256": "9d6b400a164ed4dacd691aa5d62d06c5aae9f32ef604ac212c71951f559a3b2d",
+      "status": "different",
+      "disposition": "Keep current calibration service whitelist; field gripper behavior is implemented elsewhere, comment difference is not a deployment delta."
+    },
+    {
+      "path": "foxglove/a3/build_foxglove_bridge.sh",
+      "staging_sha256": "40be826f1a2ca70fca0f9e15a172c3d4be76023e0de2de097019c7ded42e6679",
+      "checkout_sha256": "fd86ebd3411be849a1df950f4c625624bb6b3f6ac23cbaea21e4f4319a735462",
+      "status": "different",
+      "disposition": "Recovered offline CPM and build receipt; additionally invalidate old receipt on rebuild and bind recipe/source hashes."
+    },
+    {
+      "path": "foxglove/a3/hope-mocap-config-transport.service",
+      "staging_sha256": "f03da5c5ea783160bca35494fa2bbc7338ac6c34065181a1a636ce3e92a9b5eb",
+      "checkout_sha256": "3b3efd4bbfe30311d013b9433faeee782e395635e049929685d14a2044ecf9b7",
+      "status": "different",
+      "disposition": "Keep explicit current ROS domain/RMW/profile environment."
+    },
+    {
+      "path": "foxglove/a3/hope_command_proxy.py",
+      "staging_sha256": "1809ab10dbfe8e32aba64cea1d43b1cb28df25592453d3abad405d7821b7d1f2",
+      "checkout_sha256": "69f74e5efa67aa01aa42df512b32a9b4ac73b2a3b47d574083b8530be19bdd45",
+      "status": "different",
+      "disposition": "Keep current STICKERS_V3 calibration support."
+    },
+    {
+      "path": "foxglove/a3/hope_field_operations.py",
+      "staging_sha256": "47830c92a70850108dc6e55276c911b899cfead7cca061e935706789f74f3cca",
+      "checkout_sha256": "6443f29b7f2fa2ff9aeeec12198bc986c9e86242a2b6ce7a57edf0278e72f45d",
+      "status": "different",
+      "disposition": "Keep current endpoint selection/catalog integrity and capability checks; generic Fusion remains separate feature scope."
+    },
+    {
+      "path": "foxglove/a3/hope_lifecycle_supervisor.py",
+      "staging_sha256": "af92e97e033a3595e2291a4024ddba3b3ebe6a3632f0a4eac310ff933b099111",
+      "checkout_sha256": "ec058ed7fd86230ef0f63ce13c99390c0212b699e08e4347133f1ada36bdcb33",
+      "status": "different",
+      "disposition": "Keep current startup timing and explicit opt-in auto-record; field requires HOPE_AUTO_RECORD_ON_START=1 in effective configuration."
+    },
+    {
+      "path": "foxglove/a3/hope_live_scene_geometry.py",
+      "staging_sha256": "abe826a67e4620d5e339e63f567fb991677b6c0ae891462c8e0cecc481d1805f",
+      "checkout_sha256": "5e36eb02ab3040f4977f5a6f66f1fee09989e29b57d8906efe19fa2b1c3aec26",
+      "status": "different",
+      "disposition": "Keep current explicit URDF path override."
+    },
+    {
+      "path": "foxglove/a3/hope_mocap_recovery.py",
+      "staging_sha256": "cab8c13bb5cd09c76e93b62a38e9efc30028b23daf3c184b5e054d150f6eead1",
+      "checkout_sha256": "f42ef9b775a58f6e1725be779002feea22721f94899cc749ff2afa9643060230",
+      "status": "different",
+      "disposition": "Current comment matches PASSIVE admission behavior; no executable difference."
+    },
+    {
+      "path": "foxglove/a3/hope_policy_models.py",
+      "staging_sha256": "a872ebc46bc2f5a7b5fe8f85dceb6ba7328b83e9fafb1f61d5c3319e8d3c7030",
+      "checkout_sha256": "297204ae27f9167e9774ff3dd74457b865e5a7be410b73a6db838708b20ce580",
+      "status": "different",
+      "disposition": "Keep current damaged-catalog/legacy behavior and model checks; generic Fusion remains separate feature scope."
+    },
+    {
+      "path": "foxglove/a3/hope_time_calibration_core.py",
+      "staging_sha256": "a2213af3ef508853be39ca4f7dd095a87527fc4368dfc4e1bfdfb0986cd0a160",
+      "checkout_sha256": "a7049bdd4d8377b11662d9919804942977eaad9a41afa8623fb809d02a83cfdc",
+      "status": "different",
+      "disposition": "Keep current pinned guarded-BSP restore adapter rather than reverting to unconditional rejection."
+    },
+    {
+      "path": "foxglove/a3/install_hdu_clock_baseline.sh",
+      "staging_sha256": "22f308a151c2c531eb57fcff7185df2c2d8e3a570dc1e221a069b5573b7dbd8b",
+      "checkout_sha256": "419a103d3557ffd0172bf826d7a707a5d826daa6605fc973d9707f6fb842c534",
+      "status": "different",
+      "disposition": "Keep current package manifest pin; historical pin belongs to a different baseline package."
+    },
+    {
+      "path": "foxglove/a3/install_mdu_elink_scheduler_p1_field.sh",
+      "staging_sha256": "cc291a3f1b3db8c604bdc5687cf9baf48d04d5f3cf38443ebbdb0768f15dd779",
+      "checkout_sha256": null,
+      "status": "missing",
+      "disposition": "Superseded field installer; final hardened helper is reconstructed by historical.patch. Not reintroduced as an installer."
+    },
+    {
+      "path": "foxglove/a3/native/README.md",
+      "staging_sha256": "e69405887476b7ab2619564a537289f586f727a2bb963c4cc7567d75eb3bff3e",
+      "checkout_sha256": "97c5edcd77bf182200f900b7cbd2f68c02ca4a6461e1149ecfc301a809c007a0",
+      "status": "different",
+      "disposition": "Keep current native operations integration/validation documentation."
+    },
+    {
+      "path": "foxglove/a3/network.env.example",
+      "staging_sha256": "2cccc3b9df52bf4142bab510d7e8b5f64302325070bf372c1dcf20a827da8f7f",
+      "checkout_sha256": "5d5c60ed882ce1b1c50db672bdcc395dd99af895e304833c51b2effe7668af9b",
+      "status": "different",
+      "disposition": "Keep generic operator account example; actual site settings must be collected per machine."
+    },
+    {
+      "path": "foxglove/helpers/hope-host-bridge",
+      "staging_sha256": "6956efe6dd4a0302df767fbe41297c357434a9a1d0366e9305978472e1dbfe15",
+      "checkout_sha256": "a75ddce529aad3e6c63dd3a9e9a510372822233945c99d315e1ab1b2ca673935",
+      "status": "different",
+      "disposition": "Comment-only state versus heartbeat wording; retain current."
+    },
+    {
+      "path": "foxglove/helpers/hope-laptop-container-runtime",
+      "staging_sha256": "c3b5b06fe5a368666bd34c34800a1981963547ce02a8868dc4d24aa94c6c142e",
+      "checkout_sha256": "c01c06d7231fb515a76a5370f748272f36f8dd190dd1376d5b4fb829713e4343",
+      "status": "different",
+      "disposition": "Keep public NatNet2ROS2 source layout."
+    },
+    {
+      "path": "foxglove/helpers/hope-lifecycle",
+      "staging_sha256": "425b79b1c96fa973f0a778b4ed8b6c0675a817eb91483eb3b280658b808e598d",
+      "checkout_sha256": "cba98eb7067835af2d72f0f8426e33da15e61bfa94767caba20454aa4fc8c1a3",
+      "status": "different",
+      "disposition": "Recovered DDS route/flight-QoS invocation. Exact field helper archived, not wholesale applied: P1 ABI and best-v1 flags need explicit profile; return_physics is separate source-snapshot feature; current STOP integrity handling retained."
+    },
+    {
+      "path": "foxglove/helpers/hope_elink_scheduler.py",
+      "staging_sha256": "3e8cb2ea197e5412e676dc5caeb6d5c99c7071d440caca49463649f717e80da2",
+      "checkout_sha256": "ac0e355cc80c7054a953400ba44da7441a5c3a1275124987a84bc5976316574d",
+      "status": "different",
+      "disposition": "Exact old-P1 model/config adaptation archived with binary hashes. Default T3 unchanged; profile selection required for deployment."
+    },
+    {
+      "path": "foxglove/helpers/hope_elink_scheduler_p1_field.py",
+      "staging_sha256": "1792aa0c82dec6c4714aedb1618b57639b24c9af3c9afbdb0c3202204b4e3369",
+      "checkout_sha256": null,
+      "status": "missing",
+      "disposition": "Superseded weaker field implementation; final hardened scheduler preserved in historical.patch."
+    },
+    {
+      "path": "foxglove/helpers/hope_sim2real_capture.py",
+      "staging_sha256": "e8204b7686f271cddf1d74572fb69106cfeefa33c6addb3beba8782480780c23",
+      "checkout_sha256": "2f1cf9f34cb11fd18ddd47ec89aa225f9f7df87ba3fd61dc84d219e757176ce7",
+      "status": "different",
+      "disposition": "Keep public NatNet2ROS2 interface layout."
+    },
+    {
+      "path": "foxglove/helpers/hope_sim2real_export.py",
+      "staging_sha256": "19a5e736c34939bb5e4356deaf0bcf1ca2dd5ddfd571a452c8e498f197fae768",
+      "checkout_sha256": "29c1d0e5978cd7a7764fd1158cfd0b2d464dfc716a0052685f5cb338e99ed93a",
+      "status": "different",
+      "disposition": "Keep public a3_deploy tool layout."
+    },
+    {
+      "path": "foxglove/tests/benchmark_operations_cpu.py",
+      "staging_sha256": "2d5e57359df60f652d43ce2aec4b5a30fd5d6b8bfa2f842efaa982e280abf061",
+      "checkout_sha256": "8e7c388c4ac66de4df485db232a4b013b834009f81b9c6c24df105884975a7b1",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_assets.py",
+      "staging_sha256": "b295db014bb97209c9f190f37abbeb82c18fd272b064212c9e55ce255cdd1a97",
+      "checkout_sha256": "de546e3518e7b47f4315816f7401c284416cde3ba6b53bb3f9e9c0d423160052",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_ball_models.py",
+      "staging_sha256": "632e2a2579f451746d16a72cceef8d3c9a3325f23d7df6cbd5b10a8d817ca342",
+      "checkout_sha256": "935630e04885d6ea342dfafe71b63316df70f592f7e42fd21464e8e20a38f548",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_catch_background.py",
+      "staging_sha256": "501f843f9fd12b40798051419526fda4894491db38784e667373b6eb51252ba4",
+      "checkout_sha256": "3e2c62c0eae8e0181c98c2b3d831e702796c6ad57d7cef1b528d0966aebe5e54",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_elink_transport_routes.py",
+      "staging_sha256": "f67d80c80bb3e61f9476baa6fb78cfdbfcf763b4ec20ced7981b450a7a51ef15",
+      "checkout_sha256": "746147e6d49f16871bf2e379c7e8bb036c8960ae15cbbfdc4328b9f2e651a619",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_field_operations.py",
+      "staging_sha256": "62196ee8b2ba8fe86eca012e644272d158c1f0ae7485f4dc3260b663c404ddaf",
+      "checkout_sha256": "f606dbd83679528830313a23389629df963259acfa4f1cbfe84bae3bf43aeae7",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_foxglove_assets.py",
+      "staging_sha256": "e93dba07271ddfb8e2009022543dd89f51be5df6961e081e845cf7327f200abb",
+      "checkout_sha256": "d596b20c0d3a88e864a592dcc83477f84de0c8f53bcba7fc4b3b3ab25212a1c0",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_laptop_runtime_selection.py",
+      "staging_sha256": "673c454964a4302090aba3976edcf9a2536f7de8b3ec6e0675b472d3109256f6",
+      "checkout_sha256": "f3b91c363caf910ff65f55149080951e63164dd69357d2bde9404905d90f52db",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_lifecycle_asset_bundle.py",
+      "staging_sha256": "3714cf81262ead516bc45d77d924c27016ab50c4c4fc19222d6ed7509e8ae043",
+      "checkout_sha256": "a24aa9183613ee2570353022379645ebab2ae4b6e10a005fe8bcc9b3618380f7",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_lifecycle_auto_record.py",
+      "staging_sha256": "124357d2fe12aa8ba6df74aa3065e69770d2918b9db136b8c6bf37d4ce089fe6",
+      "checkout_sha256": "b6fc00ec936503853c3a3720525fe31e62ae9ca3ca3334d37ca0979c3f5b4a1e",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_lifecycle_core.py",
+      "staging_sha256": "e753afbcddb3a6e3e1c1c16e0ec56662ff040ba41d612874a363a4c061388883",
+      "checkout_sha256": "94463ca7747ec006615158d54c19c44e6014040c5a79f21947ff883b449c4ed1",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_lifecycle_retry_start.py",
+      "staging_sha256": "69c59f002698bf082c01328eb1971fe53e4386e4cc7eeea3458a22ebcf58f875",
+      "checkout_sha256": "5fa07bcacc7ab284b654fcc77cfc5ab2a082fd00f198282af3f2d2236880d1b6",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_macos_build_entry.py",
+      "staging_sha256": "f3ddcec298076967d7b1f353274ae0e48497bb72652a15c73d853c2d7a8af0b0",
+      "checkout_sha256": "17335064c9a7f6cb95a19323d4fd04eeb02523f1e3a20f2128ce628d8de625ae",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_macos_operator_contract.py",
+      "staging_sha256": "f0ac8451c46411682379d008350ad146132dd34dfdd6ef17c4d092d98c15e918",
+      "checkout_sha256": "1f3ea1e36ca0d4a6093f0017d7bc842e8f95774b07ba6d48f7a1629d247b138b",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_mocap_config_transport_ros.py",
+      "staging_sha256": "d17c5f36d043af637d9d80ed8cd40c4e55aa01e76e2170323e3c7657393b87cc",
+      "checkout_sha256": "6a9f480a5308349483f3abf301b1d81b88d525dd946e01acd4c50075a0b5ee68",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_mocap_setup.py",
+      "staging_sha256": "af2fa41a1501ff4239b69fbcff20c026f54080ee7c2ba5e1334ac92cafb5ceeb",
+      "checkout_sha256": "5c789d4e8d241606b7485bc9eb12b5980af99d1c8a2ddcf511889c29ab491c05",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_native_operations_ros.py",
+      "staging_sha256": "3e35272318f7b0838e35fc2a9f8b6ea663b3d609c3a6fe9f7ce9f620665d3c00",
+      "checkout_sha256": "5500eef22452e2015494fa974c8f5cfdd5db6138d549d7d132b0b063c0cd4533",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_operations_ros.py",
+      "staging_sha256": "1c1b7cac3d21b7d2b3c278767d03ec390742535010f89caecebb496958458477",
+      "checkout_sha256": "f22b3ef6ffa635aabc06ee5546a0e7ed9a2e9f529a647251d2743cd52ca6694e",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_operator_profiles.py",
+      "staging_sha256": "80a3b830e86c9e6855c78034c212a175a83ce908f74271c6d07c516bde716b4c",
+      "checkout_sha256": "6c4220814968106c56084bd8a4b36797b19c41150775d5b6d525cd4c643551a5",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_policy_models.py",
+      "staging_sha256": "b74d1bb59146f1a61cfc39f10c72cafa2cb209042eaf3b80cace05746491ee54",
+      "checkout_sha256": "2f89950a75458dab189d42441e6966e3aa18bcae3c3128c19bdf7a4673b88ed7",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_record_switch.py",
+      "staging_sha256": "5dea9f454c9c20ee0a1a6883432030e76e7242b7d60b249fc4af673293ae7bc0",
+      "checkout_sha256": "6bda85a7b16d8c67f8b1c43df130baddf1653948a62ce55aa27cc52b9d10577e",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_shared_field_status.py",
+      "staging_sha256": "953dcca065d4a4f8823284e86275401cb207f29fc2897bed95f2a15391c94aaf",
+      "checkout_sha256": "f12d9efeeec1682269e2d1f6dd4c3b1f3495deddabea7692aeaab28063c86958",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_sim2real_capture.py",
+      "staging_sha256": "c38e4901da59394a3374659eb8fed26fef6757a7ce621a4f38828ae9fb59365f",
+      "checkout_sha256": "723b65eb0ea5b5f9ccc35fe7a878f625a222b58720a1f0be4c6b0dc0e9fc60df",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_teleop_relay_ros.py",
+      "staging_sha256": "124c56b1253d441900c34883b0d178c3541aeb5e794f76f071095ba2781680da",
+      "checkout_sha256": "b495432da989124b9c4ee6de697298c9c624da21da15d88cc722badab4fc4d52",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    },
+    {
+      "path": "foxglove/tests/test_time_calibration_core.py",
+      "staging_sha256": "b4c5be534aea52aa6237f8e184759883feed0606e5a857d465c89e24472329dd",
+      "checkout_sha256": "490e7eb6ac93e96536387f637523356bbe770da473eff70ec7e6be1042eb4cb7",
+      "status": "different",
+      "disposition": "Retain current tests for the current upstream source/layout/contracts; do not replace them with historical assertions. The previously missing monitor probe regression has been recovered separately."
+    }
+  ]
+}

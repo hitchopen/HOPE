@@ -26,6 +26,17 @@ Runner CPU4/5/6，以及重启后授时链检查；Console 安装文件匹配，
 [历史重建记录](../../foxglove/deployment_profiles/old_p1_20261110/README.md)。
 其中也有已经被后续代码取代的逻辑；保留溯源不等于批准再次安装。
 
+对冻结目录 216 个源码文件继续逐项比较，另外补回了 bridge 离线 CPM 依赖与成功构建
+回执、Python monitor 的 CPU/网卡异步探测，以及 lifecycle 的 DDS 路由选择和
+flight-packet QoS 启用参数。此前只有 wrapper 支持参数，并不保证调用方实际启用。
+首次装机 §6.3 也移除了“可执行文件存在就跳过构建”的旧判断。
+
+没有倒灌历史默认值：当前 STOP 与损坏 catalog 的处理、双端策略一致性、guarded-BSP
+恢复适配、公共源码路径和手动录制默认值继续保留。现场自动录制须在有效服务配置中
+显式设置 `HOPE_AUTO_RECORD_ON_START=1` 并核验。独立的 return-physics/Fusion
+功能仍在先前功能分支和 `codex/field-source-20261113` 快照中，不能把当前公共集成分支
+说成与旧现场的所有参数/功能逐字相同。部署选择必须把这些范围差异列在清单里。
+
 ## 每次开始前建立清单
 
 全机/换机任务以 [coverage.json](../../foxglove/deployment_profiles/coverage.json) 为最低范围：
@@ -94,3 +105,13 @@ python3 foxglove/a3/deployment_coverage.py check /path/to/audit/receipt.json --l
 目录和现场回执里的例外，不再只搜索当前仓库的未提交文件。
 
 现场操作继续遵守首次装机和生命周期手册的授权/支撑/急停流程；填表不是操作授权。
+
+查遗漏时可先对冻结 staging 源码目录做离线逐文件比较，输出只有路径与 hash：
+
+```bash
+python3 foxglove/a3/deployment_coverage.py compare-staging /path/to/deployment/source > /path/to/audit/source-diff.json
+```
+
+有缺失/差异返回 1，逐项分类后再同步：通用遗漏补回、硬件例外保存配方、新实现保留、
+独立功能注明所在分支。该比较按相对路径进行；不同仓库布局需另行映射，不能直接复制。
+这一步专门覆盖 `git status` 看不到的部署目录改动。

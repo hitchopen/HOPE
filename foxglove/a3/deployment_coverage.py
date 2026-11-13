@@ -51,6 +51,35 @@ def source_exists(commit, path):
                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
 
 
+def compare_staging(staging, checkout):
+    """Inventory frozen deployment sources, including files outside Git status.
+
+    Differences need classification: newer implementations are not omissions.
+    File contents are never printed or copied.
+    """
+    if not staging.is_dir() or not checkout.is_dir():
+        raise ValueError('staging and checkout must be existing directories')
+    rows = []
+    for path in sorted(staging.rglob('*')):
+        relative = path.relative_to(staging)
+        target = checkout / relative
+        if path.is_symlink():
+            rows.append({'path': relative.as_posix(), 'status': 'symlink_requires_review'})
+            continue
+        if not path.is_file():
+            continue
+        historical = hashlib.sha256(path.read_bytes()).hexdigest()
+        # Never follow a checkout symlink outside the source tree.
+        contained = target.resolve().is_relative_to(checkout.resolve())
+        current = hashlib.sha256(target.read_bytes()).hexdigest() if contained and target.is_file() and not target.is_symlink() else None
+        rows.append({'path': relative.as_posix(), 'staging_sha256': historical,
+                     'checkout_sha256': current,
+                     'status': 'identical' if current == historical else 'missing' if current is None else 'different'})
+    if not rows:
+        raise ValueError('empty staging directory is not an audit')
+    return rows
+
+
 def validate(report, inventory, evidence_root, level, *, now=None, resolve_source=source_exists):
     errors = []
     now = now or datetime.now(timezone.utc)
@@ -138,10 +167,23 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('template')
+    compare = sub.add_parser('compare-staging')
+    compare.add_argument('staging', type=Path)
+    compare.add_argument('--checkout', type=Path, default=ROOT)
     check = sub.add_parser('check')
     check.add_argument('receipt', type=Path)
     check.add_argument('--level', choices=LEVELS, required=True)
     args = parser.parse_args()
+    if args.command == 'compare-staging':
+        try:
+            rows = compare_staging(args.staging, args.checkout)
+        except (OSError, ValueError) as exc:
+            print(json.dumps({'result': 'ERROR', 'error': str(exc)}))
+            return 1
+        unresolved = sum(row['status'] != 'identical' for row in rows)
+        print(json.dumps({'result': 'DIFFERENCES_REQUIRE_REVIEW' if unresolved else 'IDENTICAL_FILES',
+                          'compared': len(rows), 'different_or_missing': unresolved, 'files': rows}, indent=2))
+        return 1 if unresolved else 0
     inventory = json.loads(INVENTORY.read_text())
     if args.command == 'template':
         print(json.dumps(template(inventory), indent=2, ensure_ascii=False))

@@ -19,7 +19,9 @@ the underlying evidence; the tool does not verify the truth of human assertions.
 
 When auditing whether field work was pushed, inspect the deployment task's
 staging manifest and final receipt as well as repository status. Account for
-field-only helper/profile changes outside the checkout. Preserve their exact
+field-only helper/profile changes outside the checkout; use the offline
+`deployment_coverage.py compare-staging` inventory and classify every difference.
+Preserve their exact
 provenance and reconcile behavior against current source before reuse; a
 historical patch is not an approved installer. Do not replace a newer helper
 wholesale or assume two robots with the same model use the same BSP.

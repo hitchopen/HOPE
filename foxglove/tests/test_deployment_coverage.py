@@ -144,5 +144,34 @@ class HistoricalProfileTests(unittest.TestCase):
             compile((root / 'foxglove/helpers/hope_elink_scheduler.py').read_text(), 'historical_scheduler', 'exec')
 
 
+class StagingComparisonTests(unittest.TestCase):
+    def test_finds_outside_git_omissions_without_overwriting_current_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            staging, checkout = root / 'staging', root / 'checkout'
+            staging.mkdir()
+            checkout.mkdir()
+            for name, content in [('same.py', 'same'), ('changed.py', 'field'), ('missing.py', 'field-only')]:
+                (staging / name).write_text(content)
+            (checkout / 'same.py').write_text('same')
+            (checkout / 'changed.py').write_text('newer')
+            rows = gate.compare_staging(staging, checkout)
+            self.assertEqual({r['path']: r['status'] for r in rows},
+                             {'same.py': 'identical', 'changed.py': 'different', 'missing.py': 'missing'})
+            self.assertEqual((checkout / 'changed.py').read_text(), 'newer')
+            self.assertFalse((checkout / 'missing.py').exists())
+
+    def test_empty_or_symlink_only_stage_never_qualifies_as_identical(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            staging, checkout = root / 'staging', root / 'checkout'
+            staging.mkdir()
+            checkout.mkdir()
+            with self.assertRaises(ValueError):
+                gate.compare_staging(staging, checkout)
+            (staging / 'external').symlink_to('/etc/passwd')
+            self.assertEqual(gate.compare_staging(staging, checkout)[0]['status'], 'symlink_requires_review')
+
+
 if __name__ == '__main__':
     unittest.main()
