@@ -1,0 +1,659 @@
+[
+  {
+    "sample_id": "SLOW-053",
+    "section": "slow_tail",
+    "source_session": "model21800_20261030T172144Z",
+    "source_flight_id": 1793387513997468,
+    "source_is_planner_prediction": true,
+    "jittered": true,
+    "seed_index": 0,
+    "target_relative_y": -0.28390116564141643,
+    "target_speed": 1.4371540539636765,
+    "target_height": 1.2465061895467435,
+    "target_angle_deg": -5.0597281896056945,
+    "origin_x": 2.189778471078788,
+    "origin_y": -0.8697020272560263,
+    "launch": [
+      2.189778471078788,
+      -0.8697020272560263,
+      0.25208992928646123,
+      -2.8230316133310325,
+      -0.23013112976126493,
+      3.055789442046165
+    ],
+    "initial_spin": [
+      2.738926338944987,
+      -17.81213238799276,
+      -0.012452341865870409
+    ],
+    "predicted_contact": [
+      0.07,
+      -1.046397888697172,
+      0.49133098887729904,
+      -1.4241133983890846,
+      -0.12584765659588829,
+      -0.25170188945825983
+    ],
+    "predicted_contact_speed": 1.4516509378286648,
+    "predicted_contact_world_height": 1.251330988877299,
+    "predicted_angle_deg": -5.050059754405005,
+    "flight_s": 0.9850000000000008,
+    "bounce": [
+      0.5361031866329331,
+      -1.0051911135493836
+    ],
+    "net": [
+      -0.9369705518214383,
+      0.6781201505706014
+    ],
+    "closure_error": 0.058167204693374636,
+    "feasibility_checks": {
+      "plane": true,
+      "y": true,
+      "height": true,
+      "speed": true,
+      "angle": true,
+      "one_bounce": true,
+      "net_clearance": true,
+      "net_width": true,
+      "bounce_half": true
+    },
+    "feasible": true,
+    "aim": [
+      2.055,
+      -0.7625
+    ],
+    "cell_id": null,
+    "lateral_bin": 1,
+    "speed_bin": 0,
+    "height_bin": 2,
+    "angle_bin": 0,
+    "side": "FH",
+    "shard_id": 3,
+    "shot_id": 1
+  },
+  {
+    "sample_id": "SLOW-041",
+    "section": "slow_tail",
+    "source_session": "model21800_20261103T211223Z",
+    "source_flight_id": 1793744052034086,
+    "source_is_planner_prediction": true,
+    "jittered": false,
+    "seed_index": 0,
+    "target_relative_y": -0.411854491,
+    "target_speed": 1.6772608044,
+    "target_height": 1.1536220886,
+    "target_angle_deg": -12.850342686,
+    "origin_x": 2.337831943626408,
+    "origin_y": -0.6640741676965815,
+    "launch": [
+      2.337831943626408,
+      -0.6640741676965815,
+      0.18727366314607036,
+      -3.564996303817665,
+      -0.802517252615365,
+      2.935857553197507
+    ],
+    "initial_spin": [
+      -2.144038447734206,
+      14.277225407280804,
+      -0.7272106133767586
+    ],
+    "predicted_contact": [
+      0.07,
+      -1.174324465290143,
+      0.3933325246952034,
+      -1.478283544169959,
+      -0.33718941447373696,
+      0.7143424459536623
+    ],
+    "predicted_contact_speed": 1.6760978695433921,
+    "predicted_contact_world_height": 1.1533325246952035,
+    "predicted_angle_deg": -12.849069005608223,
+    "flight_s": 0.8440000000000006,
+    "bounce": [
+      0.3726591948714033,
+      -1.1051889133951618
+    ],
+    "net": [
+      -0.8818485324758869,
+      0.5930718376229605
+    ],
+    "closure_error": 0.004199371505595243,
+    "feasibility_checks": {
+      "plane": true,
+      "y": true,
+      "height": true,
+      "speed": true,
+      "angle": true,
+      "one_bounce": true,
+      "net_clearance": true,
+      "net_width": true,
+      "bounce_half": true
+    },
+    "feasible": true,
+    "aim": [
+      2.055,
+      -0.7625
+    ],
+    "cell_id": null,
+    "lateral_bin": 0,
+    "speed_bin": 0,
+    "height_bin": 1,
+    "angle_bin": 0,
+    "side": "FH",
+    "shard_id": 3,
+    "shot_id": 2
+  },
+  {
+    "sample_id": "SLOW-035",
+    "section": "slow_tail",
+    "source_session": "model21800_20261031T094527Z",
+    "source_flight_id": 1793456522474418,
+    "source_is_planner_prediction": true,
+    "jittered": false,
+    "seed_index": 1,
+    "target_relative_y": -0.255281031,
+    "target_speed": 1.4302526622,
+    "target_height": 1.2017793696,
+    "target_angle_deg": -8.0714599891,
+    "origin_x": 2.189190396743658,
+    "origin_y": -0.6521941291319605,
+    "launch": [
+      2.189190396743658,
+      -0.6521941291319605,
+      0.2518539267711302,
+      -3.024212906726091,
+      -0.59191718313325,
+      2.8033367092883594
+    ],
+    "initial_spin": [
+      0.04366566094379673,
+      -1.713066338409225,
+      -13.885433811571513
+    ],
+    "predicted_contact": [
+      0.07,
+      -1.0178035075410852,
+      0.4458830400001667,
+      -1.4069265919966174,
+      -0.199108015069897,
+      -0.24112678303461962
+    ],
+    "predicted_contact_speed": 1.4412593668139386,
+    "predicted_contact_world_height": 1.2058830400001668,
+    "predicted_angle_deg": -8.054998518664412,
+    "flight_s": 0.9370000000000007,
+    "bounce": [
+      0.5077883044216891,
+      -0.9521125497034953
+    ],
+    "net": [
+      -0.8058092402597323,
+      0.618226647073108
+    ],
+    "closure_error": 0.046628983588665136,
+    "feasibility_checks": {
+      "plane": true,
+      "y": true,
+      "height": true,
+      "speed": true,
+      "angle": true,
+      "one_bounce": true,
+      "net_clearance": true,
+      "net_width": true,
+      "bounce_half": true
+    },
+    "feasible": true,
+    "aim": [
+      2.055,
+      -0.7625
+    ],
+    "cell_id": null,
+    "lateral_bin": 1,
+    "speed_bin": 0,
+    "height_bin": 2,
+    "angle_bin": 0,
+    "side": "FH",
+    "shard_id": 3,
+    "shot_id": 3
+  },
+  {
+    "sample_id": "SLOW-022",
+    "section": "slow_tail",
+    "source_session": "model21800_20261031T050601Z",
+    "source_flight_id": 1793423219943090,
+    "source_is_planner_prediction": true,
+    "jittered": false,
+    "seed_index": 0,
+    "target_relative_y": -0.1247308156,
+    "target_speed": 1.7308769301,
+    "target_height": 1.2497317372,
+    "target_angle_deg": -2.0053329673,
+    "origin_x": 2.5146948285643007,
+    "origin_y": -0.7457939609053215,
+    "launch": [
+      2.5146948285643007,
+      -0.7457939609053215,
+      0.6695720105459126,
+      -4.002994220412495,
+      -0.29598510357677965,
+      1.2577036224748128
+    ],
+    "initial_spin": [
+      -0.9813408139691111,
+      15.1906736253879,
+      -11.140753825460978
+    ],
+    "predicted_contact": [
+      0.07,
+      -0.8872457735865804,
+      0.48967585197269775,
+      -1.6967322949435606,
+      -0.059414216575898446,
+      -0.34892123979458733
+    ],
+    "predicted_contact_speed": 1.7332560576601375,
+    "predicted_contact_world_height": 1.2496758519726978,
+    "predicted_angle_deg": -2.005498159885578,
+    "flight_s": 0.8610000000000007,
+    "bounce": [
+      0.6387009955683761,
+      -0.863244742292207
+    ],
+    "net": [
+      -0.8227555695379165,
+      0.5966218567356748
+    ],
+    "closure_error": 0.007152886786420761,
+    "feasibility_checks": {
+      "plane": true,
+      "y": true,
+      "height": true,
+      "speed": true,
+      "angle": true,
+      "one_bounce": true,
+      "net_clearance": true,
+      "net_width": true,
+      "bounce_half": true
+    },
+    "feasible": true,
+    "aim": [
+      2.055,
+      -0.7625
+    ],
+    "cell_id": null,
+    "lateral_bin": 2,
+    "speed_bin": 0,
+    "height_bin": 2,
+    "angle_bin": 1,
+    "side": "BHfront",
+    "shard_id": 3,
+    "shot_id": 4
+  },
+  {
+    "sample_id": "SLOW-002",
+    "section": "slow_tail",
+    "source_session": "model21800_20261030T172144Z",
+    "source_flight_id": 1793387513997466,
+    "source_is_planner_prediction": true,
+    "jittered": false,
+    "seed_index": 0,
+    "target_relative_y": -0.0485192018,
+    "target_speed": 1.5903185376,
+    "target_height": 1.1043180639,
+    "target_angle_deg": 0.0485199398,
+    "origin_x": 2.458801289036487,
+    "origin_y": -0.8322278302791651,
+    "launch": [
+      2.458801289036487,
+      -0.8322278302791651,
+      0.19427775009823683,
+      -3.6167201999936154,
+      0.058753030923001597,
+      2.694199920174495
+    ],
+    "initial_spin": [
+      -0.9808830740927402,
+      15.509120600770153,
+      5.640093734679095
+    ],
+    "predicted_contact": [
+      0.07,
+      -0.8110159853662452,
+      0.36579221494003583,
+      -1.49641892011878,
+      0.0011739076626190227,
+      -0.6214576065245909
+    ],
+    "predicted_contact_speed": 1.620333459278037,
+    "predicted_contact_world_height": 1.125792214940036,
+    "predicted_angle_deg": 0.044947267041650196,
+    "flight_s": 0.9240000000000007,
+    "bounce": [
+      0.5636616121469921,
+      -0.8131938860924153
+    ],
+    "net": [
+      -0.8180675065643368,
+      0.5210491212626143
+    ],
+    "closure_error": 0.19396200262564778,
+    "feasibility_checks": {
+      "plane": true,
+      "y": true,
+      "height": true,
+      "speed": true,
+      "angle": true,
+      "one_bounce": true,
+      "net_clearance": true,
+      "net_width": true,
+      "bounce_half": true
+    },
+    "feasible": true,
+    "aim": [
+      2.055,
+      -0.7625
+    ],
+    "cell_id": null,
+    "lateral_bin": 2,
+    "speed_bin": 0,
+    "height_bin": 1,
+    "angle_bin": 1,
+    "side": "BHfront",
+    "shard_id": 3,
+    "shot_id": 5
+  },
+  {
+    "sample_id": "SLOW-010",
+    "section": "slow_tail",
+    "source_session": "model21800_20261030T172144Z",
+    "source_flight_id": 1793387513997489,
+    "source_is_planner_prediction": true,
+    "jittered": false,
+    "seed_index": 0,
+    "target_relative_y": -0.1344941975,
+    "target_speed": 1.7925153197,
+    "target_height": 1.1860246625,
+    "target_angle_deg": -2.9907741186,
+    "origin_x": 2.091483976819473,
+    "origin_y": -0.7950227033024689,
+    "launch": [
+      2.091483976819473,
+      -0.7950227033024689,
+      0.5419485793787301,
+      -3.4910190958994995,
+      -0.168389549583013,
+      1.1595920746789796
+    ],
+    "initial_spin": [
+      0.09718145029149529,
+      -16.037049525461285,
+      2.2679796941966153
+    ],
+    "predicted_contact": [
+      0.07,
+      -0.8970822340854342,
+      0.427595077950777,
+      -1.7588476558571715,
+      -0.09186286248033905,
+      -0.3429173185900649
+    ],
+    "predicted_contact_speed": 1.7943177392553273,
+    "predicted_contact_world_height": 1.187595077950777,
+    "predicted_angle_deg": -2.9897849316334155,
+    "flight_s": 0.7750000000000006,
+    "bounce": [
+      0.6234140847806889,
+      -0.8689480327951564
+    ],
+    "net": [
+      -0.8304957049454262,
+      0.5538775965030316
+    ],
+    "closure_error": 0.013696550983733916,
+    "feasibility_checks": {
+      "plane": true,
+      "y": true,
+      "height": true,
+      "speed": true,
+      "angle": true,
+      "one_bounce": true,
+      "net_clearance": true,
+      "net_width": true,
+      "bounce_half": true
+    },
+    "feasible": true,
+    "aim": [
+      2.055,
+      -0.7625
+    ],
+    "cell_id": null,
+    "lateral_bin": 2,
+    "speed_bin": 0,
+    "height_bin": 1,
+    "angle_bin": 1,
+    "side": "BHfront",
+    "shard_id": 3,
+    "shot_id": 6
+  },
+  {
+    "sample_id": "SLOW-012",
+    "section": "slow_tail",
+    "source_session": "model21800_20261030T172144Z",
+    "source_flight_id": 1793387513997505,
+    "source_is_planner_prediction": true,
+    "jittered": false,
+    "seed_index": 0,
+    "target_relative_y": -0.3997238394,
+    "target_speed": 1.6754110455,
+    "target_height": 1.3628673713,
+    "target_angle_deg": -4.4820485388,
+    "origin_x": 2.557306913853645,
+    "origin_y": -0.9928558246979301,
+    "launch": [
+      2.557306913853645,
+      -0.9928558246979301,
+      1.0002992134596291,
+      -4.03588563199626,
+      -0.2526057837874933,
+      0.45407620908231067
+    ],
+    "initial_spin": [
+      -0.47679187488862834,
+      18.19027670592292,
+      3.436571887237495
+    ],
+    "predicted_contact": [
+      0.07,
+      -1.1623647069222227,
+      0.6263562237588007,
+      -1.6956097816000728,
+      -0.13148737317250073,
+      -0.29555721068612667
+    ],
+    "predicted_contact_speed": 1.726191045495896,
+    "predicted_contact_world_height": 1.3863562237588007,
+    "predicted_angle_deg": -4.434171714576872,
+    "flight_s": 0.8870000000000007,
+    "bounce": [
+      0.6941781288570021,
+      -1.1154623807329382
+    ],
+    "net": [
+      -1.0696244970405375,
+      0.678045905241665
+    ],
+    "closure_error": 0.24201404398707238,
+    "feasibility_checks": {
+      "plane": true,
+      "y": true,
+      "height": true,
+      "speed": true,
+      "angle": true,
+      "one_bounce": true,
+      "net_clearance": true,
+      "net_width": true,
+      "bounce_half": true
+    },
+    "feasible": true,
+    "aim": [
+      2.055,
+      -0.7625
+    ],
+    "cell_id": null,
+    "lateral_bin": 0,
+    "speed_bin": 0,
+    "height_bin": 2,
+    "angle_bin": 1,
+    "side": "FH",
+    "shard_id": 3,
+    "shot_id": 7
+  },
+  {
+    "sample_id": "SLOW-043",
+    "section": "slow_tail",
+    "source_session": "model21800_20261103T212618Z",
+    "source_flight_id": 1793748347001388,
+    "source_is_planner_prediction": true,
+    "jittered": false,
+    "seed_index": 1,
+    "target_relative_y": -0.2866442995,
+    "target_speed": 1.7980783558,
+    "target_height": 1.3947781846,
+    "target_angle_deg": 7.2573185716,
+    "origin_x": 2.557306913853645,
+    "origin_y": -1.3596618335806003,
+    "launch": [
+      2.557306913853645,
+      -1.3596618335806003,
+      1.0254455072567303,
+      -4.224119070190025,
+      0.5417355545601802,
+      0.15542625307193486
+    ],
+    "initial_spin": [
+      -0.47679187488862834,
+      18.19027670592292,
+      3.436571887237495
+    ],
+    "predicted_contact": [
+      0.07,
+      -1.0485685896889576,
+      0.6298789167692619,
+      -1.7869120979782758,
+      0.2247225776167273,
+      -0.15702737529820932
+    ],
+    "predicted_contact_speed": 1.8078198691752654,
+    "predicted_contact_world_height": 1.3898789167692618,
+    "predicted_angle_deg": 7.1679033701304045,
+    "flight_s": 0.8470000000000006,
+    "bounce": [
+      0.7000545664462329,
+      -1.1293290837614869
+    ],
+    "net": [
+      -1.2102179405305569,
+      0.6539182347058057
+    ],
+    "closure_error": 0.050905400509409574,
+    "feasibility_checks": {
+      "plane": true,
+      "y": true,
+      "height": true,
+      "speed": true,
+      "angle": true,
+      "one_bounce": true,
+      "net_clearance": true,
+      "net_width": true,
+      "bounce_half": true
+    },
+    "feasible": true,
+    "aim": [
+      2.055,
+      -0.7625
+    ],
+    "cell_id": null,
+    "lateral_bin": 1,
+    "speed_bin": 0,
+    "height_bin": 2,
+    "angle_bin": 2,
+    "side": "FH",
+    "shard_id": 3,
+    "shot_id": 8
+  },
+  {
+    "sample_id": "SLOW-047",
+    "section": "slow_tail",
+    "source_session": "model21800_20261103T212618Z",
+    "source_flight_id": 1793748347001410,
+    "source_is_planner_prediction": true,
+    "jittered": false,
+    "seed_index": 1,
+    "target_relative_y": -0.179081161,
+    "target_speed": 1.6711255008,
+    "target_height": 1.2731609539,
+    "target_angle_deg": 3.4276731375,
+    "origin_x": 2.5146948285643007,
+    "origin_y": -1.0196093093338865,
+    "launch": [
+      2.5146948285643007,
+      -1.0196093093338865,
+      0.6855572947960117,
+      -3.8803172123219256,
+      0.05523163944182106,
+      1.3796815370427717
+    ],
+    "initial_spin": [
+      -0.9813408139691111,
+      15.1906736253879,
+      -11.140753825460978
+    ],
+    "predicted_contact": [
+      0.07,
+      -0.9415801381753417,
+      0.5130369570684742,
+      -1.635506043369193,
+      0.09796350693149078,
+      -0.33575729550326766
+    ],
+    "predicted_contact_speed": 1.6724861219367824,
+    "predicted_contact_world_height": 1.273036957068474,
+    "predicted_angle_deg": 3.4278059322529715,
+    "flight_s": 0.8890000000000007,
+    "bounce": [
+      0.6285159382456109,
+      -0.970961688561109
+    ],
+    "net": [
+      -0.9953433676947413,
+      0.6311674426558638
+    ],
+    "closure_error": 0.00420211068652185,
+    "feasibility_checks": {
+      "plane": true,
+      "y": true,
+      "height": true,
+      "speed": true,
+      "angle": true,
+      "one_bounce": true,
+      "net_clearance": true,
+      "net_width": true,
+      "bounce_half": true
+    },
+    "feasible": true,
+    "aim": [
+      2.055,
+      -0.7625
+    ],
+    "cell_id": null,
+    "lateral_bin": 1,
+    "speed_bin": 0,
+    "height_bin": 2,
+    "angle_bin": 1,
+    "side": "BHother",
+    "shard_id": 3,
+    "shot_id": 9
+  }
+]

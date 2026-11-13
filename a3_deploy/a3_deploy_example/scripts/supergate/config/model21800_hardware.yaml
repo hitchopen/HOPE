@@ -1,0 +1,128 @@
+# PPQ004 2026-10-20: unified fit; speed adaptation not established.
+# Ball physics: restored PPQ002 at operator request, 2026-10-16; body timing audit retained.
+# Both nodes use the same Magnus and capped slip/contact model.
+hope_planner:
+  ros__parameters:
+    wire_identity_state_file: "/var/lib/hope-lifecycle/planner_wire_identity.state"
+    future_contact_magnus_enabled: true
+    future_contact_spin_enabled: true
+    future_contact_spin_tangential_gain: 0.41642144985036184
+    future_contact_spin_omega_scale: 1.0
+    future_contact_spin_min_coherence: 0.4
+    # Field policy: uncertain spin uses the physical prior without delaying a shot.
+    future_contact_require_spin: false
+    use_kalman: false
+    flight_packet_input_enabled: true
+    flight_packet_topic: "/ball/flight_packet"
+    input_qos_depth: 64
+    solve_period_s: 0.033
+    expected_mocap_hz: 300.0
+    post_net_one_shot_enabled: true
+    post_net_commit_delay_s: 0.05
+    incoming_opponent_side_margin_m: 0.05
+    incoming_speed_threshold_mps: 0.25
+    outgoing_speed_threshold_mps: 0.25
+    incoming_direction_fit_samples: 4
+    incoming_direction_confirmations: 2
+    incoming_pre_roll_samples: 24
+    incoming_source_gap_reset_s: 0.25
+    post_net_future_bounce_tangential_gain: 0.41642144985036184
+    post_net_future_bounce_restitution_v: 0.9373319241133231
+    net_x: 1.37
+
+    batch_max_sample_gap_s: 0.02
+    batch_single_flight_only: true
+    batch_post_bounce_min_span_s: 0.08
+    batch_post_bounce_exclusion_s: 0.008
+    batch_estimator_window_s: 0.18
+    batch_estimator_min_span_s: 0.08
+    batch_estimator_min_samples: 24
+    batch_estimator_huber_delta_m: 0.003
+    batch_estimator_recency_half_life_s: 0.0
+    batch_estimator_iterations: 3
+
+    ball_pose_index: 0
+    # PPP3 left bound; operator-adjusted right bound -1.30, 2026-10-22.
+    # P1 table frame, metres. A saved operator state overrides these defaults.
+    # Re-measure after moving markers or changing the venue/table-side frame.
+    ball_y_filter_state_file: "/var/lib/hope-lifecycle/planner_y_filter.state"
+    hit_speed_scale_state_file: "/var/lib/hope-lifecycle/planner_hit_speed_scale.state"
+    ball_y_filter_enabled: true
+    ball_y_filter_min_m: -1.30
+    ball_y_filter_max_m: -0.5543593239924284
+    # Legacy fallback only: schema 4 uses Runner HOME.x + ONNX plane_x.
+    x_hit: 0.15
+    x_hit_follow_robot: false
+    require_x_hit_calibration: false
+    x_hit_calibration_offset: 0.58
+    x_hit_bh_delta: 0.0
+
+    target_land_x: 2.055
+    target_land_y: -0.7625
+    delta_t_flight: 0.50
+    # model14600 a987240610bb: immutable HOME + exported station Y [-0.35,0.35]
+    # plus per-clip arm Y bands FH [-0.48,-0.40], BH [-0.13,-0.05].
+    swing_side_reference_mode: "session_home_v1"
+    swing_side_split_y: -0.25
+    swing_side_hysteresis_y: 0.0
+    swing_side_fh_y_range: [-0.83, -0.05]
+    swing_side_bh_y_range: [-0.48, 0.30]
+
+    drag_k: 0.12453915600992894
+    restitution_h: 0.5835785501496382
+    restitution_v: 0.9373319241133231
+    magnus_k: 0.00399279130564425
+    nakashima_friction_mu: 0.25
+    table_tangential_gain: 0.41642144985036184
+    table_friction_cap_mu: 0.218520906499864
+    restitution_racket: 0.654
+    dt_integrate: 0.001
+    max_predict_time: 2.0
+    adaptive_predict_horizon: true
+    max_predict_time_cap: 3.0
+    bounce_center_z_max: 0.20
+    bounce_min_reversal_m: 0.00005
+    bounce_min_excursion_m: 0.001
+    bounce_confirmation_samples: 5
+    bounce_confirmation_max_span_s: 0.05
+    bounce_sparse_confirmation_min_span_s: 0.012
+    bounce_sparse_confirmation_excursion_m: 0.005
+    bounce_refractory_s: 0.12
+
+    spin_shadow_enabled: true
+    spin_shadow_mode: "venue_grip_magnus"
+    spin_window_s: 0.18
+    spin_min_span_s: 0.05
+    spin_max_gap_s: 0.05
+    spin_max_rev_s: 20.0
+    spin_huber_delta_rev_s: 2.0
+    spin_min_increments: 3
+    spin_robust_iterations: 5
+
+    robot_pose_topic: ""
+    base_pose_flat_input_topic: "/a3/base_pose_flat"
+    publish_base_flat: false
+    publish_flat_cmd: true
+    publish_typed_command: true
+    # Runner captures HOME on policy entry and exports the loaded model strike offset.
+    session_home_input_topic: "/hope/runner/session_home_hdu_flat"
+    session_home_max_age_s: 0.5
+    racket_flat_schema: 4
+    # Runtime service may select schema-5 dynamic targets for subsequent balls.
+    plane_reference_mode: "fixed"
+    reach_permission_enabled: false
+    reach_permission_contract: "disabled_zero_v1"
+    racket_flat_topic: "/racket/command_flat"
+    publish_serve_ball_flat: true
+    serve_ball_flat_topic: "/serve/ball_state_flat"
+    policy_z_offset: 0.76
+    max_target_turn_deg: 180.0
+    # Field operator selects age audit only; invalid/missing pose checks remain active.
+    target_turn_reject_stale_pose: false
+    target_turn_max_pose_age_s: 0.2
+    table_y_max: 0.0
+
+    x_hit_calibration_request_file: ""
+    x_hit_calibration_status_file: ""
+    debug_csv_path: ""
+    debug_session_id: ""

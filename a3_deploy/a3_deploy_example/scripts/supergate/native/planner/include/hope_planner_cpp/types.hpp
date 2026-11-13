@@ -1,0 +1,265 @@
+#pragma once
+
+#include <Eigen/Core>
+#include <Eigen/Geometry>
+
+#include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <string>
+#include <vector>
+
+namespace hope_planner_cpp {
+
+using Vec3 = Eigen::Vector3d;
+
+constexpr std::size_t kMaxEstimatorSamples = 192;
+constexpr std::size_t kInputRingCapacity = 1024;
+
+struct BallPhysics {
+  // 2026-10-16 restored ppq002 one-star ball fit; radius/gravity remain fixed priors.
+  double drag_k = 0.1276482540395671;
+  double magnus_k = 0.004099236435745766;
+  double restitution_h = 0.5716640639694555;
+  double restitution_v = 0.9554747160275279;
+  // Nakashima/Ace Coulomb prior (not venue-fit).
+  double nakashima_friction_mu = 0.25;
+  // Fitted capped table-slip law, distinct from the Nakashima prior.
+  double table_tangential_gain = 0.42833593603054454;
+  double table_friction_cap_mu = 0.22361815544013583;
+  Vec3 gravity{0.0, 0.0, -9.81};
+  double radius = 0.02;
+};
+
+struct TableParams {
+  double length = 2.74;
+  double width = 1.525;
+  double y_max = 0.0;
+  double net_x = 1.37;
+  double net_height = 0.1525;
+  double net_overhang = 0.15;
+};
+
+struct PlannerConfig {
+  double x_hit = 0.15;
+  Vec3 target_land{2.055, -0.7625, 0.0};
+  double delta_t_flight = 0.50;
+  double restitution_racket = std::numeric_limits<double>::quiet_NaN();
+  double restitution_exp_g1 = std::numeric_limits<double>::quiet_NaN();
+  double restitution_exp_g2 = std::numeric_limits<double>::quiet_NaN();
+  double integrate_dt_s = 0.001;
+  double max_predict_time_s = 2.0;
+  bool adaptive_predict_horizon = false;
+  double max_predict_time_cap_s = 3.0;
+  // Stage-3 values must be supplied by return_physics.yaml. Missing physical
+  // coefficients never silently select a different racket/flight model.
+  double ball_inertia_coeff = std::numeric_limits<double>::quiet_NaN();
+  double paddle_tangential_gain = std::numeric_limits<double>::quiet_NaN();
+  double paddle_angle_gain = std::numeric_limits<double>::quiet_NaN();
+  double paddle_friction_cap_mu = std::numeric_limits<double>::quiet_NaN();
+  double return_restitution_min = std::numeric_limits<double>::quiet_NaN();
+  double return_restitution_max = std::numeric_limits<double>::quiet_NaN();
+  double return_dt_integrate = std::numeric_limits<double>::quiet_NaN();
+  double return_numeric_epsilon = std::numeric_limits<double>::quiet_NaN();
+  double return_fd_relative_step = std::numeric_limits<double>::quiet_NaN();
+  double return_position_tolerance_m = std::numeric_limits<double>::quiet_NaN();
+  double return_time_tolerance_s = std::numeric_limits<double>::quiet_NaN();
+  double return_max_step_mps = std::numeric_limits<double>::quiet_NaN();
+  double return_net_clearance_margin = std::numeric_limits<double>::quiet_NaN();
+  int return_newton_iterations = 0;
+  int return_line_search_iterations = 0;
+  int return_seed_iterations = 0;
+  std::vector<double> return_alternative_flight_times;
+};
+
+struct EstimatorConfig {
+  // When enabled, use observed per-segment orientation in the same physical
+  // model as Stage 2. Missing orientation falls back to zero spin.
+  bool spin_enabled = false;
+  double spin_min_coherence = 0.4;
+  double window_s = 0.18;
+  // Zero preserves legacy behavior. Otherwise fit only the latest continuous
+  // exposure segment; never bridge a mocap outage with stale history.
+  double max_sample_gap_s = 0.0;
+  bool single_flight_only = false;
+  double min_span_s = 0.08;
+  std::size_t min_samples = 12;
+  double huber_delta_m = 0.003;
+  // Optional audit-tuned temporal weighting. Zero keeps uniform window
+  // weights; a positive value is the half-life for older raw samples.
+  double recency_half_life_s = 0.0;
+  int robust_iterations = 3;
+  double integration_dt_s = 0.001;
+  double bounce_center_z_max_m = 0.20;
+  // Causal contact reversal evidence and physical re-arm interval. These
+  // select the piecewise estimator model; they are not command gates.
+  double bounce_min_reversal_m = 0.00005;
+  double bounce_min_excursion_m = 0.001;
+  std::size_t bounce_confirmation_samples = 5;
+  double bounce_confirmation_max_span_s = 0.05;
+  double bounce_sparse_confirmation_min_span_s = 0.012;
+  double bounce_sparse_confirmation_excursion_m = 0.005;
+  double bounce_refractory_s = 0.12;
+  // Opt-in: after a measured contact, fit the new free-flight segment on its
+  // own instead of imposing the nominal table impulse on both segments.
+  // Zero retains the historical piecewise fit. Exposure time is unchanged.
+  double post_bounce_min_span_s = 0.0;
+  double post_bounce_exclusion_s = 0.008;
+};
+
+struct SpinEstimatorConfig {
+  double window_s = 0.10;
+  double min_span_s = 0.05;
+  double max_gap_s = 0.05;
+  double max_rev_s = 20.0;
+  double huber_delta_rev_s = 2.0;
+  std::size_t min_increments = 3;
+  int robust_iterations = 5;
+};
+
+struct BallSample {
+  // Exact producer timestamp for transport/audit. source_time_s remains the
+  // numerical integration coordinate, but must never be converted back to an
+  // epoch timestamp when this integer is available.
+  std::int64_t source_time_ns = 0;
+  double source_time_s = 0.0;
+  Vec3 position = Vec3::Zero();
+  // Motive/ROS orientation of the tracked ball, normalized in the callback.
+  // Invalid or absent orientation keeps the zero-spin position fit available.
+  Eigen::Quaterniond orientation = Eigen::Quaterniond::Identity();
+  bool orientation_valid = false;
+  std::int64_t receipt_steady_ns = 0;
+  std::int64_t receipt_wall_ns = 0;
+  std::uint64_t sequence = 0;
+};
+
+struct SpinEstimate {
+  Vec3 omega_rad_s = Vec3::Zero();
+  double sample_span_s = 0.0;
+  double retained_time_fraction = 0.0;
+  double coherence = 0.0;
+  std::size_t retained_increments = 0;
+  std::size_t rejected_increments = 0;
+  bool valid = false;
+  std::string reason = "spin_not_ready";
+};
+
+enum class SpinPhysicsMode {
+  kLegacyNoSpin,
+  kNakashimaBounce,
+  kNakashimaBounceAndMagnus,
+  kVenueGripBounce,
+  kVenueGripBounceAndMagnus,
+};
+
+struct BallState {
+  Vec3 position = Vec3::Zero();
+  Vec3 velocity = Vec3::Zero();
+  double source_time_s = 0.0;
+  bool spin_model_enabled = false;
+  SpinEstimate physics_spin;
+  std::size_t sample_count = 0;
+  double sample_span_s = 0.0;
+  double residual_rms_m = std::numeric_limits<double>::quiet_NaN();
+  double residual_max_m = std::numeric_limits<double>::quiet_NaN();
+  // Bounce-transition fields are estimator audit only. They are not packed
+  // into schema-2 and never participate in command admission.
+  bool bounce_transition_used = false;
+  bool bounce_epoch_active = false;
+  double bounce_source_time_s = std::numeric_limits<double>::quiet_NaN();
+  std::size_t pre_bounce_samples = 0;
+  std::size_t post_bounce_samples = 0;
+  bool valid = false;
+  std::string reason = "estimator_not_ready";
+};
+
+struct StrikeTarget {
+  Vec3 ball_position = Vec3::Zero();
+  Vec3 ball_velocity = Vec3::Zero();
+  Vec3 ball_spin_rad_s = Vec3::Zero();
+  double strike_source_time_s = 0.0;
+  int predicted_bounces = 0;
+  bool valid = false;
+  std::string reason = "not_run";
+};
+
+struct RacketCommand {
+  Vec3 position = Vec3::Zero();
+  Vec3 velocity = Vec3::Zero();
+  Vec3 normal{1.0, 0.0, 0.0};
+  Vec3 outgoing_ball_velocity = Vec3::Zero();
+  Vec3 outgoing_ball_spin_rad_s = Vec3::Zero();
+  Vec3 predicted_landing = Vec3::Zero();
+  double return_flight_time_s = 0.0;
+  Vec3 target_land = Vec3::Zero();
+  double strike_source_time_s = 0.0;
+  int predicted_bounces = 0;
+  bool clears_net = false;
+  bool bypasses_net_posts = false;
+  bool valid = false;
+  std::string reason = "not_run";
+};
+
+// Transport provenance attached to a Laptop-produced immutable flight. These
+// fields are audit/identity only; none participates in target admission.
+struct FlightPacketMetadata {
+  bool present = false;
+  std::string session_id;
+  std::string producer_instance_id;
+  std::string payload_hash;
+  std::string frame_id = "world";
+  std::uint64_t trajectory_epoch = 0;
+  std::uint64_t flight_sequence = 0;
+  std::int64_t freeze_wall_unix_ns = 0;
+  std::int64_t publish_wall_unix_ns = 0;
+  std::int64_t receipt_wall_unix_ns = 0;
+  std::int64_t receipt_steady_ns = 0;
+  std::uint8_t transmit_index = 0;
+  std::uint8_t transmit_count = 0;
+};
+
+// Simulator-only audit for a discrete question-bank fixture.  The physical
+// Stage-2 prediction is retained independently; an exact bank command may be
+// emitted only when this residual ledger passes.
+struct QuestionFixtureAudit {
+  bool active = false;
+  bool physical_match = false;
+  std::string contract = "disabled";
+  std::string bank_sha256 = "disabled";
+  std::string receipt_sha256 = "disabled";
+  std::int64_t bank_row_id = -1;
+  StrikeTarget physical_strike;
+  double physical_tts_s = std::numeric_limits<double>::quiet_NaN();
+  double position_error_max_m = std::numeric_limits<double>::quiet_NaN();
+  double velocity_error_max_mps = std::numeric_limits<double>::quiet_NaN();
+  double tts_error_s = std::numeric_limits<double>::quiet_NaN();
+  double fixture_tts_s = std::numeric_limits<double>::quiet_NaN();
+};
+
+struct SolveAudit {
+  double estimator_ms = 0.0;
+  double stage2_ms = 0.0;
+  double stage3_ms = 0.0;
+  double total_ms = 0.0;
+  std::size_t input_samples_consumed = 0;
+  std::size_t input_samples_coalesced = 0;
+  std::uint64_t trajectory_epoch = 0;
+  std::uint64_t snapshot_sequence = 0;
+  double segment_start_source_time_s =
+      std::numeric_limits<double>::quiet_NaN();
+  double previous_segment_last_source_time_s =
+      std::numeric_limits<double>::quiet_NaN();
+  std::string segment_boundary_reason = "none";
+  FlightPacketMetadata flight_packet;
+  QuestionFixtureAudit question_fixture;
+  std::string reason = "not_run";
+};
+
+struct SpinShadowAudit {
+  SpinEstimate spin;
+  StrikeTarget strike;
+  std::string mode = "disabled";
+  bool enabled = false;
+};
+
+}  // namespace hope_planner_cpp

@@ -1,0 +1,9 @@
+{
+  "real_requests": 49,
+  "real_requests_feasible": 48,
+  "total": 54,
+  "min_speed": 1.345222397172708,
+  "max_speed": 1.8078198691752654,
+  "policy_outcome_used": false,
+  "scope": "Frozen synthetic physical flights for native policy/Planner/MuJoCo core evaluation; excludes DDS, HAL, managed lifecycle and hardware qualification."
+}

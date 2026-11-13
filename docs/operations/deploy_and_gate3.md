@@ -6,6 +6,13 @@ public `main` layout and package builder. New-robot baseline acceptance is descr
 inspect locally; simulation and hardware operations are identified separately.
 The native deployment project in this checkout is `a3_deploy/a3_deploy_example/`.
 
+For offline comparisons on the frozen 1,200-launch main suite and 54-launch
+slow-tail suite, use [Supergate](../../a3_deploy/a3_deploy_example/scripts/supergate/README.md).
+It builds the current native policy and ball physics with a pinned offline
+Supergate Planner dependency and accepts explicit
+model packages and geometry. This core evaluation does not replace the full
+Runner/DDS/hardware gates below.
+
 ## 0. 怎样才算成功
 
 本文前半部分保留构建和部署命令，后半部分是现场操作顺序。

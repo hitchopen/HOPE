@@ -1,0 +1,74 @@
+# PPQ004 2026-10-20: unified fit; speed adaptation not established.
+# Ball physics: restored PPQ002 at operator request, 2026-10-16; body timing audit retained.
+# Both nodes use the same Magnus and capped slip/contact model.
+hope_ball_flight_packetizer:
+  ros__parameters:
+    spin_window_s: 0.18
+    future_contact_magnus_enabled: true
+    table_friction_cap_mu: 0.218520906499864
+    magnus_k: 0.00399279130564425
+    future_contact_spin_enabled: true
+    future_contact_spin_tangential_gain: 0.41642144985036184
+    future_contact_spin_omega_scale: 1.0
+    future_contact_spin_min_coherence: 0.4
+    # Field policy: uncertain spin uses the physical prior without delaying a shot.
+    future_contact_require_spin: false
+    input_pose_topic: "/poses/planner_full"
+    # The C++ classifier owns both A3-bound ball channels. Acquisition relays
+    # retain diagnostic output on /poses/operator_raw after P1/P2 conversion.
+    gated_pose_topic: "/poses"
+    play_state_input_timeout_s: 0.100
+    # Measured 3D near-stationary exception for RALLY/OPPONENT_RALLY only.
+    # Full 40 ms observation window, then 100 ms continuously below 0.10 m/s.
+    play_state_rally_min_speed_mps: 0.10
+    play_state_rally_slow_confirm_s: 0.100
+    play_state_direction_speed_mps: 0.25
+    play_state_direction_confirm_s: 0.020
+    play_state_launch_span_s: 0.060
+    play_state_held_span_s: 0.180
+    play_state_contact_height_m: 0.045
+    flight_packet_topic: "/ball/flight_packet"
+    ball_pose_index: 0
+    input_qos_depth: 64
+
+    # Full-rate 300 Hz exposures: about 54 samples in the latest 180 ms.
+    flight_window_s: 0.18
+    batch_max_sample_gap_s: 0.02
+    batch_single_flight_only: true
+    batch_estimator_min_span_s: 0.08
+    batch_estimator_min_samples: 24
+    batch_post_bounce_min_span_s: 0.08
+    batch_post_bounce_exclusion_s: 0.008
+    net_x: 1.37
+    # Used only when adaptive_commit_enabled is false.
+    post_net_commit_delay_s: 0.05
+    incoming_opponent_side_margin_m: 0.05
+    incoming_speed_threshold_mps: 0.25
+    outgoing_speed_threshold_mps: 0.25
+    incoming_direction_fit_samples: 8
+    incoming_direction_confirmations: 2
+    incoming_pre_roll_samples: 48
+    incoming_source_gap_reset_s: 0.25
+
+    retransmit_delays_ms: [0, 5, 15]
+    session_id: ""
+    producer_instance_id: ""
+    debug_csv_path: ""
+
+    adaptive_commit_enabled: true
+    adaptive_policy_lead_s: 0.35
+    adaptive_transport_budget_s: 0.03
+    # Separate transport, HDU solve and one 50 Hz policy tick.
+    adaptive_solve_budget_s: 0.005
+    adaptive_policy_tick_s: 0.02
+    adaptive_max_sample_age_s: 0.05
+    adaptive_evaluation_period_s: 0.01
+    adaptive_scheduling_x_hit: 0.15
+    adaptive_hit_plane_topic: "/hope/planner/hit_plane"
+
+    drag_k: 0.12453915600992894
+    restitution_h: 0.5835785501496382
+    restitution_v: 0.9373319241133231
+    table_tangential_gain: 0.41642144985036184
+    post_net_future_bounce_tangential_gain: 0.41642144985036184
+    post_net_future_bounce_restitution_v: 0.9373319241133231

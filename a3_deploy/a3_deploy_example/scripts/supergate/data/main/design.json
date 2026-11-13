@@ -1,0 +1,124 @@
+{
+  "version": "super-gate3-v1",
+  "seed": 2026110801,
+  "policy_outcome_used_to_select": false,
+  "core_count": 972,
+  "origin_boundary_count": 228,
+  "total_unique": 1200,
+  "base_cells": 81,
+  "core_samples_per_cell": 12,
+  "shards": 6,
+  "samples_per_shard": 200,
+  "core_samples_per_cell_per_shard": 2,
+  "axis_definitions": {
+    "lateral_y_relative_home_m": [
+      [
+        -0.68,
+        -0.32
+      ],
+      [
+        -0.32,
+        -0.15
+      ],
+      [
+        -0.15,
+        0.28
+      ]
+    ],
+    "world_height_m": [
+      [
+        0.8,
+        1
+      ],
+      [
+        1,
+        1.2
+      ],
+      [
+        1.2,
+        1.45
+      ]
+    ],
+    "incoming_speed_norm_mps": [
+      [
+        0,
+        2.5
+      ],
+      [
+        2.5,
+        4
+      ],
+      [
+        4,
+        null
+      ]
+    ],
+    "horizontal_incoming_angle_deg": [
+      [
+        -90,
+        -5
+      ],
+      [
+        -5,
+        5
+      ],
+      [
+        5,
+        90
+      ]
+    ],
+    "angle_formula": "degrees(atan2(v_y, -v_x))",
+    "nominal_contact_plane_world_x_m": 0.07,
+    "nominal_home_xy_m": [
+      -0.5,
+      -0.7625
+    ],
+    "table_height_m": 0.76,
+    "outgoing_aim_table_xy_m": [
+      2.055,
+      -0.7625
+    ]
+  },
+  "candidate_attempts": 1692,
+  "range": {
+    "origin_x": [
+      2.0,
+      2.7981403307867088
+    ],
+    "origin_y": [
+      -1.9431917582186002,
+      0.30466007492633246
+    ],
+    "target_relative_y": [
+      -0.6378362766340537,
+      0.25979084007896286
+    ],
+    "predicted_contact_speed": [
+      1.8014331306667368,
+      5.09796797442095
+    ],
+    "predicted_contact_world_height": [
+      0.8178457521415893,
+      1.4290092268974723
+    ],
+    "predicted_angle_deg": [
+      -41.74390446075422,
+      29.72085140546774
+    ]
+  },
+  "ascending_count": 797,
+  "descending_count": 403,
+  "geometry": {
+    "mass_old": 58.28787231,
+    "mass_0807": 57.630610154159996,
+    "stand_site_delta_mm": [
+      0.1539870112112346,
+      0.0593449132740842,
+      0.4745619109091104
+    ],
+    "joint_order_equal": true,
+    "xml_sha256": "7ec4a67d95f3857d526276342b368990044cbe58e6f51a22de70b2076f6073c1",
+    "training_urdf_sha256": "e0d65122a03e0b390b81418756a2291246d1a859f3f2ed903a6907878773a49f"
+  },
+  "scope": "Frozen synthetic physical flights for native policy/Planner/MuJoCo core evaluation; excludes DDS, HAL, managed lifecycle and hardware qualification."
+}

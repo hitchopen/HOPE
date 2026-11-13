@@ -1,0 +1,29 @@
+{
+  "origin": "Supergate diagnostic v2 offline Planner source snapshot, 2026-11-08",
+  "scope": "Standalone offline dependency; does not replace runtime Planner sources",
+  "sha256": {
+    "src/batch_physics_estimator.cpp": "87cdb5397a3c9c85d67a2d56ad655b65aa6fea5aa43a86cbf0eece6e9a471242",
+    "src/spin_estimator.cpp": "e509199f38da7a4cc0a280e502ef074e307c38998e9e2cc848fba31a3f93a3c2",
+    "src/trajectory_predictor.cpp": "955c0673ec404d9cd8ed2df65a2cb77e8fb46ce4614e4cd3b07978991382bc5b",
+    "src/racket_target_planner.cpp": "c1d845fea592327eabada5b583bbf9eb7c00c26b37a031c993dbab4e859a5d1e",
+    "src/incoming_trajectory.cpp": "ad3267ec92de77cd7bfe946f4e2bebe56aed2cdd42eff61e4f2976655f28a29a",
+    "src/adaptive_flight_commit.cpp": "ba654332e01fbf2fa101a1168e9606b35deda4b685ff18ef7cd59be552b4e4a7",
+    "src/post_net_one_shot.cpp": "5576b5fb342afb7b7a45f9c4caf780b56569cade2c77094fcb8dceb939c08ec0",
+    "src/schema2_packer.cpp": "0bfe36469e0551f6a08e8ee692a063c5bfa28dd5f1d048cc74fc40cb3ebb2c16",
+    "include/hope_planner_cpp/incoming_trajectory.hpp": "33eb93a74403f30073a8ea2d7fcc5b46ea366deeadadbbf777004057df9dbcd4",
+    "include/hope_planner_cpp/batch_physics_estimator.hpp": "79fbdb844e1a0d0d3c61a188af42565c6bf4816c133371681efb3164a5a78b01",
+    "include/hope_planner_cpp/spin_estimator.hpp": "266159974d242e27714eec31d7094eb1067047919f4fc1d924d6d7ac1f0f57b9",
+    "include/hope_planner_cpp/future_contact_predictor.hpp": "df1ac5e7a178497a2f08f42d84555a0f82f52781bc51e3398ee607493f008d84",
+    "include/hope_planner_cpp/racket_target_planner.hpp": "84d798e03833a34be70ab9d279d99cc815cd37fa6cdaf529e20f7ca26837ce8d",
+    "include/hope_planner_cpp/return_physics_yaml.hpp": "76a26ebfa080467cd2d6dafaeb7ae6c2aeb7b7d4bd4bf527d93f709c2fb34db4",
+    "include/hope_planner_cpp/schema2_packer.hpp": "013a9f74e6b6143b7980df5407edcaa1eea7133444bf001e64a438ca3618eaa8",
+    "include/hope_planner_cpp/swing_side_support.hpp": "3ac8b67be565decba32b9550b5334b48d067540efe7daed6a65be17bbb145e11",
+    "include/hope_planner_cpp/types.hpp": "a858cc817ebb5b6f9ac9fb6f3c3cc5d995e92e03e6639187b6fbbebdf9c9370b",
+    "include/hope_planner_cpp/return_physics_parameters.hpp": "cf10e2d5fdddaa7992d5356357ee038895ced7c238b8cea89b0f6ead4528029d",
+    "include/hope_planner_cpp/trajectory_predictor.hpp": "80e99e7b9a9afbe007362a55e95846e22b38f57f1653ce626cf435a065dd3b16",
+    "include/hope_planner_cpp/post_net_one_shot.hpp": "896a56453828fed9ba74d845131a793110272d6f8ac1f7266c43d483855c5476",
+    "include/hope_planner_cpp/adaptive_commit_config.hpp": "b2ac634d56ba85f1c5136100d6aec5156890e9f60758a91cac9a19ff7ff239ad",
+    "include/hope_planner_cpp/adaptive_flight_commit.hpp": "75381f42f4a48b514be7ae7863369572504cec66e453829e6d27af0cd70f3946",
+    "include/hope_planner_cpp/ball_dynamics.hpp": "e7c2c0a9a8ba70b474d3d2a26e0e5c5a593f95b6a5771f9a3a37f8586f6a86be"
+  }
+}
