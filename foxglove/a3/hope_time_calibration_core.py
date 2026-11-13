@@ -22,6 +22,72 @@ from hope_lifecycle_core import LifecycleConfig
 from hope_monitor_core import NtpProbeResult, probe_ntp
 
 
+def read_calibration_network():
+    """Include link state: a down/up cycle can invalidate DDS with the same IP."""
+    try:
+        result = subprocess.run(
+            ["ip", "-j", "-4", "address", "show"], capture_output=True,
+            text=True, timeout=0.3, check=True,
+        )
+        return tuple(sorted(
+            (item["ifindex"], item["ifname"], "UP" in item.get("flags", [])
+             and "LOWER_UP" in item.get("flags", []), address["local"])
+            for item in json.loads(result.stdout) if item["ifname"] != "lo"
+            for address in item.get("addr_info", [])
+            if address.get("family") == "inet" and address.get("scope") == "global"
+        ))
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
+        return None
+
+
+def calibration_address_ready(signature, address):
+    return signature is not None and any(up and ip == address for _, _, up, ip in signature)
+
+
+def wait_for_calibration_network(address, *, timeout_s=30.0, read=None,
+                                 clock=None, sleep=None):
+    """Wait for the saved local IP before DDS snapshots available interfaces.
+
+    Bound the wait so local diagnostics and interrupted-operation recovery stay
+    available even when the venue network is absent. The watcher handles a
+    later address arrival. No remote reachability or clock operation is needed.
+    """
+    read = read or read_calibration_network
+    clock, sleep = clock or time.monotonic, sleep or time.sleep
+    deadline = clock() + timeout_s
+    while True:
+        signature = read()
+        if not address or calibration_address_ready(signature, address) or clock() >= deadline:
+            return signature
+        sleep(0.5)
+
+
+class CalibrationNetworkWatch:
+    def __init__(self, baseline):
+        self.observed = baseline
+        self.dirty = False
+        self.changed_at = 0.0
+
+    def needs_reconnect(self, current, now):
+        if current is None:
+            return False  # Failed probes never become evidence of a change.
+        if current != self.observed:
+            self.observed, self.changed_at, self.dirty = current, now, True
+        # Latch changes even if an interface returns with its original address.
+        return self.dirty and now - self.changed_at >= 3.0 and any(row[2] for row in current)
+
+
+def calibration_owner_stopped(path, boot_id, now):
+    """Local owner evidence remains usable when this node's DDS is stranded."""
+    try:
+        owner = json.loads(Path(path).read_text())
+        age = now - float(owner["monotonic_s"])
+        return (owner["boot_id"] == boot_id and owner["state"] == "STOPPED"
+                and owner["busy"] is False and 0.0 <= age <= 1.5)
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
 STATUS_SCHEMA_VERSION = 1
 OPERATION_PATTERN = re.compile(r"timecal_[0-9]{8}T[0-9]{6}Z")
 SAFE_ACCOUNT_PATTERN = re.compile(r"[a-z_][a-z0-9_-]{0,31}")

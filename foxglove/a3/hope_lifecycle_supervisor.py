@@ -28,6 +28,7 @@ from rclpy.qos import qos_profile_sensor_data
 from std_msgs.msg import Bool, Float64MultiArray, String, UInt32
 from std_srvs.srv import Trigger
 
+from hope_config_runtime import owner_status, read_status, require_applied
 from hope_field_operations import FieldOperations
 from hope_distributed_recording import DistributedRecorder
 from hope_elink_health import ElinkHealthLatch, ProbeError, run_passive_probe
@@ -36,6 +37,7 @@ from hope_elink_clock import ClockQualificationGuard
 from hope_elink_telemetry import ElinkTelemetryTracker, load_telemetry_contract
 from hope_elink_telemetry_ros import ElinkTelemetrySubscriptions
 from hope_player_positions import PlayerPositions
+from hope_mocap_recovery import MocapRecoveryMixin
 from hope_operations_recovery import SessionReceipt
 
 from hope_lifecycle_core import (
@@ -210,11 +212,12 @@ class LifecycleBackend:
             # echoes use this START's fingerprint; never learn it from DDS.
             ("MOCAP", self._ssh(laptop, laptop_helper, "reconnect-laptop", *common,
                                config.mocap_source, config.vrpn_ip or "NONE",
-                               config.vrpn_port, config.vrpn_units, config.pants_profile), 25.0),
+                               config.vrpn_port, config.vrpn_units, config.pants_profile,
+                               config.vrpn_pelvis_asset_confirmed, config.vrpn_world_frame_confirmed), 25.0),
             ("SESSION", [LIFECYCLE_HELPER, "prepare-hdu", *common], 15.0),
             ("SESSION", self._ssh(mdu, LIFECYCLE_HELPER, "prepare-mdu", *common), 15.0),
-            # START has verified raw end occupancy. The receiver above is now
-            # bound to the same session as the Runner heartbeat.
+            # The receiver above is bound to the same session as the Runner
+            # heartbeat; live player visibility is not required for PASSIVE.
             # Keep placement telemetry independent of slow/failed Runner bring-up.
             ("BASE_RELAY", [LIFECYCLE_HELPER, "start-base", *common], 20.0),
             ("PLANNER", [LIFECYCLE_HELPER, "start-planner", *common], 20.0),
@@ -318,7 +321,8 @@ class LifecycleBackend:
         common = [session_id, config.laptop_wifi_ip, config.hdu_wifi_ip,
                   config.mdu_internal_ip, config.motive_ip or "NONE", config.table_side,
                   "OPTITRACK", "DEFAULT", config.gripper_profile, config.mocap_source,
-                  config.vrpn_ip or "NONE", config.vrpn_port, config.vrpn_units, config.pants_profile]
+                  config.vrpn_ip or "NONE", config.vrpn_port, config.vrpn_units, config.pants_profile,
+                  config.vrpn_pelvis_asset_confirmed, config.vrpn_world_frame_confirmed]
         self._invoke(self._ssh(target, helper, "reconnect-laptop", *common),
                      timeout_s=25.0, event_callback=lambda _event: None)
 
@@ -362,7 +366,7 @@ class LifecycleBackend:
         return json.loads(result.stdout)
 
 
-class LifecycleModule(RosComponent):
+class LifecycleModule(MocapRecoveryMixin, RosComponent):
     def __init__(self, node, *, shared_state=None):
         RosComponent.__init__(self, node)
         self._shared_state = shared_state
@@ -451,6 +455,7 @@ class LifecycleModule(RosComponent):
             "result": self.create_publisher(String, "/hope/lifecycle/last_result", 10),
             "busy": self.create_publisher(Bool, "/hope/lifecycle/busy", 10),
             "revision": self.create_publisher(UInt32, "/hope/lifecycle/config/revision", 10),
+            "config_status": self.create_publisher(String, "/hope/lifecycle/config/status", 10),
         }
         self._config_publishers = {
             name: self.create_publisher(
@@ -512,6 +517,7 @@ class LifecycleModule(RosComponent):
         self._publish_timer = self.create_timer(0.5, self._publish)
         self._refresh_timer = self.create_timer(15.0, self._refresh_ball_models)
         self._elink_timer = self.create_timer(1.0, self._observe_elink)
+        self._init_mocap_recovery()
         self._recovery_receipt = None
         self._session_receipt = SessionReceipt(CONFIG_PATH.parent / "operations_session.json", self._elink_clock_boot_id)
         try:
@@ -545,6 +551,12 @@ class LifecycleModule(RosComponent):
             draining = self._stopping
             self._elink_sequence += 1
             elink = self._elink_status_locked(time.monotonic())
+        try:
+            owner_status(config, state, busy or self._field_busy or draining)
+        except OSError as exc:
+            self.get_logger().warning(f"Configuration owner heartbeat unavailable: {exc}")
+        self._lifecycle_publishers["config_status"].publish(
+            self._string(json.dumps(read_status(config), sort_keys=True)))
         self._elink_publisher.publish(self._string(json.dumps(elink, sort_keys=True)))
         field_status = dict(self._field_snapshot.poll())
         if self._field_snapshot.error:
@@ -556,6 +568,7 @@ class LifecycleModule(RosComponent):
         # sections. The Python cache still shares its lock with pose updates.
         with (nullcontext() if getattr(self._player_positions, "status_threadsafe", False) is True else self._lock):
             field_status["player_positions"] = self._player_positions.status(time.monotonic())
+        field_status["mocap_recovery"] = self._mocap_recovery_status()
         field_status["elink_observation"] = elink
         field_status["ball_model_verification"] = (getattr(self._backend, "ball_model_verification", None)
                                                      if state == "RUNNING" else None)
@@ -763,6 +776,12 @@ class LifecycleModule(RosComponent):
             if len(raw.encode()) > 9 * 1024 * 1024:
                 raise ValueError("field request exceeds 9 MiB")
             payload = json.loads(raw)
+            if payload.get("op") == "reconnect_mocap":
+                if set(payload) != {"op"}:
+                    raise ValueError("reconnect_mocap accepts no configuration overrides")
+                result = self._request_mocap_reconnect(automatic=False)
+                response.results = [SetParametersResult(successful=True, reason=json.dumps(result))]
+                return response
             if payload.get("op") in {"record_on", "record_off"}:
                 # OFF must never wait behind a laptop SSH refresh or CSV upload.
                 with self._lock:
@@ -830,7 +849,8 @@ class LifecycleModule(RosComponent):
                 claimed = True
                 reconnect = any(getattr(current, name) != getattr(updated, name) for name in (
                     "operator_profile", "laptop_wifi_ip", "motive_ip", "vrpn_ip", "mocap_source", "vrpn_port",
-                    "vrpn_units", "pants_profile", "table_side")) or "MOCAP_FAILED" in self._last_result
+                    "vrpn_units", "pants_profile", "table_side",
+                    "vrpn_pelvis_asset_confirmed", "vrpn_world_frame_confirmed")) or "MOCAP_FAILED" in self._last_result or not read_status(current)["applied"]
             save_config_atomic(CONFIG_PATH, updated)
             saved = True
             with self._lock:
@@ -840,8 +860,8 @@ class LifecycleModule(RosComponent):
             if reconnect:
                 self._field_pool.submit(self._backend.reconnect_mocap, updated).result()
             with self._lock:
-                self._last_result = f"CONFIG_CONFIRMED_REVISION_{updated.revision}"
-            reason = "Saved configuration; mocap receiver reconnected, check fresh pose data" if reconnect else "Saved configuration"
+                self._last_result = f"CONFIG_SAVED_PENDING_RUNTIME_REVISION_{updated.revision}"
+            reason = "Configuration saved; awaiting runtime readback on /hope/lifecycle/config/status"
             response.results = [SetParametersResult(successful=True, reason=reason) for _ in request.parameters]
         except (OSError, ValueError, LifecycleFailure, subprocess.SubprocessError) as exc:
             reason = f"Configuration saved; mocap connection failed: {exc}" if saved else str(exc)
@@ -938,6 +958,12 @@ class LifecycleModule(RosComponent):
                     "confirm the three Runner IPv4 fields and table side before starting"
                 )
                 return response
+            try:
+                require_applied(self._config)
+            except ValueError as exc:
+                response.success = False
+                response.message = str(exc)
+                return response
             previous_state = self._state
             previous_session = self._session_id
             previous_mode = self._session_mode
@@ -960,6 +986,14 @@ class LifecycleModule(RosComponent):
                 response.message = (
                     "another lifecycle or time-calibration operation owns the interlock"
                 )
+                return response
+            try:
+                require_applied(self._config)
+            except ValueError as exc:
+                if self._hardware_operation_lock is None:
+                    release_hardware_operation_lock(operation_lock)
+                response.success = False
+                response.message = str(exc)
                 return response
             config = self._config
             session_id = datetime.now(timezone.utc).strftime("model21800_%Y%m%dT%H%M%SZ")
@@ -1023,11 +1057,9 @@ class LifecycleModule(RosComponent):
                 self._session_id = session_id
                 self._step = "PREFLIGHT"
                 self._elink_audit = {}
-            # Check only during START; moving players during a rally cannot
-            # change the session's side. Recovery cleanup above stays available.
-            if self._field.status().get("mode") != "KERNEL":
-                with (nullcontext() if getattr(self._player_positions, "status_threadsafe", False) is True else self._lock):
-                    self._player_positions.require(config.table_side, time.monotonic())
+            # START establishes a PASSIVE session using the saved table side.
+            # Live player visibility is diagnostic, not a startup prerequisite;
+            # Runner motion admission and localization checks remain authoritative.
             mode, csv_sha = self._field.runner_selection(config)
             self._session_mode = mode
             self._backend.start(config, session_id, self._on_event, mode, csv_sha,
@@ -1243,6 +1275,8 @@ class LifecycleModule(RosComponent):
         self._field_snapshot.stop_refreshing()
         self._refresh_timer.cancel()
         self._elink_timer.cancel()
+        if hasattr(self, "_mocap_recovery_timer"):
+            self._mocap_recovery_timer.cancel()
 
     def close(self) -> None:
         with self._lock:

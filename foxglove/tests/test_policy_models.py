@@ -359,6 +359,21 @@ class PolicyModelsTest(unittest.TestCase):
   self.select('model13800astra')
   with self.assertRaisesRegex(ValueError,'OptiTrack'):self.field.command({'op':'set_mode','mode':'KERNEL'},self.config,stopped=True)
 
+ def test_14200_variants_pair_reject_wrong_csv_and_restore_13800(self):
+  self.install_13800();self.select('model13800');original=self.field.status()['csv'].copy()
+  for name,csv_name in [('model14200','v23-14200.csv'),('model14200fusion','v23-14200-fusion.csv'),('model14200best','v23-14200-best.csv'),('model15200body','v23-15200-body.csv')]:
+   with self.subTest(model=name):
+    for root in self.roots.values():
+     path=root/'catalog.json';cat=json.loads(path.read_text());f=root/(name+'.onnx');f.write_bytes(name.encode());csv=root/csv_name;csv.write_bytes(('matched-'+name).encode());digest=hashlib.sha256(f.read_bytes()).hexdigest();csv_digest=hashlib.sha256(csv.read_bytes()).hexdigest()
+     cat['models'][name]={'files':{str(f):digest,str(csv):csv_digest},'policy_sha256':digest,'deploy_sha256':digest,'required_ball_model':'ppq004','receive_only':False,'serve_csv':{'name':csv_name,'sha256':csv_digest}}
+     path.write_text(json.dumps(cat))
+    with self.assertRaisesRegex(ValueError,'stop'):self.select(name,False)
+    self.select(name);self.assertEqual(self.field.status()['csv']['name'],csv_name)
+    self.assertEqual(self.field.runner_selection(self.config),('OPTITRACK',self.field.status()['csv']['sha256']))
+    self.select('model13800');self.assertEqual(self.field.status()['csv'],original)
+    path=self.roots['mdu']/'catalog.json';cat=json.loads(path.read_text());cat['models'][name]['serve_csv']['name']='v23-13800.csv';path.write_text(json.dumps(cat))
+    with self.assertRaisesRegex(ValueError,'matched'):self.select(name)
+    for root in self.roots.values():self.assertEqual(handle(root,{'op':'read_policy_model'})['model'],'model13800')
 
 class InventorySchedulingTest(unittest.TestCase):
  def test_hash_inventory_only_while_stopped_but_keep_ball_checks(self):

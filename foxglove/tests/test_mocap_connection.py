@@ -124,6 +124,7 @@ systemctl() {
         'HOPE_ROOT': str(tmp_path), 'HOPE_LAPTOP_RUNTIME': 'direct',
         'LAPTOP_USER': 'test', 'LAPTOP_SHARE': str(tmp_path),
         'SESSION_ID': 'new-session', 'HDU_WIFI_IP': '192.168.8.196',
+        'LAPTOP_WIFI_IP': '192.168.8.150', 'MDU_INTERNAL_IP': '10.42.10.12',
         'MOCAP_SOURCE': 'vrpn', 'MOTIVE_IP': '192.168.100.99',
         'VRPN_IP': '192.168.100.99', 'VRPN_PORT': '3883',
         'VRPN_UNITS': 'mm', 'PANTS_PROFILE': 'v4', 'TABLE_SIDE': 'P2'})
@@ -132,5 +133,5 @@ systemctl() {
     assert not list(tmp_path.glob('runtime.env.tmp.*'))
     assert log.read_text().splitlines() == [
         'display|--user try-restart --no-block hope-host-bridge.service '
-        'hope-live-scene.service|192.168.8.196|new-session', 'mocap']
+        'hope-live-scene.service hope-xbox-input.service|192.168.8.196|new-session', 'mocap']
     assert ('optional Host display refresh unavailable' in result.stderr) == bool(display_result)

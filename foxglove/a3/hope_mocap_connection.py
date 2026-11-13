@@ -7,7 +7,7 @@ import sys
 def read_receipt(path: Path) -> dict[str, str]:
     result = {}
     for line in path.read_text().splitlines():
-        if "=" not in line:
+        if "=" not in line or line.lstrip().startswith("#"):
             continue
         key, raw = line.split("=", 1)
         values = shlex.split(raw)
@@ -29,7 +29,11 @@ def retained_confirmations(path: Path, values: list[str]) -> str:
         receipt = read_receipt(path)
     except (OSError, ValueError):
         return "false false"
-    if len(values) != len(keys) or any(receipt.get("HOPE_LIFECYCLE_" + key) != value for key, value in zip(keys, values)):
+    # NONE is only the legacy shell argument encoding for an empty optional IP.
+    def canonical(key, value):
+        return "" if key in {"MOTIVE_IP", "VRPN_IP"} and value == "NONE" else value
+    if len(values) != len(keys) or any(canonical(key, receipt.get("HOPE_LIFECYCLE_" + key)) != canonical(key, value)
+                                      for key, value in zip(keys, values)):
         return "false false"
     return " ".join("true" if receipt.get(key) == "true" else "false" for key in
                     ["HOPE_VRPN_PELVIS_ASSET_CONFIRMED", "HOPE_VRPN_WORLD_FRAME_CONFIRMED"])

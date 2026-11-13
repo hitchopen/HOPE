@@ -72,7 +72,7 @@ emit() { :; }
     code = "set -eu\n" + parser + starter + stubs + '\nparse_common "$@"; start_laptop'
     result = subprocess.run(["bash", "-c", code, "test", *common], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
-    assert result.stdout.splitlines()[-5:] == common[-5:]
+    assert result.stdout.splitlines()[-7:] == common[-5:] + ["false", "false"]
     result = subprocess.run(["bash", "-c", code, "test", *common], capture_output=True,
                             text=True, env={**os.environ, "EXISTING_STACK": "0"})
     assert result.returncode != 0 and "UNMANAGED_BRIDGE_PRESENT" in result.stdout

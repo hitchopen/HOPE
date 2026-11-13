@@ -10,12 +10,30 @@ remain those of build_1.
 
 from __future__ import annotations
 
+import math
 import time
 
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Float64MultiArray
+
+
+def stale_valid_pose(data, now: float) -> bool:
+    """Keep invalid/malformed packets visible to downstream safety validation."""
+    if len(data) < 16 or data[0] != 2.0 or data[1] != 1.0:
+        return False
+    if not all(math.isfinite(v) for v in data[2:16]):
+        return False
+    if any(v < 0 or v > 4503599627370495 or int(v) != v
+           for v in (data[i] for i in (2, 3, 4, 13, 14, 15))):
+        return False
+    if (data[3] == 0 or data[4] >= 1e9 or data[14] == 0 or data[15] == 0
+            or int(data[13]) & 3 != 3 or not 0 < data[12] <= 1):
+        return False
+    if not .5 <= math.hypot(*data[8:12]) <= 1.5:
+        return False
+    return now - (data[3] + data[4] * 1e-9) > .100
 
 
 class HopeBasePoseTransportRelay(Node):
@@ -41,6 +59,7 @@ class HopeBasePoseTransportRelay(Node):
         )
         self._received = 0
         self._published = 0
+        self._stale_dropped = 0
         self._previous_received = 0
         self._started = time.monotonic()
         self._last_receipt = 0.0
@@ -53,6 +72,9 @@ class HopeBasePoseTransportRelay(Node):
     def _relay(self, message: Float64MultiArray) -> None:
         self._received += 1
         self._last_receipt = time.monotonic()
+        if stale_valid_pose(message.data, time.time()):
+            self._stale_dropped += 1
+            return
         self._publisher.publish(message)
         self._published += 1
 
@@ -69,7 +91,8 @@ class HopeBasePoseTransportRelay(Node):
         else:
             self.get_logger().info(
                 f"BASE TRANSPORT input={rate}/s received={self._received} "
-                f"published={self._published} newest_age={age:.3f}s"
+                f"published={self._published} newest_age={age:.3f}s "
+                f"stale_dropped={self._stale_dropped}"
             )
 
 

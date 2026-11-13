@@ -1,0 +1,14 @@
+[Unit]
+Description=HOPE authoritative configuration runtime audit and stopped-only reconciliation
+After=hope-lifecycle-supervisor.service
+Wants=hope-lifecycle-supervisor.service
+[Service]
+Type=simple
+User=root
+Environment=PYTHONPATH=/usr/local/lib/hope-foxglove
+EnvironmentFile=-/etc/hope-foxglove/network.env
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && exec python3 /usr/local/lib/hope-foxglove/hope_config_runtime.py serve'
+Restart=on-failure
+RestartSec=2
+[Install]
+WantedBy=multi-user.target

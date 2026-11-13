@@ -2277,8 +2277,8 @@ int main(int argc, char** argv) {
                                                                       robot_io::RobotCommand& command) mutable -> bool {
     if (mocap_loss_protection) {
       a3_pingpong::PpBaseSample sample;
-      // One second without real pelvis progress. Mailbox age
-      // uses the MDU monotonic clock, independently of wall-clock corrections.
+      // 500 ms without real pelvis progress after stale/reordered input drops.
+      // Only the newest admitted pose refreshes the MDU monotonic deadline.
       const bool usable = base_in && base_in->LatestForPolicy(
           sample, ppp->mocap_rescue_deadline_s(), ppp->authoritative_mocap_required());
       if (runner_control.ObserveMocap(usable, usable && sample.held_for_policy,

@@ -1050,6 +1050,19 @@ The scheduler also checks the exact executable and mapped ELink library hashes, 
 session path, process/thread start times, and the audited three-thread layout.
 An unknown vendor build requires a new audit, not removal of these checks.
 
+START uses the saved table side and establishes a PASSIVE session without
+requiring live player poses. Configuration, assets, hardware preflight and
+managed Runner identity checks still apply. This does not make localization
+ready or authorize stand, serve, or rally actions.
+
+The Console reads `/hope/mocap/players/UCB_P1` and
+`/hope/mocap/players/UCB_P2` for side selection and diagnostics: P1 occupancy is
+`x < 0 m`; P2 occupancy is `x > 2.74 m`. Relays publish these unrotated poses
+in metres in `hope_table_global`. Evidence expires after 250 ms; duplicate
+source timestamps do not renew it. The HDU `player_positions` verdict remains
+visible as a diagnostic. Side selection stays locked until STOPPED; crossing
+a boundary during play does not change the assignment.
+
 To check the installed pair without root or starting any process:
 
 ```bash
@@ -1138,6 +1151,16 @@ simulation results, not field success rates. Wider 0–180 ms sweeps introduced
 misses at 10–50 ms. Actual physical detachment latency is not identified; the
 rigid gripper CAD, ball release position and contact materials remain model
 assumptions. Keep these limitations when comparing future field results.
+
+The supervisor service uses the same explicit-peer wrapper as the control bridge
+when `ROS_STATIC_PEERS` is configured in `/etc/hope-foxglove/network.env`. Include
+the operator computer and MDU peers, then restart the updated service while
+stopped. With no peers configured it retains the previous discovery setup so
+configuration/cleanup remain available. Verify live localization before play;
+PASSIVE startup does not require player visibility.
+After a FAILED-session cleanup succeeds, an asset/preflight rejection returns
+STOPPED and releases the hardware-operation lock. A failed cleanup still retains
+FAILED, the old session identity and the lock for explicit retry.
 
 ## Verification boundary
 

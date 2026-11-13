@@ -55,3 +55,19 @@ def test_running_robot_never_reconfigured(node, state):
     assert not confirm(node,table_side='P2').results[0].successful
     node._backend.reconnect_mocap.assert_not_called()
     assert not module.CONFIG_PATH.exists()
+
+
+def test_operator_switch_reconnects_even_with_same_addresses(node):
+    result = confirm(node, operator_profile='mac')
+    assert result.results[0].successful
+    node._backend.reconnect_mocap.assert_called_once_with(node._config)
+    assert load_config(module.CONFIG_PATH).operator_profile == 'mac'
+
+
+def test_confirmation_changes_reconnect_even_when_network_is_applied(node,monkeypatch):
+    monkeypatch.setattr(module,'read_status',lambda _: {'applied':True})
+    result=confirm(node,vrpn_pelvis_asset_confirmed='true',vrpn_world_frame_confirmed='true')
+    assert result.results[0].successful
+    node._backend.reconnect_mocap.assert_called_once_with(node._config)
+    saved=load_config(module.CONFIG_PATH)
+    assert saved.vrpn_pelvis_asset_confirmed == saved.vrpn_world_frame_confirmed == 'true'

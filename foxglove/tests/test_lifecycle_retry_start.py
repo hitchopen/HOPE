@@ -14,6 +14,7 @@ import hope_lifecycle_supervisor as module
 @pytest.fixture
 def node(monkeypatch):
     monkeypatch.setenv("HOPE_AUTO_RECORD_ON_START", "0")
+    monkeypatch.setattr(module, "require_applied", Mock())
     monkeypatch.setattr(module, "try_acquire_hardware_operation_lock", Mock(return_value=object()))
     monkeypatch.setattr(module, "release_hardware_operation_lock", Mock())
     n = SimpleNamespace(
@@ -37,15 +38,13 @@ def execute(n):
     module.HopeLifecycleSupervisor._run_start(n, *args[1:])
 
 
-def test_native_player_check_does_not_hold_lifecycle_lock(node):
-    node._player_positions.status_threadsafe = True
-    def check(*_):
-        assert node._lock.acquire(blocking=False), "native player IPC must not hold lifecycle lock"
-        node._lock.release()
-    node._player_positions.require.side_effect = check
+def test_passive_start_does_not_require_visible_player(node):
+    node._player_positions.require.side_effect = AssertionError("PASSIVE must not query player visibility")
     assert accept(node).success
     execute(node)
-    node._player_positions.require.assert_called_once()
+    node._player_positions.require.assert_not_called()
+    node._backend.start.assert_called_once()
+    assert node._last_result == "START_COMPLETE_RUNNER_PASSIVE"
 
 
 @pytest.mark.parametrize("equals", [False, True])
@@ -122,9 +121,9 @@ def test_failed_cleanup_keeps_old_identity_and_never_starts(node):
     assert accept(node).success
 
 
-def test_player_rejection_after_confirmed_cleanup_returns_stopped_and_unlocks(node):
+def test_asset_rejection_after_confirmed_cleanup_returns_stopped_and_unlocks(node):
     lock = node._hardware_operation_lock
-    node._player_positions.require.side_effect = ValueError("PLAYER_POSITION_UNVERIFIED")
+    node._field.runner_selection.side_effect = ValueError("SELECTED_MODEL_UNAVAILABLE")
     assert accept(node).success
     execute(node)
     node._backend.kill_all_and_collect.assert_called_once()
@@ -180,3 +179,19 @@ def test_empty_cleanup_error_still_leaves_a_retryable_failure(node):
     execute(node)
     assert node._state=="FAILED" and not node._busy
     assert node._last_result=="START_CLEANUP_FAILED: ValueError"
+
+
+def test_mismatched_config_blocks_start_before_worker_or_new_lock(node, monkeypatch):
+    monkeypatch.setattr(module, "require_applied", Mock(side_effect=ValueError("CONFIG_NOT_APPLIED: old peer")))
+    response=accept(node)
+    assert not response.success and "CONFIG_NOT_APPLIED" in response.message
+    node._pool.submit.assert_not_called()
+    module.try_acquire_hardware_operation_lock.assert_not_called()
+
+
+def test_report_change_after_lock_rejects_and_releases_new_lock(node, monkeypatch):
+    node._state="STOPPED"; node._hardware_operation_lock=None
+    monkeypatch.setattr(module, "require_applied", Mock(side_effect=[None, ValueError("CONFIG_NOT_APPLIED")]))
+    assert not accept(node).success
+    node._pool.submit.assert_not_called()
+    module.release_hardware_operation_lock.assert_called_once()

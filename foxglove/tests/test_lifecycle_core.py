@@ -52,8 +52,13 @@ class LifecycleConfigTests(unittest.TestCase):
                 "table_side": "P1",
                 "operator_profile": "linux",
                 "gripper_profile": "legacy",
-                "pants_profile": "v2", "mocap_source": "none",
-                "vrpn_ip": "", "vrpn_port": "3883", "vrpn_units": "mm",
+                "pants_profile": "v2",
+                "mocap_source": "none",
+                "vrpn_ip": "",
+                "vrpn_port": "3883",
+                "vrpn_units": "mm",
+                "vrpn_pelvis_asset_confirmed": "false",
+                "vrpn_world_frame_confirmed": "false",
             },
         )
 
@@ -184,7 +189,7 @@ class LifecycleConfigTests(unittest.TestCase):
             save_config_atomic(path, config)
             self.assertEqual(load_config(path), config)
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
-            self.assertEqual(json.loads(path.read_text())["schema_version"], 6)
+            self.assertEqual(json.loads(path.read_text())["schema_version"], 7)
 
     def test_unconfirmed_or_malformed_documents_fail(self):
         document = config_to_document(self.valid_config(revision=1))

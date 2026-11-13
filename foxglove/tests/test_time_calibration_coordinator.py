@@ -18,6 +18,7 @@ from hope_time_calibration_core import CalibrationStatus
 @pytest.fixture
 def subject(monkeypatch):
     clock = [10.0]
+    monkeypatch.setattr(coordinator, "require_applied", Mock())
     monkeypatch.setattr(coordinator, "time", SimpleNamespace(monotonic=lambda: clock[0]))
     config = SimpleNamespace(revision=1)
     monkeypatch.setattr(coordinator, "load_config", Mock(return_value=config))
@@ -36,6 +37,7 @@ def subject(monkeypatch):
         _lifecycle_busy=False, _lifecycle_busy_received=10.0,
         _ntp_gate=False, _ntp_gate_received=10.0,
         _hardware_operation_lock=None,
+        _recycle_requested=threading.Event(),
         _pool=Mock(), _backend=Mock(), _run_calibration=Mock(),
     )
     node._request_rejection_locked = lambda now: Calibration._request_rejection_locked(node, now)
@@ -191,3 +193,80 @@ def test_clock_becoming_healthy_during_lock_acquisition_does_not_cancel_manual_r
     subject.acquire.side_effect = acquire
     assert request(subject).success
     subject.node._pool.submit.assert_called_once()
+
+
+def test_mismatched_runtime_blocks_clock_step(subject, monkeypatch):
+    monkeypatch.setattr(coordinator, "require_applied", Mock(side_effect=ValueError("CONFIG_NOT_APPLIED")))
+    assert "CONFIG_NOT_APPLIED" in assert_rejected_without_worker(subject).message
+
+
+def test_runtime_report_change_while_acquiring_lock_blocks_clock_step(subject, monkeypatch):
+    monkeypatch.setattr(coordinator, "require_applied", Mock(side_effect=[None, ValueError("CONFIG_NOT_APPLIED")]))
+    assert "CONFIG_NOT_APPLIED" in assert_rejected_without_worker(subject, acquired=True).message
+
+@pytest.fixture
+def network_subject(subject, monkeypatch):
+    node=subject.node
+    node._network_watch=SimpleNamespace(needs_reconnect=Mock(return_value=True))
+    node.get_logger=Mock(return_value=Mock())
+    monkeypatch.setattr(coordinator, 'read_calibration_network', Mock(return_value=()))
+    monkeypatch.setattr(coordinator, 'calibration_owner_stopped', Mock(return_value=True))
+    monkeypatch.setattr(coordinator.rclpy, 'try_shutdown', Mock())
+    return subject
+
+
+def test_idle_network_recycle_seals_admission_without_clock_action(network_subject):
+    s=network_subject
+    Calibration._poll_network(s.node)
+    assert s.node._recycle_requested.is_set()
+    assert s.node._hardware_operation_lock is s.token
+    coordinator.rclpy.try_shutdown.assert_called_once()
+    s.save.assert_not_called()
+    s.node._pool.submit.assert_not_called()
+    assert not request(s).success
+    s.node._backend.calibrate.assert_not_called()
+    Calibration._release_operation_lock(s.node)
+    s.release.assert_called_once_with(s.token)
+
+
+@pytest.mark.parametrize('state', ['RUNNING','INTERRUPTED','FAILED_SAFE_STOP'])
+def test_calibration_or_failure_never_recycles(network_subject, state):
+    s=network_subject;s.node._status=replace(s.node._status,state=state)
+    Calibration._poll_network(s.node)
+    s.acquire.assert_not_called()
+    coordinator.rclpy.try_shutdown.assert_not_called()
+
+
+def test_running_or_stale_owner_defers_until_stopped(network_subject):
+    s=network_subject
+    coordinator.calibration_owner_stopped.return_value=False
+    Calibration._poll_network(s.node)
+    s.acquire.assert_not_called()
+    assert not s.node._recycle_requested.is_set()
+    coordinator.calibration_owner_stopped.return_value=True
+    Calibration._poll_network(s.node)
+    assert s.node._recycle_requested.is_set()
+
+
+def test_owner_change_during_hardware_lock_acquisition_defers(network_subject):
+    s=network_subject
+    coordinator.calibration_owner_stopped.side_effect=[True,False]
+    Calibration._poll_network(s.node)
+    s.release.assert_called_once_with(s.token)
+    assert not s.node._recycle_requested.is_set()
+    coordinator.rclpy.try_shutdown.assert_not_called()
+
+
+def test_busy_hardware_owner_never_recycles(network_subject):
+    s=network_subject;s.acquire.return_value=None
+    Calibration._poll_network(s.node)
+    assert not s.node._recycle_requested.is_set()
+    coordinator.rclpy.try_shutdown.assert_not_called()
+
+
+def test_recycle_between_request_checks_cannot_admit_clock_action(subject):
+    def acquire():
+        subject.node._recycle_requested.set()
+        return subject.token
+    subject.acquire.side_effect=acquire
+    assert_rejected_without_worker(subject,acquired=True)

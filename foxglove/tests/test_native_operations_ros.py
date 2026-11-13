@@ -416,6 +416,18 @@ class NativeOperationsTests(unittest.TestCase):
         self.assertFalse(any(self.base_fresh[freshness_start:]),
                          "invalid packets must never renew a fresh-valid verdict")
 
+    def test_start_rejects_mismatched_configuration_audit(self):
+        (self.root / "hold_config_audit").touch()
+        time.sleep(.2)
+        path = self.root / "config-runtime.json"
+        audit = json.loads(path.read_text())
+        audit["config_sha256"] = "different-configuration"
+        path.write_text(json.dumps(audit))
+        response = self.trigger("/hope/lifecycle/start")
+        self.assertFalse(response.success)
+        self.assertIn("CONFIG_NOT_APPLIED", response.message)
+        self.assertFalse((self.root / "actions").exists())
+
     def test_start_stop_and_configuration_use_existing_worker_rules(self):
         from rcl_interfaces.srv import SetParameters
         from rcl_interfaces.msg import Parameter, ParameterValue, ParameterType
@@ -617,7 +629,7 @@ class NativeOperationsTests(unittest.TestCase):
         self.wait(pending.done)
         self.assertTrue(pending.result().results[0].successful)
 
-    def test_expired_native_player_pose_cannot_qualify_start(self):
+    def test_expired_player_pose_does_not_block_passive_start(self):
         self.wait(lambda: self.player_pubs["UCB_P2"].get_subscription_count() > 0)
         for _ in range(5):
             self.publish_player("UCB_P2", -.5)
@@ -625,9 +637,12 @@ class NativeOperationsTests(unittest.TestCase):
         time.sleep(.4)
         response = self.trigger("/hope/lifecycle/start")
         self.assertTrue(response.success, response.message)  # Asynchronous admission attempt.
-        self.wait(lambda: any("PLAYER_POSITION_UNVERIFIED" in result for result in self.results))
-        self.assertEqual(self.lifecycle[-1], "STOPPED")
-        self.assertFalse((self.root / "actions").exists(), "stale player evidence must not reach the backend")
+        self.wait(lambda: self.lifecycle[-1] == "RUNNING")
+        self.assertIn("START_COMPLETE_RUNNER_PASSIVE", self.results)
+        self.assertEqual((self.root / "actions").read_text().splitlines(), ["START"])
+        self.assertFalse(self.fields[-1]["player_positions"]["P1"])
+        self.assertEqual(self.modes[-1], "PASSIVE")
+        self.assertEqual(self.requests, [], "START must not dispatch a motion action")
 
     def test_300hz_ingress_preserves_rate_and_native_marker_without_replay(self):
         binary = Path(os.environ["HOPE_NATIVE_BIN_DIR"]) / "hope-operations-test-ingress"

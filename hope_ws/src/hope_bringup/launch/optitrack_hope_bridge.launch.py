@@ -62,6 +62,13 @@ def validate_mocap_interface(context):
         return []
     if LaunchConfiguration("mocap_type").perform(context) != "optitrack":
         return []
+    hostname = LaunchConfiguration("hostname").perform(context)
+    try:
+        server = ipaddress.IPv4Address(hostname)
+        if server.is_unspecified or server.is_multicast or server.is_loopback or int(server) == 0xffffffff:
+            raise ValueError("expected a server unicast IPv4 address")
+    except ValueError as exc:
+        raise RuntimeError("Motive hostname must be explicitly supplied from the active configuration") from exc
     value = LaunchConfiguration("interface_ip").perform(context)
     if value:
         try:

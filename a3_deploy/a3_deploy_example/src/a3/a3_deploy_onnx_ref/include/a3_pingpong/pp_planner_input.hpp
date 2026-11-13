@@ -679,7 +679,9 @@ class PpBallStateInput {
 // Accepted samples still expire only on the monotonic receipt clock.
 inline constexpr double kBasePoseMaxSourceAgeS = 0.100;
 inline constexpr double kBasePoseHoldAfterS = 0.020;
-inline constexpr double kBasePoseRescueAfterS = 1.0;
+// Deadline belongs to the newest admitted real pose after stale/reordered
+// packets are discarded. Dropped packets never refresh its receipt clock.
+inline constexpr double kBasePoseRescueAfterS = 0.500;
 
 struct PpBaseSample {
   Vec3 pos = Vec3::Zero();

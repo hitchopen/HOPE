@@ -35,8 +35,8 @@ TEST(PpBasePoseHold, ShortGapNeverInventsSensorProgressOrExtendsDeadline) {
   EXPECT_TRUE(held.held_for_policy);
   EXPECT_EQ(held.seq, real.seq);
   EXPECT_EQ(held.receipt_steady_s, real.receipt_steady_s);
-  // Replayed packets and repeated policy reads cannot extend the 1 s window.
-  std::this_thread::sleep_for(std::chrono::milliseconds(920));
+  // Replayed packets and repeated policy reads cannot extend the 500 ms window.
+  std::this_thread::sleep_for(std::chrono::milliseconds(420));
   EXPECT_FALSE(input.LatestForPolicy(held, 10., true));
   wire[2] = 8; wire[5] = -.4;
   input.SetFromFlat(wire);
@@ -88,5 +88,36 @@ TEST(PpBasePoseHold, MissingInitialOrInvalidSamplesCannotSeedPolicyHold) {
   input.SetFromFlat({2,0});
   EXPECT_FALSE(input.LatestForPolicy(out, kBasePoseRescueAfterS, true));
   EXPECT_FALSE(input.LatestForPolicy(out, NAN, true));
+}
+
+TEST(PpBasePoseHold, GateUsesNewestPoseAfterDropsAndExpiresAtHalfSecond) {
+  PpBasePoseInput input;
+  PpRunnerControl control(RunnerMode::kMotion, 1, "test");
+  control.RequireMocap(true);
+  auto packet = [](double seq, double age_s) {
+    const double stamp = PpNowWallSec() - age_s, sec = std::floor(stamp);
+    return std::vector<double>{2,1,seq,sec,std::floor((stamp-sec)*1e9),
+        -.5,.2,1,1,0,0,0,1,double(kV17RequiredBaseFlags),1,2};
+  };
+  input.SetFromFlat(packet(1, 0.));
+  std::this_thread::sleep_for(std::chrono::milliseconds(300));
+  // A backlog must neither poison the pose nor advance the accepted sequence.
+  for (int i = 0; i < 250; ++i) input.SetFromFlat(packet(100+i, .6));
+  input.SetFromFlat(packet(2, 0.));
+  PpBaseSample newest, held;
+  ASSERT_TRUE(input.LatestForPolicy(newest, 10., true));
+  ASSERT_EQ(newest.seq, 2U);
+  std::this_thread::sleep_for(std::chrono::milliseconds(400));
+  ASSERT_TRUE(input.LatestForPolicy(held, 10., true));
+  EXPECT_FALSE(control.ObserveMocap(true, held.held_for_policy, held.receipt_age_s));
+  EXPECT_EQ(control.mode(), RunnerMode::kMotion);
+  input.SetFromFlat(packet(999, .6));
+  ASSERT_TRUE(input.LatestForPolicy(held, 10., true));
+  EXPECT_EQ(held.receipt_steady_s, newest.receipt_steady_s);
+  std::this_thread::sleep_for(std::chrono::milliseconds(150));
+  const bool usable = input.LatestForPolicy(held, 10., true);
+  EXPECT_FALSE(usable);  // 550 ms after the newest accepted pose, not 1 s.
+  EXPECT_TRUE(control.ObserveMocap(usable));
+  EXPECT_EQ(control.mode(), RunnerMode::kPdStand);
 }
 }  // namespace

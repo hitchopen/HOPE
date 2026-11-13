@@ -84,19 +84,8 @@ valid_ipv4() {
 }
 
 network_static_peers() {
-  local env_file=/etc/hope-foxglove/network.env
-  local line value="" count=0
-  [[ -r "$env_file" ]] || return 1
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    case "$line" in
-      ROS_STATIC_PEERS=*)
-        value="${line#ROS_STATIC_PEERS=}"
-        ((count += 1))
-        ;;
-    esac
-  done < "$env_file"
-  (( count == 1 )) || return 1
-  printf '%s\n' "$value"
+  # Derived from the same canonical document as every HDU service.
+  python3 /usr/local/lib/hope-foxglove/hope_config_runtime.py peers
 }
 
 static_peer_list_contains() {
@@ -110,7 +99,7 @@ static_peer_list_contains() {
 }
 
 parse_common() {
-  [[ "$#" == 6 || "$#" == 8 || "$#" == 9 || "$#" == 14 ]] || return 1
+  [[ "$#" == 6 || "$#" == 8 || "$#" == 9 || "$#" == 14 || "$#" == 16 ]] || return 1
   SESSION_ID="$1"
   LAPTOP_WIFI_IP="$2"
   HDU_WIFI_IP="$3"
@@ -125,6 +114,12 @@ parse_common() {
   VRPN_PORT="${12:-3883}"
   VRPN_UNITS="${13:-mm}"
   PANTS_PROFILE="${14:-v2}"
+  # Authoritative arguments from HDU config. Legacy env-file values never win.
+  export HOPE_VRPN_PELVIS_ASSET_CONFIRMED="${15:-false}"
+  export HOPE_VRPN_WORLD_FRAME_CONFIRMED="${16:-false}"
+  for confirmed in "$HOPE_VRPN_PELVIS_ASSET_CONFIRMED" "$HOPE_VRPN_WORLD_FRAME_CONFIRMED"; do
+    [[ "$confirmed" == true || "$confirmed" == false ]] || return 1
+  done
   [[ "$MOCAP_SOURCE" == none || "$MOCAP_SOURCE" == motive || "$MOCAP_SOURCE" == vrpn ]] || return 1
   [[ "$VRPN_IP" == NONE ]] || valid_ipv4 "$VRPN_IP" motive || return 1
   [[ "$VRPN_PORT" =~ ^[1-9][0-9]{0,4}$ ]] && (( VRPN_PORT <= 65535 )) || return 1
@@ -1003,27 +998,31 @@ refresh_laptop_display() {
   # on visualization being installed or on a Linux user service manager.
   command -v systemctl >/dev/null || return 0
   systemctl --user try-restart --no-block \
-    hope-host-bridge.service hope-live-scene.service || \
+    hope-host-bridge.service hope-live-scene.service hope-xbox-input.service || \
     printf '[display] optional Host display refresh unavailable\n' >&2
 }
 
-run_laptop() {
-  require_user "$LAPTOP_USER" OPTITRACK
-  validate_laptop_mocap
+write_laptop_runtime() {
+  local canonical_motive="$MOTIVE_IP" canonical_vrpn="$VRPN_IP"
+  if [[ "$canonical_motive" == NONE ]]; then canonical_motive=""; fi
+  if [[ "$canonical_vrpn" == NONE ]]; then canonical_vrpn=""; fi
   local runtime_env="$HOME/.config/hope-foxglove/laptop-runtime.env"
   mkdir -p "$(dirname "$runtime_env")"
   local runtime_env_tmp
   runtime_env_tmp="$(mktemp "${runtime_env}.tmp.XXXXXX")"
   {
+    printf '# Generated from HDU lifecycle config; edit through Foxglove only.\n'
+    printf 'HOPE_LIFECYCLE_LAPTOP_IP=%q\n' "$LAPTOP_WIFI_IP"
+    printf 'HOPE_LIFECYCLE_MDU_IP=%q\n' "$MDU_INTERNAL_IP"
     printf 'HOPE_LIFECYCLE_SESSION_ID=%q\n' "$SESSION_ID"
     printf 'HOPE_LIFECYCLE_HDU_IP=%q\n' "$HDU_WIFI_IP"
-    printf 'HOPE_LIFECYCLE_MOTIVE_IP=%q\n' "$MOTIVE_IP"
+    printf 'HOPE_LIFECYCLE_MOTIVE_IP=%q\n' "$canonical_motive"
     printf 'HOPE_LIFECYCLE_MOTIVE_INTERFACE_IP=%q\n' "${HOPE_MOTIVE_INTERFACE_IP:-}"
     printf 'HOPE_LIFECYCLE_ROOT=%q\n' "$HOPE_ROOT"
     printf 'HOPE_LIFECYCLE_MARKER_ROOT=%q\n' "$LAPTOP_SHARE"
     printf 'HOPE_LIFECYCLE_TABLE_SIDE=%q\n' "$TABLE_SIDE"
     printf 'HOPE_LIFECYCLE_MOCAP_SOURCE=%q\n' "$MOCAP_SOURCE"
-    printf 'HOPE_LIFECYCLE_VRPN_IP=%q\n' "$VRPN_IP"
+    printf 'HOPE_LIFECYCLE_VRPN_IP=%q\n' "$canonical_vrpn"
     printf 'HOPE_LIFECYCLE_VRPN_PORT=%q\n' "$VRPN_PORT"
     printf 'HOPE_LIFECYCLE_VRPN_UNITS=%q\n' "$VRPN_UNITS"
     printf 'HOPE_LIFECYCLE_PANTS_PROFILE=%q\n' "$PANTS_PROFILE"
@@ -1031,6 +1030,12 @@ run_laptop() {
     printf 'HOPE_VRPN_WORLD_FRAME_CONFIRMED=%q\n' "${HOPE_VRPN_WORLD_FRAME_CONFIRMED:-false}"
   } > "$runtime_env_tmp"
   mv -f -- "$runtime_env_tmp" "$runtime_env"
+}
+
+run_laptop() {
+  require_user "$LAPTOP_USER" OPTITRACK
+  validate_laptop_mocap
+  write_laptop_runtime
   refresh_laptop_display
   case "${HOPE_LAPTOP_RUNTIME:-distrobox}" in
     direct) exec "$HOPE_ROOT/foxglove/helpers/hope-laptop-container-runtime" ;;
@@ -1058,19 +1063,14 @@ reconnect_laptop() {
   local connection_lock
   exec {connection_lock}>"${runtime_env}.connection.lock"
   flock -n "$connection_lock" || die MOCAP CONNECTION_BUSY
-  local preserved_pelvis=false preserved_world=false
-  read -r preserved_pelvis preserved_world < <(
-    python3 "$HOPE_ROOT/foxglove/a3/hope_mocap_connection.py" --confirmations "$runtime_env" \
-      "$HDU_WIFI_IP" "$MOCAP_SOURCE" "$MOTIVE_IP" "$VRPN_IP" "$VRPN_PORT" "$VRPN_UNITS" "$PANTS_PROFILE" "$TABLE_SIDE"
-  )
-  export HOPE_VRPN_PELVIS_ASSET_CONFIRMED="$preserved_pelvis"
-  export HOPE_VRPN_WORLD_FRAME_CONFIRMED="$preserved_world"
   if tmux_exists "$LAPTOP_SESSION"; then
     python3 "$HOPE_ROOT/foxglove/a3/hope_mocap_connection.py" \
       "$runtime_env" "$HDU_WIFI_IP" || die MOCAP OTHER_ROBOT_RECEIVER_UNTOUCHED
     stop_laptop
   fi
   if [[ "$MOCAP_SOURCE" == none ]]; then
+    write_laptop_runtime
+    refresh_laptop_display
     emit MOCAP COMPLETE DISABLED
   else
     # A newly spawned tmux server survives this helper. Keep the lock in this
@@ -1092,7 +1092,8 @@ start_laptop() {
     "$SELF" _run-laptop \
     "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
     "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" "$FIELD_MODE" "$SERVE_CSV_SHA" "$GRIPPER_PROFILE" \
-    "$MOCAP_SOURCE" "$VRPN_IP" "$VRPN_PORT" "$VRPN_UNITS" "$PANTS_PROFILE" || \
+    "$MOCAP_SOURCE" "$VRPN_IP" "$VRPN_PORT" "$VRPN_UNITS" "$PANTS_PROFILE" \
+    "$HOPE_VRPN_PELVIS_ASSET_CONFIRMED" "$HOPE_VRPN_WORLD_FRAME_CONFIRMED" || \
     die OPTITRACK ALREADY_RUNNING
   sleep 2
   tmux_exists "$LAPTOP_SESSION" || die OPTITRACK START_FAILED
@@ -1741,6 +1742,10 @@ main() {
   local action="$1"
   shift
   case "$action" in
+    config-status-laptop)
+      require_user "$LAPTOP_USER" CONFIG
+      exec python3 "$HOPE_ROOT/foxglove/laptop/hope_config_probe.py"
+      ;;
     ball-model-hdu)
       require_user "$ROBOT_USER" BALL_MODEL
       set +u

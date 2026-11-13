@@ -30,7 +30,7 @@ def module(request):
 def validate(module, value, backend="optitrack", start="true"):
     context = LaunchContext()
     context.launch_configurations.update(
-        interface_ip=value, mocap_type=backend, start_mocap_node=start)
+        interface_ip=value, mocap_type=backend, start_mocap_node=start, hostname="192.0.2.10")
     return module.validate_mocap_interface(context)
 
 
@@ -68,6 +68,24 @@ def test_validation_runs_before_any_nodes(module):
     assert isinstance(first_action, OpaqueFunction)
     context = LaunchContext()
     context.launch_configurations.update(
-        interface_ip="typo", mocap_type="optitrack", start_mocap_node="true")
+        interface_ip="typo", mocap_type="optitrack", start_mocap_node="true", hostname="192.0.2.10")
     with pytest.raises(RuntimeError, match="Invalid interface_ip"):
         first_action.execute(context)
+
+
+@pytest.mark.parametrize("server", ["", "0.0.0.0", "127.0.0.1", "239.1.1.1", "typo"])
+def test_hope_launch_never_falls_back_to_a_venue_server(module, server):
+    if Path(module.__file__).name != "optitrack_hope_bridge.launch.py":
+        pytest.skip("HOPE managed launch admission")
+    context=LaunchContext()
+    context.launch_configurations.update(interface_ip="",mocap_type="optitrack",start_mocap_node="true",hostname=server)
+    with pytest.raises(RuntimeError,match="explicitly supplied"):
+        module.validate_mocap_interface(context)
+
+
+def test_vrpn_launch_requires_explicit_server():
+    spec=importlib.util.spec_from_file_location("vrpn_launch_test",ROOT/"hope_ws/src/hope_bringup/launch/avatar_pro_hope_bridge.launch.py")
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    description=module.generate_launch_description()
+    declaration=next(a for a in description.entities if isinstance(a,DeclareLaunchArgument) and a.name=="server")
+    assert declaration.default_value is None

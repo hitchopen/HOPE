@@ -32,7 +32,6 @@ def generate_launch_description():
         b"table_bounds_x=0,2.74;y=-1.525,0;surface_z=0"
     ).hexdigest()
     declarations = [
-        ("server", "192.168.1.100", "CMTracker / AvatarPro VRPN server IP."),
         ("port", "3883", "VRPN TCP/UDP port."),
         ("update_freq", "300.0", "VRPN polling frequency, Hz."),
         ("start_vrpn_client", "true", "Start the VRPN client."),
@@ -51,8 +50,9 @@ def generate_launch_description():
          "Enable Planner ball packets; defaults to world_frame_confirmed. Set false only for pose-only diagnostics."),
         ("base_pose_output_topic", "/a3/base_pose_laptop_flat", "HDU relay input; do not bypass HDU clock stamping."),
     ]
-    actions = [DeclareLaunchArgument(name, default_value=value, description=description)
-               for name, value, description in declarations]
+    actions = [DeclareLaunchArgument("server", description="Required VRPN server IP; managed runs derive it from lifecycle config.")]
+    actions += [DeclareLaunchArgument(name, default_value=value, description=description)
+                for name, value, description in declarations]
     actions += [
         Node(package="vrpn_mocap", executable="client_node", namespace="vrpn_mocap",
              name="client_node", output="screen", condition=IfCondition(arg("start_vrpn_client")),

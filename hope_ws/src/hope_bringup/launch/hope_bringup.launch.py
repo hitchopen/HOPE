@@ -9,7 +9,7 @@ Examples::
 
     ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=vrpn
     ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=optitrack \
-        motive_hostname:=192.168.100.111
+        motive_hostname:=<MOTIVE_IP>
     ros2 launch hope_bringup hope_bringup.launch.py use_fake_ball:=true
 """
 
@@ -143,7 +143,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "motive_hostname",
-                default_value="192.168.100.111",
+                default_value="",
                 description="OptiTrack Motive/NatNet server address.",
             ),
             DeclareLaunchArgument(

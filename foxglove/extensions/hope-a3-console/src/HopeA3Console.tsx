@@ -1,3 +1,4 @@
+import { version as extensionVersion } from "../package.json";
 import { MessageEvent, PanelExtensionContext, Topic } from "@foxglove/extension";
 import {
   ReactElement,
@@ -20,11 +21,13 @@ import { BALL_Y_FILTER_SERVICE, BallYFilterState, ballYFilterRequest, decodeBall
 import { BallYFilterDraft, withBallYPreview } from "./ballYFilterPreview";
 import { HIT_SPEED_SCALE_SERVICE, HitSpeedScaleState, decodeHitSpeedScale, hitSpeedScaleRequest } from "./hitSpeedScale";
 import { message as msg, LocalizedError, errorText, LocalText, Translator, Locale, readLocale, createTranslator } from "./i18n";
+import { configForSave, sameMocapBinding, ConfigRuntime, RuntimeConfigValues, decodeConfigRuntime, configRuntimeReady, savedConfigObserved } from "./configRuntime";
 import { mergeConfirmedConfig } from "./lifecycleConfig";
 import { MocapSafety, decodeMocapSafety, mocapSafetyText } from "./mocapSafety";
 import { MOCAP_LABELS, mocapSetupCommand } from "./mocapSetup";
 import { PLANE_MODE_SERVICE, PlaneMode, PlaneModeState, decodePlaneMode, planeModeRequest } from "./planeMode";
 import { PlayerPosition, decodePlayerPosition, playerSideAvailable } from "./playerPositions";
+import { MocapRecovery, mocapRecoveryText, startBlockReason } from "./mocapRecovery";
 import { reconcileRobotTarget, robotConnectionUrl, switchRobot } from "./robotConnection";
 import { bindRunnerShortcuts, RUNNER_SHORTCUT_KEYS, RunnerShortcut } from "./runnerShortcuts";
 import { decodeTeleopState, teleopEntryReason, xboxInputFresh } from "./teleopStatus";
@@ -67,6 +70,7 @@ const TOPICS = {
   assetMatched: "/hope/mocap/asset_match",
   assetText: "/hope/mocap/asset_text",
   baseFresh: "/hope/base/fresh",
+  baseSummary: "/hope/base/summary",
   commandValid: "/hope/command/valid",
   commandCountdown: "/hope/command/hdu_wall_countdown_s",
   commandFlight: "/hope/command/flight_id",
@@ -97,6 +101,9 @@ const TOPICS = {
   lifecycleResult: "/hope/lifecycle/last_result",
   lifecycleBusy: "/hope/lifecycle/busy",
   lifecycleConfigRevision: "/hope/lifecycle/config/revision",
+  configRuntime: "/hope/lifecycle/config/status",
+  pelvisConfirmed: "/hope/lifecycle/config/vrpn_pelvis_asset_confirmed",
+  worldConfirmed: "/hope/lifecycle/config/vrpn_world_frame_confirmed",
   timeCalibrationState: "/hope/lifecycle/time_calibration/state",
   timeCalibrationStep: "/hope/lifecycle/time_calibration/step",
   timeCalibrationResult: "/hope/lifecycle/time_calibration/result",
@@ -138,8 +145,9 @@ const SERVICES = {
 type ServiceKey = keyof typeof SERVICES;
 type TopicName = (typeof TOPICS)[keyof typeof TOPICS];
 
-type PolicyModel = "model14600" | "model11999" | "model12600" | "model17400" | "model12000" | "model14200" | "model14200fusion" | "model14200best" | "model13800" | "model13800astra";
+type PolicyModel = "model14600" | "model11999" | "model12600" | "model17400" | "model12000" | "model14200" | "model14200fusion" | "model14200best" | "model13800" | "model13800astra" | "model15200body";
 type FieldStatus = {
+  mocap_recovery?: MocapRecovery;
   player_positions?: { P1: boolean; P2: boolean };
   ball_model_status?: BallModelStatus;
   policy_model?: PolicyModel | null;
@@ -174,6 +182,8 @@ const CONFIG_FIELDS = {
   gripper_profile: { label: msg("hopeA3Console.gripper"), topic: TOPICS.gripperProfile },
   pants_profile: { label: msg("hopeA3Console.markerPants"), topic: TOPICS.pantsProfile },
   operator_profile: { label: msg("hopeA3Console.operatorComputer"), topic: TOPICS.operatorProfile },
+  vrpn_pelvis_asset_confirmed: { label: msg("configRuntime.pelvisConfirmed"), topic: TOPICS.pelvisConfirmed },
+  vrpn_world_frame_confirmed: { label: msg("configRuntime.worldConfirmed"), topic: TOPICS.worldConfirmed },
 } as const;
 
 type ConfigField = keyof typeof CONFIG_FIELDS;
@@ -204,6 +214,8 @@ const EMPTY_CONFIG: LifecycleConfigDraft = {
   vrpn_port: "",
   vrpn_units: "",
   operator_profile: "",
+  vrpn_pelvis_asset_confirmed: "false",
+  vrpn_world_frame_confirmed: "false",
 };
 
 type XboxPreview = {
@@ -273,6 +285,7 @@ type Snapshot = {
   assetText?: string;
   markersFresh?: boolean;
   baseFresh?: boolean;
+  baseSummary?: string;
   commandValid?: boolean;
   commandCountdownS?: number;
   commandFlight?: number;
@@ -300,6 +313,8 @@ type Snapshot = {
   lifecycleResult?: string;
   lifecycleBusy?: boolean;
   lifecycleConfigRevision?: number;
+  configRuntime?: ConfigRuntime;
+  configRuntimeSeen?: boolean;
   timeCalibrationState?: string;
   timeCalibrationStep?: string;
   timeCalibrationResult?: string;
@@ -355,6 +370,18 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
   if (!(Object.values(TOPICS) as string[]).includes(topic)) {
     return;
   }
+  if (topic === TOPICS.configRuntime) {
+    next.configRuntimeSeen = true;
+    next.configRuntime = decodeConfigRuntime(scalar(event.message));
+    if (next.configRuntime) {
+      next.lifecycleConfig = { ...next.configRuntime.values };
+      next.lifecycleConfigRevision = next.configRuntime.revision;
+      next.lastReceived[TOPICS.hduWifiIp] = receivedAt;
+    }
+    next.lastReceived[topic] = receivedAt;
+    return;
+  }
+  if (next.configRuntimeSeen && topic.startsWith("/hope/lifecycle/config/")) { return; }
   next.lastReceived[topic] = receivedAt;
   switch (topic) {
     case TOPICS.mocapSafety:
@@ -457,6 +484,9 @@ function applyMessage(next: Snapshot, event: MessageEvent, receivedAt: number): 
       break;
     case TOPICS.assetText:
       next.assetText = stringValue(event.message);
+      break;
+    case TOPICS.baseSummary:
+      next.baseSummary = stringValue(event.message);
       break;
     case TOPICS.baseFresh:
       next.baseFresh = boolValue(event.message);
@@ -813,13 +843,16 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   }, [confirmation]);
   const [configDraft, setConfigDraft] = useState<LifecycleConfigDraft>(EMPTY_CONFIG);
   const [configTouched, setConfigTouched] = useState(false);
+  const [awaitingConfig, setAwaitingConfig] = useState<{ revision: number; values: RuntimeConfigValues }>();
   const savedPanel = useRef((context.initialState ?? {}) as Record<string, unknown>);
   const [robotTarget, setRobotTarget] = useState(typeof savedPanel.current.robotTarget === "string" ? savedPanel.current.robotTarget : "");
   const [targetEdited, setTargetEdited] = useState(false);
   // A layout can outlive its connection. Never restore an in-flight switch.
   const [pendingTarget, setPendingTarget] = useState<string>("");
   const configHost = snapshot.lifecycleConfig.hdu_wifi_ip;
-  const configHostFresh = isFresh(snapshot, TOPICS.hduWifiIp, now, 1_500);
+  const configHostFresh = snapshot.configRuntimeSeen
+    ? snapshot.configRuntime != undefined && isFresh(snapshot, TOPICS.configRuntime, now, 1_500)
+    : isFresh(snapshot, TOPICS.hduWifiIp, now, 1_500);
   const previousHost = useRef<string>();
   useEffect(() => {
     if (!configHostFresh || !configHost) { return; }
@@ -912,6 +945,15 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       window.clearInterval(timer);
     };
   }, []);
+
+  useEffect(() => {
+    if (awaitingConfig && savedConfigObserved(snapshot.configRuntime, awaitingConfig)) {
+      // A delayed save acknowledgement must not discard edits made meanwhile.
+      setConfigTouched(!Object.keys(awaitingConfig.values).every((key) =>
+        configDraft[key as ConfigField] === awaitingConfig.values[key as ConfigField]));
+      setAwaitingConfig(undefined);
+    }
+  }, [awaitingConfig, snapshot.configRuntime, configDraft]);
 
   useEffect(() => {
     setConfigDraft((current) => mergeConfirmedConfig(current, snapshot.lifecycleConfig, configTouched));
@@ -1101,6 +1143,9 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       setNotice(msg("hopeA3Console.currentDataSourceDoesNotExposeLifecycleConfiguration"));
       return;
     }
+    const requestedRevision = latest.current.lifecycleConfigRevision ?? 0;
+    const requestedValues = configForSave(configDraft, latest.current.lifecycleConfig);
+    setConfigDraft(requestedValues);
     setBusy((current) => ({ ...current, [key]: true }));
     setNotice(msg("hopeA3Console.validatingAndConfirmingLifecycleConfiguration"));
     const parameters = (Object.keys(CONFIG_FIELDS) as ConfigField[])
@@ -1112,7 +1157,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         bool_value: false,
         integer_value: 0,
         double_value: 0,
-        string_value: configDraft[name],
+        string_value: requestedValues[name],
         byte_array_value: [],
         bool_array_value: [],
         integer_array_value: [],
@@ -1132,10 +1177,9 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           typeof rejected?.reason === "string" ? rejected.reason : msg("hopeA3Console.invalidServiceResponse");
         setNotice(msg("hopeA3Console.configRejected", {reason}));
       } else {
-        setConfigTouched(false);
-        setNotice(
-          msg("hopeA3Console.configConfirmed", {operator: configDraft.operator_profile ? msg("hopeA3Console.operator", {platform: configDraft.operator_profile.toUpperCase()}) : "", mocap: MOCAP_LABELS[configDraft.mocap_source] ?? "UNKNOWN", side: configDraft.table_side, gripper: configDraft.gripper_profile, pants: configDraft.pants_profile.toUpperCase()}),
-        );
+        setConfigTouched(true);
+        setAwaitingConfig({ revision: requestedRevision, values: requestedValues });
+        setNotice(msg("configRuntime.savedPending"));
       }
     } catch (error) {
       setNotice(msg("hopeA3Console.configFailed", {error: errorText(error)}));
@@ -1252,6 +1296,11 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     (!vrpnSelected || (configDraft.vrpn_ip.trim().length > 0 &&
       /^[1-9][0-9]{0,4}$/.test(configDraft.vrpn_port) && Number(configDraft.vrpn_port) <= 65535)) &&
     ["mm", "m"].includes(configDraft.vrpn_units);
+  const configApplied = configRuntimeReady(snapshot.configRuntime, snapshot.lastReceived[TOPICS.configRuntime], now)
+    && !configTouched && awaitingConfig == undefined;
+  const runtimeFresh = snapshot.configRuntime != undefined && isFresh(snapshot, TOPICS.configRuntime, now, 1_500);
+  const runtimeReason = runtimeFresh ? snapshot.configRuntime?.reason : t("configRuntime.unverified");
+  const mocapBindingUnchanged = sameMocapBinding(configDraft, snapshot.lifecycleConfig);
   const timeCalibrationFresh = isFresh(snapshot, TOPICS.timeCalibrationState, now, 1_500);
   const timeCalibrationState = timeCalibrationFresh
     ? (snapshot.timeCalibrationState ?? "UNKNOWN")
@@ -1266,8 +1315,20 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       ntpPass: snapshot.ntpPass,
       lifecycleStopped: lifecycleState === "STOPPED",
       lifecycleBusy: lifecycleBusy || !isFresh(snapshot, TOPICS.lifecycleBusy, now, 1_500),
-      configConfirmed: (snapshot.lifecycleConfigRevision ?? 0) >= 1 && !configTouched,
+      configConfirmed: configApplied,
     }, t);
+
+  const selectedPlayerReady = playerSideAvailable(configDraft.table_side as "P1" | "P2",
+    [snapshot.playerP1, snapshot.playerP2], now) &&
+    field?.player_positions?.[configDraft.table_side as "P1" | "P2"] === true;
+  const startBlocked = startBlockReason({
+    lifecycleState, lifecycleBusy: lifecycleBusy || busy.startLifecycle === true,
+    calibrationBusy: timeCalibrationBlocksStart, configApplied, configTouched,
+    fieldBusy: fieldBusy || field?.busy === true, fieldFresh, kernelMode,
+    ballReady: ballDisplay.ready, playerReady: selectedPlayerReady,
+    side: configDraft.table_side,
+  }, t);
+  const mocapRecovery = fieldFresh ? field?.mocap_recovery : undefined;
 
   const serveState = snapshot.serveState ?? "UNAVAILABLE";
   const commandFresh = isFresh(snapshot, TOPICS.commandSummary, now, 1_500);
@@ -1365,7 +1426,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       <fieldset className="robot-controls" disabled={Boolean(pendingTarget)}>
       <div className="source-row">
         <div className="source-block">
-          <div className="eyebrow">{t("hopeA3Console.version", { version: "1.9.17" })}</div>
+          <div className="eyebrow">{t("hopeA3Console.version", { version: extensionVersion })}</div>
           <div className="source-value">
             <span>{context.dataSourceProfile?.toUpperCase() ?? t("hopeA3Console.ros2")} {t("hopeA3Console.control8766")}</span>
             <span
@@ -1466,7 +1527,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       <div className="field-assets">
         <section className="field-card">
           <span className="eyebrow">{t("hopeA3Console.receivePolicy")}</span>
-          <strong>{field?.policy_model === "model13800" ? t("hopeA3Console.13800V2313800ServeReceive") : field?.policy_model === "model13800astra" ? t("hopeA3Console.astraV23ServeReceive") : field?.policy_model === "model14200" ? t("hopeA3Console.model14200ServeReceive") : field?.policy_model === "model14200fusion" ? t("hopeA3Console.model14200fusionServeReceive") : field?.policy_model === "model14200best" ? t("hopeA3Console.model14200bestServeReceive") : field?.policy_model === "model12000" ? t("hopeA3Console.12000V2312000ServeReceive") : field?.policy_model === "model17400" ? (field.policy_models?.model17400?.receive_only === true ? t("hopeA3Console.17400ReceiveOnly") : t("hopeA3Console.17400V2317400ServeReceive")) : field?.policy_model === "model12600" ? t("hopeA3Console.12600V2312600ServeReceive") : field?.policy_model === "model11999" ? t("hopeA3Console.11999ReceiveOnly") : field?.policy_model === "model14600" ? t("hopeA3Console.14600ServeReceive") : t("hopeA3Console.noPolicySelected")}</strong>
+          <strong>{field?.policy_model === "model15200body" ? t("hopeA3Console.model15200bodyServeReceive") : field?.policy_model === "model13800" ? t("hopeA3Console.13800V2313800ServeReceive") : field?.policy_model === "model13800astra" ? t("hopeA3Console.astraV23ServeReceive") : field?.policy_model === "model14200" ? t("hopeA3Console.model14200ServeReceive") : field?.policy_model === "model14200fusion" ? t("hopeA3Console.model14200fusionServeReceive") : field?.policy_model === "model14200best" ? t("hopeA3Console.model14200bestServeReceive") : field?.policy_model === "model12000" ? t("hopeA3Console.12000V2312000ServeReceive") : field?.policy_model === "model17400" ? (field.policy_models?.model17400?.receive_only === true ? t("hopeA3Console.17400ReceiveOnly") : t("hopeA3Console.17400V2317400ServeReceive")) : field?.policy_model === "model12600" ? t("hopeA3Console.12600V2312600ServeReceive") : field?.policy_model === "model11999" ? t("hopeA3Console.11999ReceiveOnly") : field?.policy_model === "model14600" ? t("hopeA3Console.14600ServeReceive") : t("hopeA3Console.noPolicySelected")}</strong>
           <div className="field-buttons">
             <button type="button" disabled={!!policyUnavailableReason("model14600")} title={policyUnavailableReason("model14600")}
               aria-pressed={field?.policy_model === "model14600"}
@@ -1492,6 +1553,9 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             <button type="button" disabled={!!policyUnavailableReason("model14200fusion")} title={policyUnavailableReason("model14200fusion")}
               aria-pressed={field?.policy_model === "model14200fusion"}
               onClick={() => void fieldCommand({op: "set_policy_model", model: "model14200fusion"})}>{t("hopeA3Console.model14200fusionServeReceive")}</button>
+            <button type="button" disabled={!!policyUnavailableReason("model15200body")} title={policyUnavailableReason("model15200body")}
+              aria-pressed={field?.policy_model === "model15200body"}
+              onClick={() => void fieldCommand({op: "set_policy_model", model: "model15200body"})}>{t("hopeA3Console.model15200bodyServeReceive")}</button>
             <button type="button" disabled={!!policyUnavailableReason("model14200best")} title={policyUnavailableReason("model14200best")}
               aria-pressed={field?.policy_model === "model14200best"}
               onClick={() => void fieldCommand({op: "set_policy_model", model: "model14200best"})}>{t("hopeA3Console.model14200bestServeReceive")}</button>
@@ -1547,6 +1611,34 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           <div className="lifecycle-result" title={snapshot.lifecycleResult}>
             {snapshot.lifecycleResult ?? t("hopeA3Console.waitingForSupervisor")}
           </div>
+        </div>
+        <div className="operator-notice" role="status">
+          <strong>{t(configApplied ? "configRuntime.applied" : "configRuntime.pending")}</strong>
+          <div>{t("configRuntime.bodyChain", {
+            raw: playerSideAvailable(snapshot.lifecycleConfig.table_side as "P1" | "P2", [snapshot.playerP1, snapshot.playerP2], now)
+              ? t("configRuntime.dataFresh") : t("hopeA3Console.noData"),
+            base: isFresh(snapshot, TOPICS.baseFresh, now, 1_500) && snapshot.baseFresh === true
+              ? t("configRuntime.dataFresh") : t("configRuntime.baseUnavailable"),
+          })}</div>
+          <div>{isFresh(snapshot, TOPICS.baseSummary, now, 1_500) ? snapshot.baseSummary : t("configRuntime.baseReasonMissing")}</div>
+          <div>{t("configRuntime.packetizer", {
+            state: fieldFresh ? field?.ball_model_verification?.packetizer ?? t("hopeA3Console.noData") : t("hopeA3Console.noData"),
+          })}</div>
+          <div>{runtimeReason}</div>
+          {runtimeFresh && snapshot.configRuntime?.services.filter((row) => !row.matches).map((row) => (
+            <div key={row.service}>{row.service}: {t("configRuntime.peerMismatch", {
+              expected: row.expected_peers, actual: row.actual_peers ?? t("hopeA3Console.noData"),
+            })}</div>
+          ))}
+          {runtimeFresh && snapshot.configRuntime?.mocapProcesses.map((process) => (
+            <details key={`${process.kind}:${process.program}`}>
+              <summary>{process.kind} · {t(process.matches ? "configRuntime.applied" : "configRuntime.pending")}</summary>
+              <div>{t("configRuntime.mocapExpected", { value: process.expected })}</div>
+              <div>{t("configRuntime.mocapStartup", { value: process.startup })}</div>
+              <div className="topic-path">{process.program}</div>
+              <div className="topic-path">{process.files}</div>
+            </details>
+          ))}
         </div>
         <label className="table-side-selector">
           <div>
@@ -1705,6 +1797,22 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             <option value="v4">{t("hopeA3Console.v412MarkersEachForP1P2")}</option>
           </select>
         </label>}
+        {vrpnSelected && <div className="operator-notice">
+          <div>{t("configRuntime.attestationBinding")}</div>
+          {(["vrpn_pelvis_asset_confirmed", "vrpn_world_frame_confirmed"] as const).map((key) => (
+            <label key={key}>
+              <input type="checkbox" checked={mocapBindingUnchanged && configDraft[key] === "true"}
+                disabled={!lifecycleStopped || lifecycleBusy || !mocapBindingUnchanged || !runtimeFresh}
+                onChange={(event) => {
+                  setConfigTouched(true);
+                  setConfigDraft((current) => ({ ...current, [key]: event.target.checked ? "true" : "false" }));
+                }} />
+              {t.text(CONFIG_FIELDS[key].label)}
+            </label>
+          ))}
+        </div>}
+        {startBlocked && <p className="helper" role="status">{startBlocked}</p>}
+        {vrpnSelected && <p className="helper" role="status">{mocapRecoveryText(mocapRecovery, t)}</p>}
         <div className="lifecycle-actions">
           <button
             className="config-confirm"
@@ -1723,20 +1831,8 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           <button
             className="system-start"
             type="button"
-            disabled={
-              !(lifecycleStopped || lifecycleState === "FAILED") ||
-              lifecycleBusy ||
-              timeCalibrationBlocksStart ||
-              (snapshot.lifecycleConfigRevision ?? 0) < 1 ||
-              configTouched ||
-              fieldBusy || field?.busy === true || !fieldFresh ||
-              (!kernelMode && lifecycleState !== "FAILED" && !ballDisplay.ready) ||
-              (!kernelMode && lifecycleState !== "FAILED" &&
-                (!playerSideAvailable(configDraft.table_side as "P1" | "P2",
-                  [snapshot.playerP1, snapshot.playerP2], now) ||
-                  field?.player_positions?.[configDraft.table_side as "P1" | "P2"] !== true)) ||
-              busy.startLifecycle === true
-            }
+            disabled={startBlocked !== undefined}
+            title={startBlocked}
             onClick={startSystem}
           >
             {busy.startLifecycle === true || (lifecycleBusy && lifecycleState === "STARTING")
@@ -1744,6 +1840,12 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
               : lifecycleBusy && lifecycleState === "KILLING" ? t("hopeA3Console.cleaning")
               : lifecycleState === "FAILED" ? t("hopeA3Console.retryStartCleanUpAutomatically") : t("hopeA3Console.startSystem")}
           </button>
+          {vrpnSelected && <button type="button"
+            disabled={!mocapRecovery?.manual_allowed || !lifecycleStopped || lifecycleBusy ||
+              fieldBusy || field?.busy === true || !configApplied || configTouched || timeCalibrationBlocksStart}
+            onClick={() => void fieldCommand({ op: "reconnect_mocap" })}>
+            {mocapRecovery?.state === "RECONNECTING" ? t("mocapRecovery.reconnecting") : t("mocapRecovery.reconnect")}
+          </button>}
           <button
             className="system-stop"
             type="button"
@@ -1777,7 +1879,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             className="time-calibration-button"
             type="button"
             disabled={!timeCalibrationReady || busy.timeCalibration === true}
-            title={timeCalibrationTitle}
+            title={configApplied ? timeCalibrationTitle : runtimeReason}
             onClick={runTimeCalibration}
           >
             {busy.timeCalibration === true || timeCalibrationBusy

@@ -209,14 +209,16 @@ test('panel subscribes to raw unrotated player topics and decodes them directly'
   assert.equal(snapshot.playerP2.receivedAt, 100);
 });
 
-test('START requires the HDU verdict as well as raw UI evidence; side buttons stay raw-driven', () => {
+test('PASSIVE START permits absent HDU player verdict; side buttons stay raw-driven', () => {
   for (const verified of [true, false, undefined]) {
-    const players = [{x:-.5, receivedAt:Date.now(), sec:1, nanosec:0}];
+    for (const visible of [true, false]) {
+    const players = visible ? [{x:-.5, receivedAt:Date.now(), sec:1, nanosec:0}] : [];
     const field = {mode:'OPTITRACK', player_positions: verified == null ? undefined : {P1:verified, P2:false},
       ball_model_status:{state:'CONFIGURED', configured_model:'ppq004', age_s:0, endpoints:{}}};
-    const tree = panelHarness('linux','STOPPED',false,field,0,players,{lifecycleConfigRevision:1}).render();
-    assert.equal(button(tree,'UCB_P1 · DIRECT').props.disabled, false);
-    assert.equal(button(tree,'START SYSTEM').props.disabled, verified !== true);
+    const tree = panelHarness('linux','STOPPED',false,field,0,players,{lifecycleConfigRevision:1,configRuntime:{applied:true,services:[],mocapProcesses:[]},lastReceived:{'/hope/lifecycle/config/status':Date.now(),'/hope/lifecycle/state':Date.now(),'/hope/field/status':Date.now()}}).render();
+    assert.equal(button(tree,'UCB_P1 · DIRECT').props.disabled, !visible);
+    assert.equal(button(tree,'START SYSTEM').props.disabled, false);
+    }
   }
 });
 
@@ -233,7 +235,7 @@ test('Foxglove-normalized pose messages enable physical sides and START through 
   const field = {mode:'OPTITRACK', player_positions:{P1:true, P2:true},
     ball_model_status:{state:'CONFIGURED', configured_model:'ppq004', age_s:0, endpoints:{}}};
   const tree = panelHarness('linux', 'STOPPED', false, field, 0,
-    [snapshot.playerP1, snapshot.playerP2], {lifecycleConfigRevision:51}).render();
+    [snapshot.playerP1, snapshot.playerP2], {lifecycleConfigRevision:51,configRuntime:{applied:true,services:[],mocapProcesses:[]},lastReceived:{'/hope/lifecycle/config/status':Date.now(),'/hope/lifecycle/state':Date.now(),'/hope/field/status':Date.now()}}).render();
   assert.equal(button(tree, 'UCB_P1 · DIRECT').props.disabled, false);
   assert.equal(button(tree, 'UCB_P2 · ROTATE 180°').props.disabled, false);
   assert.equal(button(tree, 'START SYSTEM').props.disabled, false);

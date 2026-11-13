@@ -26,7 +26,7 @@ test('VRPN setup carries the confirmed fields through the real shell argument bo
   const args = capture(mocapSetupCommand(config, 'model21800_20261015T010203Z'));
   assert.deepEqual(args, ['foxglove/helpers/hope-lifecycle', 'start-laptop',
     'model21800_20261015T010203Z', '10.42.20.1', '10.42.20.10', '10.42.10.12', 'NONE',
-    'P2', 'OPTITRACK', 'DEFAULT', 'new_20261015', 'vrpn', '192.168.100.99', '3883', 'mm', 'v4']);
+    'P2', 'OPTITRACK', 'DEFAULT', 'new_20261015', 'vrpn', '192.168.100.99', '3883', 'mm', 'v4', 'false', 'false']);
 });
 
 test('Motive and none select distinct setups; standalone session is generated only in the shell', () => {

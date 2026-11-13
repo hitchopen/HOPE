@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from hope_config_runtime import require_applied
+
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -26,6 +28,10 @@ from hope_lifecycle_core import (
     try_acquire_hardware_operation_lock,
 )
 from hope_time_calibration_core import (
+    CalibrationNetworkWatch,
+    calibration_owner_stopped,
+    read_calibration_network,
+    wait_for_calibration_network,
     CalibrationFailure,
     CalibrationProgress,
     CalibrationRejected,
@@ -40,13 +46,14 @@ from hope_time_calibration_core import (
 
 CONFIG_PATH = Path("/var/lib/hope-lifecycle/config.json")
 STATUS_PATH = Path("/var/lib/hope-time-calibration/status.json")
+OWNER_PATH = Path("/var/lib/hope-lifecycle/config-owner.json")
 ROBOT_USER = os.environ.get("HOPE_ROBOT_USER", "agi").strip()
 LIFECYCLE_FRESHNESS_S = 1.5
 NTP_FRESHNESS_S = 1.5
 
 
 class HopeTimeCalibration(Node):
-    def __init__(self):
+    def __init__(self, network_signature=None):
         super().__init__(
             "hope_time_calibration",
             start_parameter_services=False,
@@ -65,6 +72,7 @@ class HopeTimeCalibration(Node):
         self._boot_id = read_boot_id()
         self._hardware_operation_lock = None
         self._recycle_requested = threading.Event()
+        self._network_watch = CalibrationNetworkWatch(network_signature)
 
         self._lifecycle_state = ""
         self._lifecycle_state_received = 0.0
@@ -121,6 +129,7 @@ class HopeTimeCalibration(Node):
             callback_group=self._callback_group,
         )
         self.create_timer(0.5, self._publish)
+        self.create_timer(1.0, self._poll_network)
 
         if self._status.state in {"INTERRUPTED", "FAILED_SAFE_STOP"}:
             try:
@@ -207,6 +216,33 @@ class HopeTimeCalibration(Node):
         busy.data = status.state in {"RUNNING", "INTERRUPTED"}
         self._status_publishers["busy"].publish(busy)
 
+    def _poll_network(self) -> None:
+        if not self._network_watch.needs_reconnect(read_calibration_network(), time.monotonic()):
+            return
+        operation_lock = None
+        with self._lock:
+            # Admission shares this mutex. Never interrupt an accepted action,
+            # failed-maintenance interlock, or a robot session to repair DDS.
+            if (self._recycle_requested.is_set()
+                    or self._status.state not in {"IDLE", "COMPLETE", "REJECTED"}
+                    or self._hardware_operation_lock is not None):
+                return
+            if not calibration_owner_stopped(OWNER_PATH, self._boot_id, time.monotonic()):
+                return
+            try:
+                operation_lock = try_acquire_hardware_operation_lock()
+            except OSError:
+                return
+            if operation_lock is None:
+                return
+            if not calibration_owner_stopped(OWNER_PATH, self._boot_id, time.monotonic()):
+                release_hardware_operation_lock(operation_lock)
+                return
+            self._hardware_operation_lock = operation_lock
+            self._recycle_requested.set()
+        self.get_logger().info("NETWORK_DDS_RECYCLE: network changed; rebuilding idle coordinator only")
+        rclpy.try_shutdown()
+
     def _on_lifecycle_state(self, message: String) -> None:
         rearm = False
         with self._lock:
@@ -246,6 +282,8 @@ class HopeTimeCalibration(Node):
         the backend still verifies real consumers are stopped before stepping.
         """
         status = self._status
+        if self._recycle_requested.is_set():
+            return "time-calibration communication is reconnecting; request not accepted"
         lifecycle_state = self._lifecycle_state
         lifecycle_state_fresh = (
             self._lifecycle_state_received > 0.0
@@ -295,6 +333,7 @@ class HopeTimeCalibration(Node):
             return response
         try:
             config = load_config(CONFIG_PATH)
+            require_applied(config)
         except (OSError, ValueError) as exc:
             response.success = False
             response.message = f"cannot load confirmed lifecycle configuration: {exc}"
@@ -318,6 +357,9 @@ class HopeTimeCalibration(Node):
             return response
         operation_id = datetime.now(timezone.utc).strftime("timecal_%Y%m%dT%H%M%SZ")
         try:
+            require_applied(config)
+            if load_config(CONFIG_PATH) != config:
+                raise ValueError("Configuration changed during calibration admission")
             with self._lock:
                 rejection = self._request_rejection_locked(time.monotonic())
                 if self._hardware_operation_lock is not None:
@@ -464,8 +506,15 @@ class HopeTimeCalibration(Node):
 
 
 def main() -> None:
+    try:
+        config = load_config(CONFIG_PATH)
+        address = config.hdu_wifi_ip if config.revision > 0 else ""
+    except (OSError, ValueError):
+        address = ""  # Keep existing unconfigured diagnostics available.
+    print(f"TIME_CALIBRATION_NETWORK_WAIT: local address={address or 'unconfigured'}", flush=True)
+    network_signature = wait_for_calibration_network(address)
     rclpy.init()
-    node = HopeTimeCalibration()
+    node = HopeTimeCalibration(network_signature)
     executor = MultiThreadedExecutor(num_threads=3)
     executor.add_node(node)
     recycle_requested = False

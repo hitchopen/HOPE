@@ -3,7 +3,9 @@ set -eo pipefail
 
 readonly runtime_env="$HOME/.config/hope-foxglove/laptop-runtime.env"
 [[ -r "$runtime_env" ]] || exit 66
+set -a
 source "$runtime_env"
+set +a
 source /opt/ros/jazzy/setup.bash
 cd "$HOPE_LIFECYCLE_ROOT/hope_ws"
 source install/local_setup.bash
@@ -11,9 +13,9 @@ set -u
 
 readonly laptop_dir="$HOPE_LIFECYCLE_ROOT/real_logs/$HOPE_LIFECYCLE_SESSION_ID/laptop"
 mkdir -p "$laptop_dir"
-readonly mocap_source="${HOPE_LIFECYCLE_MOCAP_SOURCE:-motive}"
+readonly mocap_source="${HOPE_LIFECYCLE_MOCAP_SOURCE:?Missing authoritative mocap source}"
 if [[ "$mocap_source" == vrpn ]]; then
-  case "${HOPE_LIFECYCLE_VRPN_UNITS:-mm}" in
+  case "${HOPE_LIFECYCLE_VRPN_UNITS:?Missing authoritative VRPN units}" in
     mm) position_scale=0.001 ;;
     m) position_scale=1.0 ;;
     *) echo 'Invalid VRPN output units' >&2; exit 64 ;;

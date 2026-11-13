@@ -22,7 +22,7 @@ def test_start_rebinds_exact_runner_session_before_hal(source):
     backend.start(config, session, lambda event: None, ball_model="ppq004")
     rebind = next(c for c in calls if "reconnect-laptop" in c)
     assert rebind[rebind.index("reconnect-laptop")+1] == session
-    assert rebind[-5:] == [source, config.vrpn_ip, config.vrpn_port, config.vrpn_units, "v4"]
+    assert rebind[-7:] == [source, config.vrpn_ip, config.vrpn_port, config.vrpn_units, "v4", "false", "false"]
     hal = next(c for c in calls if "start-hal" in c)
     runner = next(c for c in calls if "start-runner" in c)
     assert calls.index(rebind) < calls.index(hal) < calls.index(runner)

@@ -17,6 +17,7 @@ from prepare_model12000_bundle import architecture, digest, restore_hardware_run
 CSV_NAMES = {
     'model13800': 'v23-13800.csv',
     'model13800astra': 'v23-13800-astra.csv',
+    'model15200body': 'v23-15200-body.csv',
     'model14200': 'v23-14200.csv',
     'model14200fusion': 'v23-14200-fusion.csv',
     'model14200best': 'v23-14200-best.csv',

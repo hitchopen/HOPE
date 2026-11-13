@@ -16,7 +16,8 @@ export function mocapSetupCommand(config: Record<string, string>, session?: stri
   const args = [config.laptop_wifi_ip, config.hdu_wifi_ip, config.mdu_internal_ip,
     config.motive_ip === "" ? "NONE" : config.motive_ip, config.table_side, "OPTITRACK", "DEFAULT",
     config.gripper_profile, config.mocap_source, config.vrpn_ip === "" ? "NONE" : config.vrpn_ip,
-    config.vrpn_port, config.vrpn_units, config.pants_profile];
+    config.vrpn_port, config.vrpn_units, config.pants_profile,
+    config.vrpn_pelvis_asset_confirmed ?? "false", config.vrpn_world_frame_confirmed ?? "false"];
   const sessionValue = session && /^model21800_\d{8}T\d{6}Z$/.test(session)
     ? quote(session) : '"model21800_$(date -u +%Y%m%dT%H%M%SZ)"';
   const command = `bash foxglove/helpers/hope-lifecycle start-laptop ${sessionValue} ${args.map((value) => quote(value ?? "")).join(" ")}`;
