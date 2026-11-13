@@ -1,0 +1,544 @@
+{
+  "schema": 1,
+  "description": "Reviewed minimum inventory for a full robot changeover; assertions are human reviewed, not sampled by this offline gate.",
+  "components": [
+    {
+      "id": "laptop_environment",
+      "host": "laptop",
+      "optional": false,
+      "description": "ROS/container identity and matching message/runtime tools",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "loaded_overlay",
+          "tool_versions"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "laptop_console",
+      "host": "laptop",
+      "optional": false,
+      "description": "Installed extension, live/replay panel and time calibration/availability UI",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "loaded_extension_hash",
+          "window_reload_evidence"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "laptop_clock",
+      "host": "laptop",
+      "optional": false,
+      "description": "Current HDU source and clock gate",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "selected_hdu_source",
+          "leap_status",
+          "correction_limit"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "laptop_network",
+      "host": "laptop",
+      "optional": false,
+      "description": "Actual topology, trusted SSH peers and DDS interfaces",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "routes",
+          "peer_identities",
+          "dds_interfaces"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "laptop_capture",
+      "host": "laptop",
+      "optional": false,
+      "description": "Role-based recording and export helpers",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "recording_role",
+          "session_outputs"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "hdu_clock",
+      "host": "hdu",
+      "optional": false,
+      "description": "Chrony upstream/ACL, bootstrap and control-plane ordering",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "selected_source",
+          "laptop_acl",
+          "bootstrap_enabled",
+          "ordering",
+          "sync_gate"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "hdu_operations",
+      "host": "hdu",
+      "optional": false,
+      "description": "Matching native operations, worker, recovery, units and sudoers",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "executable_hashes",
+          "worker_identity",
+          "recovery_contract"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "hdu_lifecycle",
+      "host": "hdu",
+      "optional": false,
+      "description": "Lifecycle helpers, selected bundle resolver, writable logs and gripper preflight",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "helper_hashes",
+          "selected_bundle",
+          "preflight_results"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "hdu_planner",
+      "host": "hdu",
+      "optional": false,
+      "description": "Planner binary, return physics, runtime configuration and selected profile",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "executable_hash",
+          "argv",
+          "loaded_config_hashes",
+          "applied_revision"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "hdu_transport",
+      "host": "hdu",
+      "optional": false,
+      "description": "Base relay, gateway, IMU, monitor and mocap-config transport",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "executable_hashes",
+          "argv",
+          "topic_freshness"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "hdu_dds",
+      "host": "hdu",
+      "optional": false,
+      "description": "Route source selection and reliable bounded flight-packet QoS",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "selected_addresses",
+          "flight_qos",
+          "loaded_wrapper_hash"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "hdu_display",
+      "host": "hdu",
+      "optional": false,
+      "description": "Both bridge binaries, display patch and parameters",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "bridge_hashes",
+          "display_parameters",
+          "thread_nice"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "hdu_inspection_cache",
+      "host": "hdu",
+      "optional": false,
+      "description": "Process-bound model inspection cache, measurement age and availability",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "cache_identity",
+          "cache_expiry",
+          "availability_observation"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "hdu_capture",
+      "host": "hdu",
+      "optional": false,
+      "description": "HDU role recording, session receipt and log collection",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "recording_role",
+          "session_outputs",
+          "receipt_identity"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "mdu_bsp_scheduler",
+      "host": "mdu",
+      "optional": false,
+      "description": "Explicit model/BSP/config and hardened ELink scheduler profile",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "robot_model",
+          "vendor_hashes",
+          "loaded_library_hash",
+          "thread_roles",
+          "rt_priorities",
+          "cpu_affinity"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "mdu_clock",
+      "host": "mdu",
+      "optional": false,
+      "description": "PTP topology, worker ownership and continuous offsets",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "ptp_state",
+          "gm_present",
+          "unique_workers",
+          "offset_samples"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "mdu_policy",
+      "host": "mdu",
+      "optional": false,
+      "description": "Selected Runner, dependencies, ONNX/deploy, matched CSV, gripper and catalog",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "selected_slot",
+          "catalog_hashes",
+          "runner_executable_hash",
+          "argv",
+          "loaded_config_hashes"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "mdu_runtime",
+      "host": "mdu",
+      "optional": false,
+      "description": "Managed passive runtime and scheduling",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "session_id",
+          "owner",
+          "runner_mode",
+          "fresh_ticks",
+          "faults",
+          "thread_affinity"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "mdu_capture",
+      "host": "mdu",
+      "optional": false,
+      "description": "MDU role recording and writable log paths",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "recording_role",
+          "session_outputs",
+          "logs_writable"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "mocap_chain",
+      "host": "mocap",
+      "optional": true,
+      "description": "Mode-specific source, clock, asset, frame transforms and acceptance",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "source_clock",
+          "asset_hash",
+          "frame_units",
+          "source_freshness",
+          "relay_acceptance"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "optional_models",
+      "host": "mdu",
+      "optional": true,
+      "description": "Explicitly selected additional model packages only",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "catalog_entries",
+          "paired_assets"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    },
+    {
+      "id": "optional_controller",
+      "host": "laptop",
+      "optional": true,
+      "description": "Xbox or handheld input when used",
+      "checks": {
+        "installed": [
+          "artifact_hashes",
+          "install_paths",
+          "rollback_reference"
+        ],
+        "running": [
+          "effective_identity",
+          "device_identity",
+          "input_service",
+          "admission_checks"
+        ],
+        "persistent": [
+          "post_reboot_identity",
+          "effective_units_and_config",
+          "post_reboot_checks"
+        ]
+      }
+    }
+  ]
+}

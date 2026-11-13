@@ -3,6 +3,10 @@
 2026-10-31 已结合新 P1 机器人在线安装、双板重启及 START 排障修订。
 本页给出部署与验收流程；具体机器是否通过，仍以本次 boot/session 的实测记录为准。
 
+2026-11-13：换机或全机同步必须先生成[部署覆盖清单](deployment_coverage.md)，
+逐项记录 installed/running/persistent 证据及现场未入库修复。模型 catalog、operations
+bundle 或两个仓库的分支相等，均不能单独证明全机对齐。
+
 ## 1. 先确定部署范围
 
 用户说明“新机器人”“换了 HDU/MDU”或“重刷 BSP”后，“部署”必须包含系统基线、
@@ -18,9 +22,9 @@
 分立 observer/proxy 示例必须先按[当前节点结构](node_architecture.md)和
 [匹配组件升级](foxglove_lifecycle.md#upgrade-the-supervisor-console-and-container-together)核对。
 全新 HDU 的 operations 初始化见 [安装控制服务](foxglove_lifecycle.md#install-the-hdu-supervisor)。
-原生 C++ operations 的激活流程属于 [PR #102](https://github.com/hitchopen/HOPE/pull/102)，
-仅在同时采用该版本时使用其部署工具；当前 main 的 Python 服务继续遵循本库安装流程。
-PR #102 的 `install_native_operations.sh` 和 `hope_operations_deploy.py stage` 只准备 operations
+本分支包含原生 C++ operations 和配套 worker；部署时核对实际选定 release 中的
+`foxglove/a3/native/README.md`、有效 unit 与运行 PID，不以旧 PR 状态判断部署版本。
+`install_native_operations.sh` 和 `hope_operations_deploy.py stage` 只准备 operations
 候选，不负责安装全机时钟、依赖和网络，也不自动激活服务。
 
 ## 2. 按顺序完成，逐项保留证据
