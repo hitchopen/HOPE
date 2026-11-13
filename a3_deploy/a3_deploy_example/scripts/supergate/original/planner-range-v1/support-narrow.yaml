@@ -1,0 +1,10 @@
+live_base: true
+empirical_support:
+  contract: super_gate3_empirical_lateral_v1
+  forehand_y_range:
+  - -0.75
+  - -0.24
+  backhand_y_range:
+  - -0.24
+  - 0.45
+  evidence_sha256: 0788bebaeccc1b32cbd64f866c1748ac9ca7c97b1a178c86a23155786a52f292

@@ -1,0 +1,21 @@
+{
+  "filled_cells": 67,
+  "physical_generation_unfilled_cells": [
+    1,
+    2,
+    5,
+    8,
+    11,
+    14,
+    17,
+    20,
+    23,
+    26,
+    54,
+    57,
+    66,
+    72
+  ],
+  "minimum_samples_each_retained_cell": 6,
+  "reason": "14 cells did not yield six valid trajectories in 24 deterministic attempts per cell. Some have geometric net/table conflicts; this is a recorded generation limit, not proof that every unfilled cell is physically impossible."
+}

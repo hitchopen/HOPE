@@ -24,6 +24,32 @@ class DatasetTests(unittest.TestCase):
         self.assertEqual(len(counts),81)
         self.assertEqual(set(counts.values()),{12})
 
+    def test_outer_and_mixed_long_original_suites(self):
+        self.assertEqual(load_dataset(HERE/'data/outer').shape, (6,67,11))
+        self.assertEqual(load_dataset(HERE/'data/mixed-long').shape, (6,200,11))
+        suites = {}
+        for label, count in [('outer',402), ('mixed-long',1200)]:
+            root = HERE/'data'/label
+            rows = [row for shard in range(1,7)
+                    for row in json.loads((root/f'shard-{shard:02d}-ledger.json').read_text())]
+            self.assertEqual(rows, json.loads((root/'samples.json').read_text()))
+            self.assertEqual(len({tuple(r['launch']+r['initial_spin']) for r in rows}), count)
+            suites[label] = rows
+        cells = collections.Counter(r['cell_id'] for r in suites['outer'])
+        self.assertEqual(len(cells), 67)
+        self.assertEqual(set(cells.values()), {6})
+        self.assertEqual(collections.Counter(r['validation_source'] for r in suites['mixed-long']),
+                         {'outer':402, 'fresh_holdout':486, 'main':312})
+        outer = {tuple(r['launch']+r['initial_spin']) for r in suites['outer']}
+        mixed_outer = {tuple(r['launch']+r['initial_spin']) for r in suites['mixed-long']
+                       if r['validation_source']=='outer'}
+        self.assertEqual(outer, mixed_outer)
+
+    def test_original_source_and_data_preservation(self):
+        manifest = json.loads((HERE/'original/SOURCE_MANIFEST.json').read_text())
+        for name, record in manifest['files'].items():
+            self.assertEqual(sha256(HERE/name), record['sha256'], name)
+
     def test_pinned_planner_source_manifest(self):
         root = HERE/'native/planner'
         manifest = json.loads((root/'SOURCE_MANIFEST.json').read_text())

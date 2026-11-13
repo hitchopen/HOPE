@@ -1,0 +1,10 @@
+{
+  "total": 1200,
+  "continuous_shots_per_shard": 200,
+  "outer": 402,
+  "fresh_holdout": 486,
+  "main": 312,
+  "order_seed": 202611090711,
+  "duplicates": 0,
+  "purpose": "Long continuous mixture; no per-shot reset; prior outer trajectories retained, fresh frozen inner holdout and old main added. Bounds are selected using fall outcomes, so this remains empirical testing, not proof outside sampled cases."
+}

@@ -8,8 +8,10 @@ Each policy receives the same six continuous shards.
 
 This directory contains reusable code and test definitions. It contains no
 personal model weights, historical run results, raw recordings, installed
-libraries or workstation paths. Supply your own policy, robot geometry and
-matching ready state. Raw time-series recording is off by default.
+libraries. Supply your own policy, robot geometry and matching ready state.
+Raw time-series recording is off by default in the portable runner. The
+[original research scripts](original/README.md) are also preserved verbatim;
+those historical scripts retain workstation paths and their original behavior.
 
 ## Included suites
 
@@ -20,10 +22,21 @@ matching ready state. Raw time-series recording is off by default.
   constructed near historical predicted contact conditions, not exact replay of
   measured ball spin or racket contact.
 
+* `data/outer`: 402 outer-band launches, 67 per shard. Of 81 requested coverage
+  cells, 67 produced six feasible samples each; 14 remain generation holes.
+  `attempts.json` preserves successful and failed construction attempts.
+* `data/mixed-long`: 1,200 launches, 200 continuous trials per shard: 402 outer,
+  486 fresh inner holdout and 312 main. The original order seed is 202611090711;
+  there are no duplicate launch/spin pairs within this suite.
+
 The YAML/ledger pairs are byte-preserved frozen inputs. Their SHA256 manifests
-also bind the design metadata. Selection predates policy outcomes; these sets
-are stratified coverage tests, not an independent representative success-rate
-estimate. A modified suite must receive a new manifest and identity.
+also bind the design metadata. Outer and mixed-long include their original
+`samples.json`, design and SHA256 files unchanged. Main, slow-tail and outer
+construction precedes policy outcomes. Mixed-long was used for empirical range
+selection informed by fall outcomes; it overlaps outer/main and is not an
+independent holdout or a general safety claim. All suites are coverage tests,
+not representative success-rate estimates. A modified suite must receive a new
+manifest and identity.
 
 ## Dependencies and build
 
@@ -73,7 +86,12 @@ python "$SG/run.py" --library /path/to/supergate-build/native_batch.so \
 Use `--cases 1` for a six-launch-per-policy smoke test. Omit `--cases` for the
 full suite. Use `--dataset "$SG/data/slow-tail"` for the slow set. Output must be
 a new directory. `--config-dir` can select an explicit Planner configuration
-directory; it must contain the four files named in `run.py`. Policy/deploy,
+directory; it must contain the four files named in `run.py`. Select the added
+suites with `--dataset "$SG/data/outer"` or `--dataset "$SG/data/mixed-long"`.
+Changing the dataset does not change the portable runner's admission profile.
+The original outer/mixed-long range sweep used the v6 backend and explicit
+support profiles; see [original scripts and protocol differences](original/README.md).
+Policy/deploy,
 dataset, ready-state, model XML, configuration and library hashes are recorded.
 Geometry includes/meshes remain caller-managed model dependencies; the XML hash
 alone is not a complete geometry-package hash.

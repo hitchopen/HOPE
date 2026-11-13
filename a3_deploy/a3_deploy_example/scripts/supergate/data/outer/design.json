@@ -1,0 +1,11 @@
+{
+  "label": "outer",
+  "total": 402,
+  "cells": 81,
+  "samples_per_shard": 67,
+  "scope": "Expansion evaluation: three outer lateral bands [-.84,-.70], [.30,.44], [.46,.59], three heights, speeds and arrival angles, six independent samples/cell. Physical feasibility only before outcomes; all failures retained.",
+  "requested_cells": 81,
+  "retained_cells": 67,
+  "physical_generation_unfilled_cells": 14,
+  "minimum_samples_each_retained_cell": 6
+}

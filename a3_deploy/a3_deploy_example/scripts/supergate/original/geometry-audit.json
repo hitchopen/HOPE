@@ -1,0 +1,26 @@
+{
+  "test_mujoco_fk_and_rigid_mass_properties_match_urdf": {
+    "pass": true,
+    "seconds": 1.5051994323730469
+  },
+  "test_home_pose_has_no_robot_self_penetration": {
+    "pass": true,
+    "seconds": 0.691723108291626
+  },
+  "test_both_blade_faces_contact_the_telemetry_geom": {
+    "pass": true,
+    "seconds": 0.6306841373443604
+  },
+  "comparison": {
+    "mass_old": 58.28787231,
+    "mass_0807": 57.630610154159996,
+    "stand_site_delta_mm": [
+      0.1539870112112346,
+      0.0593449132740842,
+      0.4745619109091104
+    ],
+    "joint_order_equal": true,
+    "xml_sha256": "7ec4a67d95f3857d526276342b368990044cbe58e6f51a22de70b2076f6073c1",
+    "training_urdf_sha256": "e0d65122a03e0b390b81418756a2291246d1a859f3f2ed903a6907878773a49f"
+  }
+}

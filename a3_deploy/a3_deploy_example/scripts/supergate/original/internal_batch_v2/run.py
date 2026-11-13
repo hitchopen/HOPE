@@ -1,0 +1,24 @@
+from pathlib import Path
+import ctypes,sys,json,time,hashlib,os,argparse
+import numpy as np,mujoco,yaml
+W=Path(__file__).resolve().parent;TASK=W.parent.parent;D=TASK/'outputs/super-gate3-v1'
+sys.path.insert(0,'/home/user/Desktop/workspace/nohope/agi/a3_deploy_example/scripts')
+import validate_spin001_serve_mujoco as helper
+from runner_sim_profile import apply_hope_contact_profile
+ap=argparse.ArgumentParser();ap.add_argument('ncase',type=int);ap.add_argument('threads',type=int);ap.add_argument('output');ap.add_argument('--policy0');ap.add_argument('--policy1');ap.add_argument('--label0',default='13800');ap.add_argument('--label1',default='14200');ap.add_argument('--single-model',action='store_true');ap.add_argument('--dataset');ap.add_argument('--environments',type=int);ap.add_argument('--policy-groups',help='JSON list of label/path objects, six environments each');args=ap.parse_args();D=Path(args.dataset).resolve() if args.dataset else D
+ncase=args.ncase;threads=args.threads;nenv=args.environments or (6 if args.single_model else 12);out=Path(args.output).resolve();out.mkdir(parents=True,exist_ok=False)
+m,bindings=helper._compile_model(W.parent/'model-0807/a3_pingpong.xml');apply_hope_contact_profile(m)
+ref=np.load(W.parent/'serve-14200-0807/ready_reference.npz');q=ref['qpos'][-1].copy();v=ref['qvel'][-1].copy();command=ref['command'][-1].copy();bindings=np.array(bindings,dtype=np.int32);assert np.array_equal(bindings[:,0],ref['qa']);assert len(q)==m.nq
+q[:2]=[-.5,-.7625]
+rows=[]
+for i in range(6):
+ s=yaml.safe_load((D/f'shard-{i+1:02d}.yaml').read_text());ledger=json.loads((D/f'shard-{i+1:02d}-ledger.json').read_text())[:ncase];rows.append([[*r['launch'],*r['initial_spin'],s['timing']['flight_s_list'][k],s['timing']['pause_s_list'][k]] for k,r in enumerate(ledger)])
+cases=np.array(rows,np.float64)
+p0=args.policy0 or '/home/user/Documents/Codex/2026-11-03/new-chat/work/download/extracted/model_13800_policy';p1=args.policy1 or str(W.parent/'download/model_14200_policy');repo=Path('/home/user/Desktop/workspace/nohope/hope_ws/src/hope_planner_cpp/config')
+groups=json.loads(Path(args.policy_groups).read_text()) if args.policy_groups else None
+if groups:nenv=6*len(groups);p0='\n'.join(g['path'] for g in groups)
+assert nenv%6==0
+lib=ctypes.CDLL(str(W/'native_batch.so'));a=np.ctypeslib.ndpointer(dtype=np.float64,flags='C_CONTIGUOUS');b=np.ctypeslib.ndpointer(dtype=np.int32,flags='C_CONTIGUOUS')
+lib.batch_run.argtypes=[ctypes.c_void_p,a,a,a,b,a,ctypes.c_int,ctypes.c_int,ctypes.c_int]+[ctypes.c_char_p]*7;lib.batch_run.restype=ctypes.c_int
+start=time.perf_counter();rc=lib.batch_run(m._address,q,v,command,bindings,cases,ncase,nenv,threads,p0.encode(),p1.encode(),str(out).encode(),str(repo/'return_physics.yaml').encode(),str(repo/'ball_physics_ppq004_20261020.yaml').encode(),str(repo/'model21800_flight_packetizer.yaml').encode(),str(repo/'model21800_hardware.yaml').encode())
+receipt={'backend':'mjb_apply internal MuJoCo thread pool','mujoco':mujoco.__version__,'processes':1,'threads':threads,'environments':nenv,'cases_per_environment':ncase,'physical_ball_trials':nenv*ncase,'seconds':time.perf_counter()-start,'return_code':rc,'dataset_manifest_sha256':hashlib.sha256((D/'SHA256.json').read_bytes()).hexdigest(),'library_sha256':hashlib.sha256((W/'native_batch.so').read_bytes()).hexdigest(),'policy_sha256':{n:hashlib.sha256((Path(p)/'exported/policy.onnx').read_bytes()).hexdigest() for n,p in ([(g['label'],g['path']) for g in groups] if groups else [(args.label0,p0)] if args.single_model else [(args.label0,p0),(args.label1,p1)])},'policy_groups':groups,'diagnostics':'Read-only FK in separate mjData; planned time (next 1 ms tick), first physical contact from production contact step; p/v/n plus body orientation and warnings.','scope':'Production native actor, causal IncomingTrajectory/Estimator/FutureContact/Stage3 cores, 1 kHz physical ball/contact law. Direct schema4 inputs on independent simulation clocks, fixed 8 ms delivery model. No DDS/transport/HAL/managed lifecycle or wall-time qualification. Initial measured WAIT state translated to nominal HOME, 20 s policy WAIT warm-up. Continuous per-shard shots, natural return drain.'};(out/'run.json').write_text(json.dumps(receipt,indent=2));print('BATCH_DONE',json.dumps(receipt),flush=True);raise SystemExit(0 if rc==0 else 1)

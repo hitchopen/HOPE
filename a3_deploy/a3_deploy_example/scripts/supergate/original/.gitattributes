@@ -1,0 +1,2 @@
+# Preserve original source bytes, including historical extra EOF blank lines.
+** whitespace=-blank-at-eof
