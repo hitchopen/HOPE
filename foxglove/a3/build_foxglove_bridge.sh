@@ -73,7 +73,15 @@ apply_verified_patch() {
         die "${label} compatibility patch checksum mismatch."
 
     local status
-    status="$(git -C "${repository}" status --porcelain --untracked-files=normal)"
+    # The display patch is hash-validated separately below. Preserve the
+    # compatibility check's rejection of every other unrecognized edit.
+    if [[ "$repository" == "$FOXGLOVE_SOURCE" ]]; then
+        status="$(git -C "${repository}" status --porcelain --untracked-files=normal -- . \
+          ':!ros/src/foxglove_bridge/src/ros2_foxglove_bridge.cpp' \
+          ':!ros/src/foxglove_bridge/include/foxglove_bridge/ros2_foxglove_bridge.hpp')"
+    else
+        status="$(git -C "${repository}" status --porcelain --untracked-files=normal)"
+    fi
     if [[ -z "${status}" ]]; then
         git -C "${repository}" apply --check "${patch}" || \
             die "${label} compatibility patch does not apply to the pinned source."
@@ -155,6 +163,8 @@ apply_verified_patch \
     "${ROSX_SOURCE}" "${ROSX_PATCH}" "${ROSX_PATCH_SHA256}" \
     "${ROSX_PATCHED_FILE}" "${ROSX_PATCHED_FILE_SHA256}" \
     "rosx_introspection"
+
+python3 "${SCRIPT_DIR}/apply_foxglove_display_patch.py" "${FOXGLOVE_SOURCE}"
 
 cmake_args=(
     -DCMAKE_BUILD_TYPE=Release

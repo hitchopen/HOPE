@@ -1,0 +1,17 @@
+.hope-live-status {height:100%;width:100%;overflow:auto;background:#101b29;color:#e8eff6;font:13px/1.4 system-ui,sans-serif;padding:7px 14px;box-sizing:border-box;}
+.hope-live-grid {display:grid;grid-template-columns:1.45fr 1fr 1fr;gap:18px;}
+.hope-live-card {min-width:0;display:flex;flex-direction:column;gap:2px;}
+.hope-live-card + .hope-live-card {border-left:1px solid #304050;padding-left:18px;}
+.hope-live-label {display:flex;gap:7px;align-items:center;color:#a5b5c7;font-size:12px;}
+.hope-live-label i {width:7px;height:7px;border-radius:50%;background:#92a8bd;flex:none;}
+.hope-live-card.good .hope-live-label i {background:#56d4b6;}
+.hope-live-card.waiting .hope-live-label i {background:#eec37a;}
+.hope-live-card.unavailable .hope-live-label i {background:#b5897a;}
+.hope-live-card strong {font-size:18px;line-height:1.2;font-weight:600;letter-spacing:.01em;}
+.hope-live-card.good strong {color:#8be2cc;}
+.hope-live-card.waiting strong {color:#f0cf96;}
+.hope-live-detail {color:#a5b5c7;font-size:12px;}
+.hope-live-diagnostics {margin-top:4px;color:#95a8ba;font-size:11px;}
+.hope-live-diagnostics summary {cursor:pointer;width:max-content;}
+.hope-live-diagnostics div {margin-top:5px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
+@media(max-width:650px) {.hope-live-status {padding:8px 10px;}.hope-live-grid{gap:10px;}.hope-live-card + .hope-live-card{padding-left:10px;}.hope-live-card strong{font-size:16px;}.hope-live-detail{font-size:11px;}}

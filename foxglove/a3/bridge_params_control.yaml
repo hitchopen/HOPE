@@ -7,6 +7,7 @@
     port: 8766
     address: "0.0.0.0"
     tls: false
+    # Host-generated scenes stay on the Host endpoint (127.0.0.1:8767).
     topic_whitelist:
       - "^/planner/diagnostics$"
       - "^/hope/field/status$"
@@ -64,8 +65,10 @@
     # Bounded executor budget on the eight-core HDU. Service callbacks remain
     # independent of subscription work; the bridge is already native C++.
     num_threads: 2
+    # Display subscriptions have their own worker; operator challenge stays normal.
+    display_subscription_nice: 10
+    display_ball_marker_hz: 10.0
     use_compression: false
     capabilities:
       - clientPublish
       - services
-      - connectionGraph

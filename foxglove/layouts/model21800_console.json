@@ -3,12 +3,25 @@
     "3D!a3tf": {
       "cameraState": {
         "perspective": true,
-        "distance": 4.5,
-        "phi": 58,
-        "thetaOffset": 42,
-        "target": [1.37, -0.7625, -0.1],
-        "targetOffset": [0, 0, 0],
-        "targetOrientation": [0, 0, 0, 1],
+        "distance": 5.0,
+        "phi": 57,
+        "thetaOffset": 55,
+        "target": [
+          1.15,
+          -0.7625,
+          0.25
+        ],
+        "targetOffset": [
+          1.37,
+          -0.7625,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
         "fovy": 45,
         "near": 0.05,
         "far": 5000
@@ -18,15 +31,19 @@
       "scene": {
         "enableStats": false,
         "transforms": {
-          "showLabel": true,
+          "showLabel": false,
           "axisScale": 0.25,
           "lineWidth": 2
         }
       },
       "transforms": {},
       "topics": {
-        "/hope/pelvis/marker": {
+        "/hope/pelvis/marker": {"visible": true},
+        "/hope/planner/y_filter_markers": {
           "visible": true
+        },
+        "/hope/pelvis/marker": {
+          "visible": false
         },
         "/hope/ball/marker": {
           "visible": true
@@ -43,8 +60,16 @@
           "divisions": 40,
           "lineWidth": 1,
           "color": "#248eff44",
-          "position": [1.37, -0.7625, 0],
-          "rotation": [0, 0, 0],
+          "position": [
+            1.37,
+            -0.7625,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
           "order": 1
         },
         "urdf-table": {
@@ -61,7 +86,10 @@
         }
       }
     },
-    "hope-a3-console.HOPE A3 Console!operator": {}
+    "hope-a3-console.HOPE A3 Console!operator": {
+      "liveStatusOwnsPreview": true
+    },
+    "hope-a3-console.HOPE Live Status!live": {}
   },
   "globalVariables": {},
   "userNodes": {},
@@ -71,8 +99,13 @@
   },
   "layout": {
     "direction": "row",
-    "first": "3D!a3tf",
+    "first": {
+      "direction": "column",
+      "first": "hope-a3-console.HOPE Live Status!live",
+      "second": "3D!a3tf",
+      "splitPercentage": 9
+    },
     "second": "hope-a3-console.HOPE A3 Console!operator",
-    "splitPercentage": 60
+    "splitPercentage": 45
   }
 }

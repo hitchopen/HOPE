@@ -1,0 +1,123 @@
+diff --git a/ros/src/foxglove_bridge/src/ros2_foxglove_bridge.cpp b/ros/src/foxglove_bridge/src/ros2_foxglove_bridge.cpp
+--- a/ros/src/foxglove_bridge/src/ros2_foxglove_bridge.cpp
++++ b/ros/src/foxglove_bridge/src/ros2_foxglove_bridge.cpp
+@@ -1,5 +1,10 @@
+ #include <algorithm>
++#include <sys/resource.h>
++#include <sys/prctl.h>
++#include <cerrno>
++#include <cstring>
+ #include <cctype>
++#include <cmath>
+ #include <cinttypes>
+ #include <filesystem>
+ #include <fstream>
+@@ -297,6 +302,21 @@
+       init_msg);  // Initialize transient local topic to current connection count
+   }
+ 
++  const int displayNice = this->declare_parameter<int>("display_subscription_nice", 0);
++  if (displayNice < 0 || displayNice > 19) {
++    throw std::invalid_argument("display_subscription_nice must be 0..19");
++  }
++  _displayBallMarkerHz = this->declare_parameter<double>("display_ball_marker_hz", 10.0);
++  if (!std::isfinite(_displayBallMarkerHz) || _displayBallMarkerHz <= 0) {
++    throw std::invalid_argument("display_ball_marker_hz must be positive and finite");
++  }
++  if (displayNice > 0) {
++    // Explicitly excluded from the node's normal executor. Heartbeat challenges,
++    // client publishes and services retain the normal scheduling priority.
++    _displayCallbackGroup = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
++    _displayExecutor = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
++    _displayExecutor->add_callback_group(_displayCallbackGroup, this->get_node_base_interface());
++  }
+   _subscriptionCallbackGroup = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+   _clientPublishCallbackGroup =
+     this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+@@ -441,10 +461,32 @@
+ 
+   _rosgraphPollThread =
+     std::make_unique<std::thread>(std::bind(&FoxgloveBridge::rosgraphPollThread, this));
++  if (_displayExecutor) {
++    _displayThread = std::make_unique<std::thread>([this, displayNice] {
++      prctl(PR_SET_NAME, "fg-display", 0, 0, 0);
++      // Linux applies PRIO_PROCESS/0 to the calling thread, not all bridge threads.
++      if (setpriority(PRIO_PROCESS, 0, displayNice) != 0) {
++        RCLCPP_ERROR(this->get_logger(), "Display nice failed: %s", std::strerror(errno));
++      }
++      RCLCPP_INFO(this->get_logger(), "Display subscription nice=%d; heartbeat/services unchanged",
++                  getpriority(PRIO_PROCESS, 0));
++      try {
++        while (!_shuttingDown && rclcpp::ok()) {
++          _displayExecutor->spin_once(std::chrono::milliseconds(100));
++        }
++      } catch (const rclcpp::exceptions::RCLError& e) {
++        RCLCPP_WARN(this->get_logger(), "Display executor stopped: %s", e.what());
++      }
++    });
++  }
+ }
+ 
+ FoxgloveBridge::~FoxgloveBridge() {
+   _shuttingDown = true;
++  if (_displayExecutor) {
++    _displayExecutor->cancel();
++    if (_displayThread) _displayThread->join();
++  }
+   RCLCPP_INFO(this->get_logger(), "Shutting down %s", this->get_name());
+   if (_rosgraphPollThread) {
+     _rosgraphPollThread->join();
+@@ -916,24 +958,30 @@
+ 
+   rclcpp::SubscriptionOptions subscriptionOptions;
+   subscriptionOptions.event_callbacks = eventCallbacks;
+-  subscriptionOptions.callback_group = _subscriptionCallbackGroup;
++  const bool display = _displayCallbackGroup && topic != "/hope/runner/operator_challenge_hdu_flat";
++  subscriptionOptions.callback_group = display ? _displayCallbackGroup : _subscriptionCallbackGroup;
++  auto forward = [this, channelId, limited = topic == "/hope/ball/marker",
++                  last = std::make_shared<std::chrono::steady_clock::time_point>()]
++      (std::shared_ptr<const rclcpp::SerializedMessage> msg,
++       const rclcpp::MessageInfo& messageInfo) {
++    if (limited && _displayCallbackGroup) {
++      const auto now = std::chrono::steady_clock::now();
++      if (std::chrono::duration<double>(now - *last).count() < 1.0 / _displayBallMarkerHz) return;
++      *last = now;
++    }
++    this->rosMessageHandler(channelId, msg, messageInfo);
++  };
+ 
+ #if RCLCPP_VERSION_GTE(28, 0, 0)
+   return this->create_generic_subscription(
+     topic, datatype, qos,
+-    [this, channelId](std::shared_ptr<const rclcpp::SerializedMessage> msg,
+-                      const rclcpp::MessageInfo& messageInfo) {
+-      this->rosMessageHandler(channelId, msg, messageInfo);
+-    },
++    forward,
+     subscriptionOptions);
+ #else
+   auto ts_lib = rclcpp::get_typesupport_library(datatype, "rosidl_typesupport_cpp");
+   auto subscription = std::make_shared<GenericSubscriptionWithMessageInfo>(
+     this->get_node_base_interface().get(), std::move(ts_lib), topic, datatype, qos,
+-    [this, channelId](std::shared_ptr<rclcpp::SerializedMessage> msg,
+-                      const rclcpp::MessageInfo& messageInfo) {
+-      this->rosMessageHandler(channelId, msg, messageInfo);
+-    },
++    forward,
+     subscriptionOptions);
+   this->get_node_topics_interface()->add_subscription(subscription,
+                                                       subscriptionOptions.callback_group);
+diff --git a/ros/src/foxglove_bridge/include/foxglove_bridge/ros2_foxglove_bridge.hpp b/ros/src/foxglove_bridge/include/foxglove_bridge/ros2_foxglove_bridge.hpp
+--- a/ros/src/foxglove_bridge/include/foxglove_bridge/ros2_foxglove_bridge.hpp
++++ b/ros/src/foxglove_bridge/include/foxglove_bridge/ros2_foxglove_bridge.hpp
+@@ -138,6 +138,10 @@
+   std::vector<std::regex> _videoTranscodeTopicDenyPatterns;
+ #endif
+   std::shared_ptr<ParameterInterface> _paramInterface;
++  rclcpp::CallbackGroup::SharedPtr _displayCallbackGroup;
++  std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> _displayExecutor;
++  std::unique_ptr<std::thread> _displayThread;
++  double _displayBallMarkerHz = 10.;
+   rclcpp::CallbackGroup::SharedPtr _subscriptionCallbackGroup;
+   rclcpp::CallbackGroup::SharedPtr _clientPublishCallbackGroup;
+   rclcpp::CallbackGroup::SharedPtr _servicesCallbackGroup;

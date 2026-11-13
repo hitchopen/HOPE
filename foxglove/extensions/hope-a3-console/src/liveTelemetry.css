@@ -1,0 +1,42 @@
+.hope-live-state-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-bottom: 5px;
+  font-size: 14px;
+  line-height: 20px;
+}
+.hope-live-state-strip .hope-live-badge {
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.hope-live-state-strip .active {
+  background: #dceee7;
+  color: #155b43;
+}
+.hope-live-state-strip .blocked {
+  background: #fce4d5;
+  color: #87340b;
+}
+.hope-live-state-strip .unknown {
+  background: #e7e9ee;
+  color: #455268;
+}
+.hope-live-state-strip .runner {
+  background: #dfeafa;
+  color: #204f86;
+}
+.hope-live-state-strip .missing,
+.hope-live-state-strip .reason {
+  color: #a54219;
+  font-weight: 600;
+}
+.hope-live-state-strip .shot {
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 12px;
+}
