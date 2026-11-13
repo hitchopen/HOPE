@@ -2,6 +2,9 @@ import type {
  MessageKey } from "./messages.en";
 
 export const zh = {
+  "ballModelStatus.invalidCachedReceipt": "缓存的核验时间或进程身份不可用",
+  "ballModelStatus.cachedSummary": "两端配置一致；保留上次实测结果，START 前将重新实时核验",
+  "ballModelStatus.cachedMeasurement": "{time} 实测 {model}，{age} 秒前（同一进程缓存）",
   "mocapRecovery.reconnect": "重新连接动捕",
   "mocapRecovery.reconnecting": "正在重连动捕…",
   "mocapRecovery.unavailable": "当前后台尚未提供动捕自动恢复功能。",

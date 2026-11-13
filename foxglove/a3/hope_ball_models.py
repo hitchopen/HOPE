@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import ipaddress
 import os
 from pathlib import Path
+import stat
 import sys
+import time
 
 import yaml
 
@@ -20,6 +23,141 @@ PROFILES = {
     "ppq004": "ball_physics_ppq004_20261020.yaml",
 }
 NODES = ("hope_planner", "hope_ball_flight_packetizer")
+INSPECTION_CACHE_TTL_S = 60.0
+INSPECTION_CACHE_SCHEMA = 1
+
+
+def inspection_cache_path(role: str) -> Path:
+    # HDU helpers inherit ProtectHome=read-only and ProtectSystem=strict from
+    # operations. Its existing StateDirectory is writable without weakening
+    # the service sandbox; Laptop helpers run in the operator's user runtime.
+    if role == "hdu":
+        return Path("/var/lib/hope-lifecycle/ball-model-cache/hdu.json")
+    if role == "laptop":
+        return Path.home() / ".cache/hope-ball-models/laptop.json"
+    raise ValueError("unsupported ball model role")
+
+
+def inspection_identity(path: Path, config_dir: Path, role: str, *,
+                        base_config: Path | None = None, proc: Path = Path("/proc")) -> dict | None:
+    """Cheap local identity only: a cache hit must not import ROS or discover DDS.
+
+    This cannot establish the absence of a duplicate ROS name on another host.
+    Explicit verification still checks the live graph before START.
+    """
+    executable = "hope_planner_cpp_node" if role == "hdu" else "hope_ball_flight_packetizer"
+    processes = []
+    for directory in proc.glob("[0-9]*"):
+        try:
+            argv = (directory / "cmdline").read_bytes()
+        except OSError:
+            continue
+        if Path(os.fsdecode(argv.split(b"\0", 1)[0])).name != executable:
+            continue
+        # A matching but unreadable process makes the identity uncertain.
+        starttime = (directory / "stat").read_text().rsplit(")", 1)[1].split()[19]
+        binary = (directory / "exe").stat()
+        processes.append({"pid": int(directory.name), "starttime": starttime,
+                          "argv_sha256": hashlib.sha256(argv).hexdigest(),
+                          "executable": [binary.st_dev, binary.st_ino, binary.st_size, binary.st_mtime_ns]})
+    if len(processes) != 1:
+        return None
+    base_config = base_config or config_dir / (
+        "model21800_hardware.yaml" if role == "hdu" else "model21800_flight_packetizer.yaml")
+    files = [base_config, path, *(config_dir / name for name in PROFILES.values())]
+    signatures = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else None for p in files}
+    boot_id = (proc / "sys/kernel/random/boot_id").read_text().strip()
+    if not boot_id:
+        return None
+    return {"boot_id": boot_id, "role": role, "process": processes[0], "files": signatures,
+            "environment": {name: os.environ.get(name, "") for name in
+                            ("ROS_DOMAIN_ID", "ROS_STATIC_PEERS", "RMW_IMPLEMENTATION")},
+            "helper_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+
+
+class BallModelInspectionCache:
+    """Private, bounded diagnostic receipts; never a substitute for START checks."""
+
+    def __init__(self, path: Path, identity, *, wall_time=time.time, monotonic=time.monotonic):
+        self.path, self.identity = path, identity
+        self.wall_time, self.monotonic = wall_time, monotonic
+
+    def _identity(self):
+        try:
+            return self.identity()
+        except Exception:
+            # /proc/config/cache problems must not break the original live query.
+            return None
+
+    def invalidate(self):
+        try:
+            self.path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    def _read(self, identity):
+        try:
+            fd = os.open(self.path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(fd, "r") as stream:
+                info = os.fstat(stream.fileno())
+                if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or
+                        info.st_mode & 0o077 or info.st_size > 65536):
+                    return None
+                record = json.load(stream)
+            if record["schema"] != INSPECTION_CACHE_SCHEMA or record["identity"] != identity:
+                return None
+            age = self.monotonic() - record["verified_monotonic_s"]
+            wall_age = self.wall_time() - record["verified_at_unix_s"]
+            if (not math.isfinite(age) or not 0 <= age < INSPECTION_CACHE_TTL_S or
+                    not math.isfinite(wall_age) or wall_age < 0 or abs(age - wall_age) > 5):
+                return None
+            result = record["result"]
+            if (result["runtime"] != "VERIFIED" or result["configured_model"] not in PROFILES or
+                    not isinstance(result["parameters"], dict) or len(result["parameters"]) != 14 or
+                    not isinstance(result["configured_parameters"], dict) or
+                    result["configured_parameters"].keys() != result["parameters"].keys() or
+                    result["runtime_model"] != result["configured_model"] or
+                    compare_parameters(result["configured_parameters"], result["parameters"])):
+                return None
+            if self._identity() != identity:
+                return None
+            return {**result, "runtime": "CACHED_VERIFIED", "verification_cached": True,
+                    "verification_age_s": age, "verified_at_unix_s": record["verified_at_unix_s"],
+                    "verification_scope": "process_identity", "verification_cache_ttl_s": INSPECTION_CACHE_TTL_S}
+        except Exception:
+            return None
+
+    def _write(self, identity, result, verified_wall, verified_monotonic):
+        try:
+            self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            parent = self.path.parent.lstat()
+            if (not stat.S_ISDIR(parent.st_mode) or parent.st_uid != os.getuid() or
+                    parent.st_mode & 0o077):
+                return
+            # atomic_write uses mkstemp (0600), fsync and same-directory rename.
+            atomic_write(self.path, (json.dumps({"schema": INSPECTION_CACHE_SCHEMA, "identity": identity,
+                "verified_at_unix_s": verified_wall, "verified_monotonic_s": verified_monotonic,
+                "result": result}) + "\n").encode())
+        except Exception:
+            pass
+
+    def inspect(self, read_live, *, force_live=False):
+        identity = self._identity()
+        if not force_live and identity is not None:
+            cached = self._read(identity)
+            if cached is not None:
+                return cached
+        # A failed or mismatched new query must not leave a reusable old success.
+        self.invalidate()
+        result = read_live()  # Exceptions here retain the original live semantics.
+        if result["runtime"] != "VERIFIED":
+            return result
+        wall, monotonic = self.wall_time(), self.monotonic()
+        result = {**result, "verified_at_unix_s": wall, "verification_age_s": 0.0,
+                  "verification_cached": False, "verification_scope": "live_parameters"}
+        if identity is not None and self._identity() == identity:
+            self._write(identity, result, wall, monotonic)
+        return result
 
 
 def profile(config_dir: Path, model: str) -> dict:
@@ -58,11 +196,17 @@ def compare_parameters(expected: dict, actual: dict) -> list[str]:
 
 
 def live_parameters(node_name: str, names: list[str]) -> dict | None:
+    # ROS-generated messages import NumPy. This short-lived parameter query
+    # needs no parallel BLAS work; keep each periodic check to one BLAS thread.
+    # Set these before importing ROS, even if the parent requests more threads.
+    for variable in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
+        os.environ[variable] = "1"
     import rclpy
     from rcl_interfaces.srv import GetParameters
-    from rclpy.parameter import parameter_value_to_python
+    from rclpy.parameter import Parameter, parameter_value_to_python
     rclpy.init(args=[])
-    node = rclpy.create_node("hope_ball_model_check", start_parameter_services=False)
+    node = rclpy.create_node("hope_ball_model_check", start_parameter_services=False, enable_rosout=False,
+                            parameter_overrides=[Parameter("start_type_description_service", value=False)])
     try:
         client = node.create_client(GetParameters, f"/{node_name}/get_parameters")
         # Keep the same DDS participant while discovery catches up. Four attempts
@@ -134,9 +278,11 @@ def inspect_model(path: Path, config_dir: Path, role: str, *, base_config: Path 
 
 
 def handle(path: Path, config_dir: Path, role: str, request: dict, *, read_live=live_parameters,
-           base_config: Path | None = None) -> dict:
+           base_config: Path | None = None, inspection_cache: BallModelInspectionCache | None = None) -> dict:
     operation = request.get("op")
     if operation == "select_ball_model":
+        if inspection_cache is not None:
+            inspection_cache.invalidate()
         return select(path, config_dir, request.get("model"))
     model = selected(path, config_dir)
     if operation == "read_ball_model":
@@ -145,7 +291,9 @@ def handle(path: Path, config_dir: Path, role: str, request: dict, *, read_live=
         raise ValueError("unsupported ball model operation")
     if operation == "verify_ball_model" and "model" in request and request["model"] != model:
         raise ValueError(f"{role} configured ball model differs from selection")
-    result = inspect_model(path, config_dir, role, base_config=base_config, read_live=read_live)
+    inspect = lambda: inspect_model(path, config_dir, role, base_config=base_config, read_live=read_live)
+    result = (inspection_cache.inspect(inspect, force_live=operation == "verify_ball_model")
+              if inspection_cache is not None else inspect())
     if operation == "inspect_ball_model":
         return result
     if result["configured_model"] is None:
@@ -171,7 +319,10 @@ def main():
         peer = str(ipaddress.IPv4Address(request["_peer"]))
         os.environ.update(ROS_DOMAIN_ID="232", ROS_AUTOMATIC_DISCOVERY_RANGE="SUBNET",
                           ROS_STATIC_PEERS=peer, ROS_LOCALHOST_ONLY="0")
-    print(json.dumps(handle(path, args.config_dir, args.role, request, base_config=args.base_config)))
+    cache = BallModelInspectionCache(inspection_cache_path(args.role),
+        lambda: inspection_identity(path, args.config_dir, args.role, base_config=args.base_config))
+    print(json.dumps(handle(path, args.config_dir, args.role, request, base_config=args.base_config,
+                            inspection_cache=cache)))
 
 
 if __name__ == "__main__":

@@ -1,4 +1,7 @@
 export const en = {
+  "ballModelStatus.invalidCachedReceipt": "Cached verification time or identity is unavailable",
+  "ballModelStatus.cachedSummary": "Configurations match; last measurements retained. START checks live parameters again",
+  "ballModelStatus.cachedMeasurement": "{model} measured at {time}, {age}s ago (same-process cache)",
   "mocapRecovery.reconnect": "Reconnect mocap",
   "mocapRecovery.reconnecting": "Reconnecting mocap…",
   "mocapRecovery.unavailable": "Automatic mocap recovery is unavailable on this backend.",
