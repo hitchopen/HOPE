@@ -1,0 +1,35 @@
+{
+  "model": "model15200body",
+  "status": "OFFLINE_CANDIDATE_NOT_PUBLISHED",
+  "reason": "Six of six continuous 200-ball environments crossed fall thresholds despite correct embedded target rotation.",
+  "policy_sha256": "fba50fb4da58c90faad4e72b0022a25800c16d3e609613a4a37e5a83b08df860",
+  "deploy_sha256": "accef8f2815152edc09817f567564f3fc5143bba481766465d55d97e4f685bff",
+  "csv_sha256": "aa5788bc3a7bdcc33d0d82cbd4554ba8d9a3a61e22517e5cccdb0cd945c2e53a",
+  "csv_frames": 468,
+  "csv_hz": 100,
+  "handoff_frame": 110,
+  "serve_transition_cases": "5 PASS; separate from continuous rally stability",
+  "default_model_preserved": "model14200best",
+  "robot": "192.168.8.182",
+  "physical_start_sent": false,
+  "robot_model15200_directory_published": false,
+  "target_rotation_verified_actual_trace": {
+    "samples": 600,
+    "actual_onnx_input_to_first_actor_layer": "/actor/Concat_7_output_0",
+    "oracle": "Full pelvis quaternion from same native control tick, independent R transpose matrix multiply",
+    "max_body_observation_error": 4.76837158203125e-07,
+    "max_gravity_vs_sim_quaternion_error": 2.9762119879706006e-08,
+    "max_actual_rotation_change": 0.5978497266769409,
+    "racket_position_error": 1.1920928955078125e-07,
+    "racket_velocity_error": 4.76837158203125e-07,
+    "only_target_slices_changed": true,
+    "pass": true
+  },
+  "validation_limitations": [
+    "Full console suite: 134 PASS, one pre-existing LiveTelemetry.tsx i18n violation; typecheck and production build pass.",
+    "Policy suite: 50 PASS with host process scan isolated because other offline simulations are running.",
+    "Broad Python suite: existing lifecycle stop-call-count mismatch, and transient process-scan race; no all-tests-pass claim."
+  ],
+  "console_extension_local_version": "1.9.18",
+  "candidate_physically_qualified": false
+}

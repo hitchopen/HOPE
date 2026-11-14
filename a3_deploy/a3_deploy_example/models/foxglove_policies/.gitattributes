@@ -1,0 +1,5 @@
+# Exact runtime artifacts: ordinary Git blobs, preserving existing bytes.
+*.onnx binary -filter
+*.yaml -text
+*.json -text
+*.csv -text whitespace=-blank-at-eol,-blank-at-eof,cr-at-eol

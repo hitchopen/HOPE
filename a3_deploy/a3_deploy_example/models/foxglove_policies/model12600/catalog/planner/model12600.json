@@ -1,0 +1,21 @@
+{
+  "hope_planner": {
+    "ros__parameters": {
+      "racket_flat_schema": 4,
+      "reach_permission_enabled": false,
+      "swing_side_reference_mode": "session_home_v1",
+      "swing_side_hysteresis_y": 0.0,
+      "swing_side_split_y": -0.24,
+      "swing_side_fh_y_range": [
+        -0.68,
+        -0.24
+      ],
+      "swing_side_bh_y_range": [
+        -0.24,
+        0.28
+      ],
+      "session_home_input_topic": "/hope/runner/session_home_hdu_flat",
+      "plane_reference_mode": "fixed"
+    }
+  }
+}

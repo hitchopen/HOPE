@@ -15,3 +15,9 @@ Run it with `../scripts/run_pingpong_sim.sh`, or pass
 To exercise another compatible actor in the Python harness, pass
 `--onnx /path/to/policy.onnx`. New native-runner exports should keep the same
 `policy/{exported,params}` directory layout.
+
+## Local Foxglove policy collection
+
+The [Foxglove policy assets](foxglove_policies/README.md) include all 12 locally
+registered Console policy IDs, their named variants, matched deploy/serve files
+and a SHA256 verifier. This collection does not change the default model above.

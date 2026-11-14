@@ -1,0 +1,25 @@
+{
+  "hope_planner": {
+    "ros__parameters": {
+      "racket_flat_schema": 4,
+      "session_home_input_topic": "/hope/runner/session_home_hdu_flat",
+      "swing_side_reference_mode": "live_base_v1",
+      "swing_side_fh_y_range": [
+        -0.68,
+        -0.24
+      ],
+      "swing_side_bh_y_range": [
+        -0.24,
+        0.28
+      ],
+      "swing_side_split_y": -0.24,
+      "swing_side_hysteresis_y": 0.04,
+      "x_hit_follow_robot": false,
+      "x_hit_freeze_session_home": false,
+      "x_hit_bh_delta": 0.0,
+      "plane_reference_mode": "fixed",
+      "reach_permission_enabled": false,
+      "reach_permission_contract": "disabled_zero_v1"
+    }
+  }
+}

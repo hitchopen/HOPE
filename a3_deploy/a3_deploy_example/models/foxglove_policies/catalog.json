@@ -1,0 +1,1062 @@
+{
+  "format_version": 1,
+  "scope": "Local policy assets for all 12 IDs exposed by the installed Foxglove Console. Offline publication only; no online robot-state assertion or default selection.",
+  "console_version": "1.9.20-recovery.0",
+  "console_models": [
+    "model11999",
+    "model12000",
+    "model12600",
+    "model13800",
+    "model13800astra",
+    "model14200",
+    "model14200best",
+    "model14200fusion",
+    "model14600",
+    "model15200body",
+    "model17400",
+    "modelfusion"
+  ],
+  "packages": [
+    {
+      "model": "model11999",
+      "variant": "catalog",
+      "status": "local_catalog_snapshot",
+      "identity_source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-10/new-chat-4/work/deploy-mocap500/hdu-catalog-before.json",
+        "sha256": "6dfea5c28a891409508b8c854211483dd6d27ef8dfc22f50e022fde91d98ffdc"
+      },
+      "assets": {
+        "policy": {
+          "path": "model11999/catalog/policy/exported/policy.onnx",
+          "sha256": "dbcb102a867c209cda962ba6a6ffda2ee1c026c3bdf39163df7e227508bb13bf"
+        },
+        "deploy": {
+          "path": "model11999/catalog/policy/params/deploy.yaml",
+          "sha256": "b6bfdc879320e0214e6ec2e16b66fee048c4c5dfaeb3267bf2c22bd92106bf8b"
+        },
+        "planner_profile": {
+          "path": "model11999/catalog/planner/model11999.json",
+          "sha256": "8f7a860409988064c3d3d80624a011c43313be0b6ef809c72a07cf827eecab55"
+        }
+      },
+      "receive_only": null
+    },
+    {
+      "model": "model12000",
+      "variant": "catalog",
+      "status": "local_catalog_snapshot",
+      "identity_source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-09/new-chat/work/stage/hdu-catalog.json",
+        "sha256": "97b6189de3c14d263037ba3ac40040a21d43524adf6a9c865b868ed133315f96"
+      },
+      "assets": {
+        "policy": {
+          "path": "model12000/catalog/policy/exported/policy.onnx",
+          "sha256": "6df3556eda0fdf01fb7d7a8f3d5a95f8d57a5df29af6082b3c5ee4a796529a45"
+        },
+        "deploy": {
+          "path": "model12000/catalog/policy/params/deploy.yaml",
+          "sha256": "207cf4bf39441374a4af473ec28884cca66bca395cb6faa7389382633f0eccd5"
+        },
+        "serve_csv": {
+          "path": "model12000/catalog/serve/v23-12000.csv",
+          "sha256": "8bd3f4f92f1cc3c2d5a58624feb9126f8a8392d5658c83fa6528e3bf5d8272d1"
+        },
+        "planner_profile": {
+          "path": "model12000/catalog/planner/model12000.json",
+          "sha256": "2448b4d5d9653b56b7f3c5b0cdaa11fdaef01d1487fbd5588b36c5b2c5f32345"
+        }
+      },
+      "receive_only": false,
+      "required_ball_model": "ppq004"
+    },
+    {
+      "model": "model12600",
+      "variant": "catalog",
+      "status": "local_catalog_snapshot",
+      "identity_source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-10/new-chat-4/work/deploy-mocap500/hdu-catalog-before.json",
+        "sha256": "6dfea5c28a891409508b8c854211483dd6d27ef8dfc22f50e022fde91d98ffdc"
+      },
+      "assets": {
+        "policy": {
+          "path": "model12600/catalog/policy/exported/policy.onnx",
+          "sha256": "bd6f128405fb1600ad381209ec1ef73b12024c3aacb1c6f4b54c7114cf6080aa"
+        },
+        "deploy": {
+          "path": "model12600/catalog/policy/params/deploy.yaml",
+          "sha256": "db4be6efca4fa14c154721487c9c7f5351ab3e8c861b6818cf17c08be2ef50d5"
+        },
+        "serve_csv": {
+          "path": "model12600/catalog/serve/v23-12600.csv",
+          "sha256": "1d4665a2b83f2362847fe53fa8a67bbb4bebc056a605be21c9fa9124fa67d44f"
+        },
+        "planner_profile": {
+          "path": "model12600/catalog/planner/model12600.json",
+          "sha256": "dc9b168cc4370394ac3ff8df668a03b476b5adf388768bce596aed2225e85610"
+        }
+      },
+      "receive_only": false
+    },
+    {
+      "model": "model13800",
+      "variant": "catalog",
+      "status": "local_catalog_snapshot",
+      "identity_source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-09/new-chat/work/stage/hdu-catalog.json",
+        "sha256": "97b6189de3c14d263037ba3ac40040a21d43524adf6a9c865b868ed133315f96"
+      },
+      "assets": {
+        "policy": {
+          "path": "model13800/catalog/policy/exported/policy.onnx",
+          "sha256": "24b021194ae5fd4c7d3ef59d3930c917feadb8f4242df9ada80fe1fb42ad6922"
+        },
+        "deploy": {
+          "path": "model13800/catalog/policy/params/deploy.yaml",
+          "sha256": "5ff5695ad771cef67f0a2b6d40e5e0d1a6b8775ac16b573008aaf27b0fc36a93"
+        },
+        "serve_csv": {
+          "path": "model13800/catalog/serve/v23-13800.csv",
+          "sha256": "76d044441ad6b74b35b74a34944e34fce36e2bfa62bc33df1880207a32bd936f"
+        },
+        "planner_profile": {
+          "path": "model13800/catalog/planner/model13800.json",
+          "sha256": "4cdd74fa528b72fa0dce4b82f2ed01dd975cd1dec22f3f5538da1ef3ebe2bba4"
+        }
+      },
+      "receive_only": false,
+      "required_ball_model": "ppq004"
+    },
+    {
+      "model": "model13800astra",
+      "variant": "catalog",
+      "status": "local_catalog_snapshot",
+      "identity_source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-09/new-chat/work/stage/hdu-catalog.json",
+        "sha256": "97b6189de3c14d263037ba3ac40040a21d43524adf6a9c865b868ed133315f96"
+      },
+      "assets": {
+        "policy": {
+          "path": "model13800astra/catalog/policy/exported/policy.onnx",
+          "sha256": "fa9f8470fab43da30d9884afee0a207f6e1eb6dedfdf8b98b7f2d2e5302a5a9d"
+        },
+        "deploy": {
+          "path": "model13800astra/catalog/policy/params/deploy.yaml",
+          "sha256": "0570621dbb1ba92c77aa8429d4eaec752dc51d962a264eecd1cd04876cc5e10f"
+        },
+        "serve_csv": {
+          "path": "model13800astra/catalog/serve/v23-13800-astra.csv",
+          "sha256": "b52352d127ad6e147d8355544ef953c59625b60a276eee1470bf4af54ac77f39"
+        },
+        "planner_profile": {
+          "path": "model13800astra/catalog/planner/model13800astra.json",
+          "sha256": "2448b4d5d9653b56b7f3c5b0cdaa11fdaef01d1487fbd5588b36c5b2c5f32345"
+        }
+      },
+      "receive_only": false,
+      "required_ball_model": "ppq004"
+    },
+    {
+      "model": "model14200",
+      "variant": "catalog",
+      "status": "local_catalog_snapshot",
+      "identity_source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-09/new-chat/work/stage/hdu-catalog.json",
+        "sha256": "97b6189de3c14d263037ba3ac40040a21d43524adf6a9c865b868ed133315f96"
+      },
+      "assets": {
+        "policy": {
+          "path": "model14200/catalog/policy/exported/policy.onnx",
+          "sha256": "251617664b4984e3157a35cbe204fd6eda76d884df618bd648f246845882be6f"
+        },
+        "deploy": {
+          "path": "model14200/catalog/policy/params/deploy.yaml",
+          "sha256": "c4d335155992796d341ad5f2a1f2181c59be0de36d7347e880b8167635ae1c62"
+        },
+        "serve_csv": {
+          "path": "model14200/catalog/serve/v23-14200.csv",
+          "sha256": "62e7a4f002eb1f722da1a3ddcc2decabde1caf1cd6476f6cb063e9bb9a612cf5"
+        },
+        "planner_profile": {
+          "path": "model14200/catalog/planner/model14200.json",
+          "sha256": "4669f83ebe75e3b3492ad9c083e734e63dc39d0af64c4e96c1d8eadda9d098fa"
+        }
+      },
+      "receive_only": false,
+      "required_ball_model": "ppq004"
+    },
+    {
+      "model": "model14200best",
+      "variant": "best-v1",
+      "status": "local_catalog_snapshot",
+      "identity_source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-10/new-chat-4/work/deploy-mocap500/hdu-catalog-before.json",
+        "sha256": "6dfea5c28a891409508b8c854211483dd6d27ef8dfc22f50e022fde91d98ffdc"
+      },
+      "assets": {
+        "policy": {
+          "path": "model14200best/best-v1/policy/exported/policy.onnx",
+          "sha256": "5344f9a220b953ca4cf4c5c57b536be6f04b5a88d13c0ac19b3f3c00c70adba2"
+        },
+        "deploy": {
+          "path": "model14200best/best-v1/policy/params/deploy.yaml",
+          "sha256": "94bd36a8fa190e9cdb150d68a3b06045e43952d58343c659e1c21acef629feed"
+        },
+        "serve_csv": {
+          "path": "model14200best/best-v1/serve/v23-14200-best.csv",
+          "sha256": "14c75e8e2f17234e26d2498c7b75da9b2f2b8aad48f8e31659901c56fa856630"
+        },
+        "planner_profile": {
+          "path": "model14200best/best-v1/planner/model14200best.json",
+          "sha256": "4cdd74fa528b72fa0dce4b82f2ed01dd975cd1dec22f3f5538da1ef3ebe2bba4"
+        }
+      },
+      "receive_only": false,
+      "required_ball_model": "ppq004"
+    },
+    {
+      "model": "model14600",
+      "variant": "catalog",
+      "status": "local_catalog_snapshot",
+      "identity_source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-10/new-chat-4/work/deploy-mocap500/hdu-catalog-before.json",
+        "sha256": "6dfea5c28a891409508b8c854211483dd6d27ef8dfc22f50e022fde91d98ffdc"
+      },
+      "assets": {
+        "policy": {
+          "path": "model14600/catalog/policy/exported/policy.onnx",
+          "sha256": "a987240610bb9a49ea42da8eafcdc84c3cfbc8d5470bf7ff1a2d7f1f624cdd28"
+        },
+        "deploy": {
+          "path": "model14600/catalog/policy/params/deploy.yaml",
+          "sha256": "c6f60914d30c688ec1f262bdb048eba234aa032ed2c094998ce8d4dcf46a3632"
+        },
+        "serve_csv": {
+          "path": "model14600/catalog/serve/a3p_op3_serve025_v23_branch110_model14600.csv",
+          "sha256": "9ba0112eb721c571610bf9f42ac1d9b1ea2c441a1d882d133907fd76fa54d044"
+        },
+        "planner_profile": {
+          "path": "model14600/catalog/planner/model14600.json",
+          "sha256": "ec7e2a5a288e3b573bb1c67456701ac43f34bbbf8490d62e885b38bc032cf955"
+        }
+      },
+      "receive_only": false
+    },
+    {
+      "model": "model17400",
+      "variant": "catalog",
+      "status": "local_catalog_snapshot",
+      "identity_source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-09/new-chat/work/stage/hdu-catalog.json",
+        "sha256": "97b6189de3c14d263037ba3ac40040a21d43524adf6a9c865b868ed133315f96"
+      },
+      "assets": {
+        "policy": {
+          "path": "model17400/catalog/policy/exported/policy.onnx",
+          "sha256": "7d81d3250933cba72623de3544dff1abd9ba983aae77f3581f22fdd375dab854"
+        },
+        "deploy": {
+          "path": "model17400/catalog/policy/params/deploy.yaml",
+          "sha256": "1e2be028e503c19954d9b0414075a6698dc1e9db93adca73e5d9ea6026baea40"
+        },
+        "serve_csv": {
+          "path": "model17400/catalog/serve/v23-17400.csv",
+          "sha256": "4e93fb1ad116e9f9c6f24d8586b8094087c6b8595767f383be5eebea6448e626"
+        },
+        "planner_profile": {
+          "path": "model17400/catalog/planner/model17400.json",
+          "sha256": "2448b4d5d9653b56b7f3c5b0cdaa11fdaef01d1487fbd5588b36c5b2c5f32345"
+        }
+      },
+      "receive_only": false,
+      "required_ball_model": "ppq004"
+    },
+    {
+      "model": "model14200fusion",
+      "variant": "staged",
+      "status": "local_staged_bundle",
+      "identity_source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-08/model-u-fusion-13800-gate3-x20-2/outputs/model14200-fusion/hdu_entry.json",
+        "sha256": "41398bd705a1b0f943b2ec5626c642633a85cc02ad37e71038d665fd528f61ae"
+      },
+      "assets": {
+        "policy": {
+          "path": "model14200fusion/staged/policy/exported/policy.onnx",
+          "sha256": "4ea4a3b2fb8b48af2cc2af73a7acb65c061a9a471461898432d45d4e69fa9fd1"
+        },
+        "deploy": {
+          "path": "model14200fusion/staged/policy/params/deploy.yaml",
+          "sha256": "0a2f50b3c457af501ac86efde3d01e0f5634dcdd47f7a17b3dba64605cad5ba2"
+        },
+        "serve_csv": {
+          "path": "model14200fusion/staged/serve/v23-14200-fusion.csv",
+          "sha256": "0bbaf1f327b3a38795b05ea1be6c4da1cc231e8b8cd6f86497dcc9d16960520a"
+        },
+        "planner_profile": {
+          "path": "model14200fusion/staged/planner/model14200fusion.json",
+          "sha256": "2448b4d5d9653b56b7f3c5b0cdaa11fdaef01d1487fbd5588b36c5b2c5f32345"
+        }
+      },
+      "receive_only": false,
+      "required_ball_model": "ppq004"
+    },
+    {
+      "model": "model14200best",
+      "variant": "earlier-staged",
+      "status": "local_staged_bundle",
+      "identity_source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-08/model-u-fusion-13800-gate3-x20-2/outputs/model14200-best/hdu_entry.json",
+        "sha256": "d1325a44e173deb09c49c4528f8259f9341b8da742e3e31c42ef6b48d63e503d"
+      },
+      "assets": {
+        "policy": {
+          "path": "model14200best/earlier-staged/policy/exported/policy.onnx",
+          "sha256": "95e63b544763ee52e9d6dfa45e0584e4205479a09eba2ba31cf2572e9e9be7e8"
+        },
+        "deploy": {
+          "path": "model14200best/earlier-staged/policy/params/deploy.yaml",
+          "sha256": "4283d536ef0aa574f51233d161e388dfcc478405e997324d0f7056a998f98dd4"
+        },
+        "serve_csv": {
+          "path": "model14200best/earlier-staged/serve/v23-14200-best.csv",
+          "sha256": "fa37dd8ffc89390163d30cda29ebea47c4e56db4317ceafcc4d33fcd971ff4c9"
+        },
+        "planner_profile": {
+          "path": "model14200best/earlier-staged/planner/model14200best.json",
+          "sha256": "2448b4d5d9653b56b7f3c5b0cdaa11fdaef01d1487fbd5588b36c5b2c5f32345"
+        }
+      },
+      "receive_only": false,
+      "required_ball_model": "ppq004"
+    },
+    {
+      "model": "model15200body",
+      "variant": "offline-candidate",
+      "status": "offline_candidate_failed_continuous_test",
+      "identity_source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-09/new-chat-5/work/bundle-v2/hdu_entry.json",
+        "sha256": "23706904fb8ab937f90ee002893d8f6897202a1f6ba94a8950aa83773f72ec36"
+      },
+      "assets": {
+        "policy": {
+          "path": "model15200body/offline-candidate/policy/exported/policy.onnx",
+          "sha256": "fba50fb4da58c90faad4e72b0022a25800c16d3e609613a4a37e5a83b08df860"
+        },
+        "deploy": {
+          "path": "model15200body/offline-candidate/policy/params/deploy.yaml",
+          "sha256": "accef8f2815152edc09817f567564f3fc5143bba481766465d55d97e4f685bff"
+        },
+        "serve_csv": {
+          "path": "model15200body/offline-candidate/serve/v23-15200-body.csv",
+          "sha256": "aa5788bc3a7bdcc33d0d82cbd4554ba8d9a3a61e22517e5cccdb0cd945c2e53a"
+        },
+        "planner_profile": {
+          "path": "model15200body/offline-candidate/planner/model15200body.json",
+          "sha256": "4669f83ebe75e3b3492ad9c083e734e63dc39d0af64c4e96c1d8eadda9d098fa"
+        },
+        "original_status": {
+          "path": "model15200body/offline-candidate/evidence/STATUS.json",
+          "sha256": "9d6ef25afd74fd8d0cf134252977156176d9e8425eb10083104b0be1a10b3c96"
+        }
+      },
+      "receive_only": false,
+      "required_ball_model": "ppq004"
+    },
+    {
+      "model": "modelfusion",
+      "variant": "mix25",
+      "status": "local_staged_bundle",
+      "identity_source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/staged-mix25/hdu_entry.json",
+        "sha256": "21f5f9846271a4f4cf909845181e13f3109765ef54d915251734f877ac5f9135"
+      },
+      "assets": {
+        "policy": {
+          "path": "modelfusion/mix25/policy/exported/policy.onnx",
+          "sha256": "b2bbec73305d3a18c38358e3402568df183e75caa076f721dfb6119e66569dc6"
+        },
+        "deploy": {
+          "path": "modelfusion/mix25/policy/params/deploy.yaml",
+          "sha256": "1f539d5ceaf70bbd18d1c5cef2dd899f75c00981b45ec22dd889bf1f7ab0b9c7"
+        },
+        "serve_csv": {
+          "path": "modelfusion/mix25/serve/v23-fusion.csv",
+          "sha256": "7d5cf748ce546a4be8e7b790e77f2a68df3cce3e1e8e4d72cd5e0f8633ab010b"
+        },
+        "planner_profile": {
+          "path": "modelfusion/mix25/planner/modelfusion.json",
+          "sha256": "2448b4d5d9653b56b7f3c5b0cdaa11fdaef01d1487fbd5588b36c5b2c5f32345"
+        }
+      },
+      "receive_only": false,
+      "required_ball_model": "ppq004"
+    },
+    {
+      "model": "modelfusion",
+      "variant": "phase",
+      "status": "local_staged_bundle",
+      "identity_source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/staged-phase/hdu_entry.json",
+        "sha256": "9382b9a51366cd027a0128363ef4ad28b659f96a778d1201a267627b2af0f945"
+      },
+      "assets": {
+        "policy": {
+          "path": "modelfusion/phase/policy/exported/policy.onnx",
+          "sha256": "b275f657eb70f91df965a9ea2077c6ac1ba8128b20af364517ddcb0db6a3a5fb"
+        },
+        "deploy": {
+          "path": "modelfusion/phase/policy/params/deploy.yaml",
+          "sha256": "b1b5bfb17dac16c3fa5f060b43314a55ab6e40b6f28afbd9275ab7b8d2e8c043"
+        },
+        "serve_csv": {
+          "path": "modelfusion/phase/serve/v23-fusion.csv",
+          "sha256": "35f7465dcece57cb8f3231b84267e9230851e526817e9064fe70c89e54d0ba93"
+        },
+        "planner_profile": {
+          "path": "modelfusion/phase/planner/modelfusion.json",
+          "sha256": "2448b4d5d9653b56b7f3c5b0cdaa11fdaef01d1487fbd5588b36c5b2c5f32345"
+        }
+      },
+      "receive_only": false,
+      "required_ball_model": "ppq004"
+    },
+    {
+      "model": "modelfusion",
+      "variant": "clock",
+      "status": "local_staged_bundle",
+      "identity_source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/weight-edit/staged-clock/hdu_entry.json",
+        "sha256": "919e50d898ffb47c11a8cfd1ed84c52c7e9e064ca8decd82eb2c6c2dfdd1b61d"
+      },
+      "assets": {
+        "policy": {
+          "path": "modelfusion/clock/policy/exported/policy.onnx",
+          "sha256": "89de4971efbb2524e2ea616aaa4b2af1bb64c3c3d1231c97b464872ad9d242ec"
+        },
+        "deploy": {
+          "path": "modelfusion/clock/policy/params/deploy.yaml",
+          "sha256": "814687f00aa28680dfd466b305b182053ebddb390e04d8e9cf46aaaf414a59da"
+        },
+        "serve_csv": {
+          "path": "modelfusion/clock/serve/v23-fusion.csv",
+          "sha256": "1c24bb2140318677b56442157b373406c4a6f376c96db747c094e9cb525ce1f1"
+        },
+        "planner_profile": {
+          "path": "modelfusion/clock/planner/modelfusion.json",
+          "sha256": "2448b4d5d9653b56b7f3c5b0cdaa11fdaef01d1487fbd5588b36c5b2c5f32345"
+        }
+      },
+      "receive_only": false,
+      "required_ball_model": "ppq004"
+    },
+    {
+      "model": "modelfusion",
+      "variant": "joint-astra",
+      "status": "local_staged_bundle",
+      "identity_source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/target-pvn/staged-joint/hdu_entry.json",
+        "sha256": "d3743bc701e4e0ad46ba32037b0cd856f04393166e238dd8a94cee8d7b6f148b"
+      },
+      "assets": {
+        "policy": {
+          "path": "modelfusion/joint-astra/policy/exported/policy.onnx",
+          "sha256": "fa9f8470fab43da30d9884afee0a207f6e1eb6dedfdf8b98b7f2d2e5302a5a9d"
+        },
+        "deploy": {
+          "path": "modelfusion/joint-astra/policy/params/deploy.yaml",
+          "sha256": "0570621dbb1ba92c77aa8429d4eaec752dc51d962a264eecd1cd04876cc5e10f"
+        },
+        "serve_csv": {
+          "path": "modelfusion/joint-astra/serve/v23-fusion.csv",
+          "sha256": "b52352d127ad6e147d8355544ef953c59625b60a276eee1470bf4af54ac77f39"
+        },
+        "planner_profile": {
+          "path": "modelfusion/joint-astra/planner/modelfusion.json",
+          "sha256": "2448b4d5d9653b56b7f3c5b0cdaa11fdaef01d1487fbd5588b36c5b2c5f32345"
+        }
+      },
+      "receive_only": false,
+      "required_ball_model": "ppq004"
+    },
+    {
+      "model": "modelfusion",
+      "variant": "original-wrapper",
+      "status": "parity_only_no_matched_serve",
+      "identity_source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/policy/fusion-adaptation.json",
+        "sha256": "401168c792c52b97f854bcff867896189dbf0a5b71ba49c054ba099c59801826"
+      },
+      "assets": {
+        "policy": {
+          "path": "modelfusion/original-wrapper/policy/exported/policy.onnx",
+          "sha256": "8a11ebe5d997a115a9f3a55ea57339c4d47773a2978083e2e6b6aeb346d4d79d"
+        },
+        "deploy": {
+          "path": "modelfusion/original-wrapper/policy/params/deploy.yaml",
+          "sha256": "64b3c681a5f0ad25020b3f9e3c2ce32771aebfd914c13a1aacb800cc8d590442"
+        },
+        "original_adaptation": {
+          "path": "modelfusion/original-wrapper/evidence/fusion-adaptation.json",
+          "sha256": "401168c792c52b97f854bcff867896189dbf0a5b71ba49c054ba099c59801826"
+        }
+      },
+      "receive_only": null
+    }
+  ],
+  "files": {
+    "model11999/catalog/policy/exported/policy.onnx": {
+      "sha256": "dbcb102a867c209cda962ba6a6ffda2ee1c026c3bdf39163df7e227508bb13bf",
+      "bytes": 1207854,
+      "source": {
+        "root": "Desktop/workspace/nohope",
+        "path": "output/model11999_dual_deploy_20261022/transfer/model/exported/policy.onnx"
+      }
+    },
+    "model11999/catalog/policy/params/deploy.yaml": {
+      "sha256": "b6bfdc879320e0214e6ec2e16b66fee048c4c5dfaeb3267bf2c22bd92106bf8b",
+      "bytes": 9806,
+      "source": {
+        "root": "Desktop/workspace/nohope",
+        "path": "output/model11999_dual_deploy_20261022/transfer/model/params/deploy.yaml"
+      }
+    },
+    "model11999/catalog/planner/model11999.json": {
+      "sha256": "8f7a860409988064c3d3d80624a011c43313be0b6ef809c72a07cf827eecab55",
+      "bytes": 516,
+      "source": {
+        "root": "Desktop/workspace/nohope",
+        "path": "output/model11999_dual_deploy_20261022/hdu_catalog/model11999.json"
+      }
+    },
+    "model12000/catalog/policy/exported/policy.onnx": {
+      "sha256": "6df3556eda0fdf01fb7d7a8f3d5a95f8d57a5df29af6082b3c5ee4a796529a45",
+      "bytes": 1142329,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-10-30/u-3/outputs/model_12000/exported/policy.onnx"
+      }
+    },
+    "model12000/catalog/policy/params/deploy.yaml": {
+      "sha256": "207cf4bf39441374a4af473ec28884cca66bca395cb6faa7389382633f0eccd5",
+      "bytes": 9790,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-10-30/u-3/outputs/model_12000/params/deploy.yaml"
+      }
+    },
+    "model12000/catalog/serve/v23-12000.csv": {
+      "sha256": "8bd3f4f92f1cc3c2d5a58624feb9126f8a8392d5658c83fa6528e3bf5d8272d1",
+      "bytes": 1462558,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-10-30/u-3/outputs/v23-12000.csv"
+      }
+    },
+    "model12000/catalog/planner/model12000.json": {
+      "sha256": "2448b4d5d9653b56b7f3c5b0cdaa11fdaef01d1487fbd5588b36c5b2c5f32345",
+      "bytes": 671,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-10-30/u-3/outputs/model12000.planner-profile.json"
+      }
+    },
+    "model12600/catalog/policy/exported/policy.onnx": {
+      "sha256": "bd6f128405fb1600ad381209ec1ef73b12024c3aacb1c6f4b54c7114cf6080aa",
+      "bytes": 1141321,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-10-30/new-chat/work/four-models/policies/model12600/exported/policy.onnx"
+      }
+    },
+    "model12600/catalog/policy/params/deploy.yaml": {
+      "sha256": "db4be6efca4fa14c154721487c9c7f5351ab3e8c861b6818cf17c08be2ef50d5",
+      "bytes": 9269,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-10-30/new-chat/work/four-models/policies/model12600/params/deploy.yaml"
+      }
+    },
+    "model12600/catalog/serve/v23-12600.csv": {
+      "sha256": "1d4665a2b83f2362847fe53fa8a67bbb4bebc056a605be21c9fa9124fa67d44f",
+      "bytes": 1463456,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-10-30/new-chat/outputs/four-models-20261030/evidence/model12600/v23-12600.csv"
+      }
+    },
+    "model12600/catalog/planner/model12600.json": {
+      "sha256": "dc9b168cc4370394ac3ff8df668a03b476b5adf388768bce596aed2225e85610",
+      "bytes": 509,
+      "source": {
+        "root": "Desktop/workspace/nohope",
+        "path": "output/model12600_deploy_20261022/install/model12600.json"
+      }
+    },
+    "model13800/catalog/policy/exported/policy.onnx": {
+      "sha256": "24b021194ae5fd4c7d3ef59d3930c917feadb8f4242df9ada80fe1fb42ad6922",
+      "bytes": 1142405,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat/outputs/gate3-model13800-100/policy/exported/policy.onnx"
+      }
+    },
+    "model13800/catalog/policy/params/deploy.yaml": {
+      "sha256": "5ff5695ad771cef67f0a2b6d40e5e0d1a6b8775ac16b573008aaf27b0fc36a93",
+      "bytes": 9423,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat/outputs/gate3-model13800-100/policy/params/deploy.yaml"
+      }
+    },
+    "model13800/catalog/serve/v23-13800.csv": {
+      "sha256": "76d044441ad6b74b35b74a34944e34fce36e2bfa62bc33df1880207a32bd936f",
+      "bytes": 1463024,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-08/model-u-fusion-13800-gate3-x20-2/outputs/model14200-best/deployment/motions/v23-13800.csv"
+      }
+    },
+    "model13800/catalog/planner/model13800.json": {
+      "sha256": "4cdd74fa528b72fa0dce4b82f2ed01dd975cd1dec22f3f5538da1ef3ebe2bba4",
+      "bytes": 667,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-09/new-chat-4/work/payload/model14200best.json"
+      }
+    },
+    "model13800astra/catalog/policy/exported/policy.onnx": {
+      "sha256": "fa9f8470fab43da30d9884afee0a207f6e1eb6dedfdf8b98b7f2d2e5302a5a9d",
+      "bytes": 1142511,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-9/work/reproduced-astra/exported/policy.onnx"
+      }
+    },
+    "model13800astra/catalog/policy/params/deploy.yaml": {
+      "sha256": "0570621dbb1ba92c77aa8429d4eaec752dc51d962a264eecd1cd04876cc5e10f",
+      "bytes": 9964,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-9/work/reproduced-astra/params/deploy.yaml"
+      }
+    },
+    "model13800astra/catalog/serve/v23-13800-astra.csv": {
+      "sha256": "b52352d127ad6e147d8355544ef953c59625b60a276eee1470bf4af54ac77f39",
+      "bytes": 1462969,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-9/work/csv-reproduce/v23-13800-astra.csv"
+      }
+    },
+    "model13800astra/catalog/planner/model13800astra.json": {
+      "sha256": "2448b4d5d9653b56b7f3c5b0cdaa11fdaef01d1487fbd5588b36c5b2c5f32345",
+      "bytes": 671,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-10-30/u-3/outputs/model12000.planner-profile.json"
+      }
+    },
+    "model14200/catalog/policy/exported/policy.onnx": {
+      "sha256": "251617664b4984e3157a35cbe204fd6eda76d884df618bd648f246845882be6f",
+      "bytes": 1143299,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-08/model-u-fusion-13800-gate3-x20-2/outputs/model14200-direct/deployment/policy/exported/policy.onnx"
+      }
+    },
+    "model14200/catalog/policy/params/deploy.yaml": {
+      "sha256": "c4d335155992796d341ad5f2a1f2181c59be0de36d7347e880b8167635ae1c62",
+      "bytes": 9423,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-08/model-u-fusion-13800-gate3-x20-2/outputs/model14200-direct/deployment/policy/params/deploy.yaml"
+      }
+    },
+    "model14200/catalog/serve/v23-14200.csv": {
+      "sha256": "62e7a4f002eb1f722da1a3ddcc2decabde1caf1cd6476f6cb063e9bb9a612cf5",
+      "bytes": 1463224,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-08/model-u-fusion-13800-gate3-x20-2/outputs/model14200-direct/deployment/motions/v23-14200.csv"
+      }
+    },
+    "model14200/catalog/planner/model14200.json": {
+      "sha256": "4669f83ebe75e3b3492ad9c083e734e63dc39d0af64c4e96c1d8eadda9d098fa",
+      "bytes": 668,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-09/new-chat-5/work/bundle-v2/model15200body.json"
+      }
+    },
+    "model14200best/best-v1/policy/exported/policy.onnx": {
+      "sha256": "5344f9a220b953ca4cf4c5c57b536be6f04b5a88d13c0ac19b3f3c00c70adba2",
+      "bytes": 1143345,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-08/model-u-fusion-13800-gate3-x20-2/outputs/model14200-best-v1/policy/exported/policy.onnx"
+      }
+    },
+    "model14200best/best-v1/policy/params/deploy.yaml": {
+      "sha256": "94bd36a8fa190e9cdb150d68a3b06045e43952d58343c659e1c21acef629feed",
+      "bytes": 9619,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-08/model-u-fusion-13800-gate3-x20-2/outputs/model14200-best-v1/policy/params/deploy.yaml"
+      }
+    },
+    "model14200best/best-v1/serve/v23-14200-best.csv": {
+      "sha256": "14c75e8e2f17234e26d2498c7b75da9b2f2b8aad48f8e31659901c56fa856630",
+      "bytes": 1463280,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-08/model-u-fusion-13800-gate3-x20-2/outputs/model14200-best-v1/serve/v23-14200-weight-v3.csv"
+      }
+    },
+    "model14200best/best-v1/planner/model14200best.json": {
+      "sha256": "4cdd74fa528b72fa0dce4b82f2ed01dd975cd1dec22f3f5538da1ef3ebe2bba4",
+      "bytes": 667,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-09/new-chat-4/work/payload/model14200best.json"
+      }
+    },
+    "model14600/catalog/policy/exported/policy.onnx": {
+      "sha256": "a987240610bb9a49ea42da8eafcdc84c3cfbc8d5470bf7ff1a2d7f1f624cdd28",
+      "bytes": 1137267,
+      "source": {
+        "root": "Desktop/workspace/nohope",
+        "path": "hope_training/whole_body_tracking/checkpoints/policy.onnx"
+      }
+    },
+    "model14600/catalog/policy/params/deploy.yaml": {
+      "sha256": "c6f60914d30c688ec1f262bdb048eba234aa032ed2c094998ce8d4dcf46a3632",
+      "bytes": 9710,
+      "source": {
+        "root": "Desktop/workspace/nohope",
+        "path": "hope_training/whole_body_tracking/checkpoints/deploy.yaml"
+      }
+    },
+    "model14600/catalog/serve/a3p_op3_serve025_v23_branch110_model14600.csv": {
+      "sha256": "9ba0112eb721c571610bf9f42ac1d9b1ea2c441a1d882d133907fd76fa54d044",
+      "bytes": 1462549,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-10-30/new-chat/outputs/four-models-20261030/evidence/model14600/a3p_op3_serve025_v23_branch110_model14600.csv"
+      }
+    },
+    "model14600/catalog/planner/model14600.json": {
+      "sha256": "ec7e2a5a288e3b573bb1c67456701ac43f34bbbf8490d62e885b38bc032cf955",
+      "bytes": 508,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-10-30/new-chat/outputs/four-models-20261030/evidence/model14600/model14600.json"
+      }
+    },
+    "model17400/catalog/policy/exported/policy.onnx": {
+      "sha256": "7d81d3250933cba72623de3544dff1abd9ba983aae77f3581f22fdd375dab854",
+      "bytes": 1141532,
+      "source": {
+        "root": "Desktop/workspace/nohope",
+        "path": "output/model17400_gate3_rerun_20261026/policy/exported/policy.onnx"
+      }
+    },
+    "model17400/catalog/policy/params/deploy.yaml": {
+      "sha256": "1e2be028e503c19954d9b0414075a6698dc1e9db93adca73e5d9ea6026baea40",
+      "bytes": 9269,
+      "source": {
+        "root": "Desktop/workspace/nohope",
+        "path": "output/model17400_gate3_rerun_20261026/policy/params/deploy.yaml"
+      }
+    },
+    "model17400/catalog/serve/v23-17400.csv": {
+      "sha256": "4e93fb1ad116e9f9c6f24d8586b8094087c6b8595767f383be5eebea6448e626",
+      "bytes": 1463141,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-10-30/new-chat/outputs/four-models-20261030/evidence/model17400/v23-17400.csv"
+      }
+    },
+    "model17400/catalog/planner/model17400.json": {
+      "sha256": "2448b4d5d9653b56b7f3c5b0cdaa11fdaef01d1487fbd5588b36c5b2c5f32345",
+      "bytes": 671,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-10-30/u-3/outputs/model12000.planner-profile.json"
+      }
+    },
+    "model14200fusion/staged/policy/exported/policy.onnx": {
+      "sha256": "4ea4a3b2fb8b48af2cc2af73a7acb65c061a9a471461898432d45d4e69fa9fd1",
+      "bytes": 2047397,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-08/model-u-fusion-13800-gate3-x20-2/outputs/model14200-fusion/deployment/policy/exported/policy.onnx"
+      }
+    },
+    "model14200fusion/staged/policy/params/deploy.yaml": {
+      "sha256": "0a2f50b3c457af501ac86efde3d01e0f5634dcdd47f7a17b3dba64605cad5ba2",
+      "bytes": 11430,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-08/model-u-fusion-13800-gate3-x20-2/outputs/model14200-fusion/deployment/policy/params/deploy.yaml"
+      }
+    },
+    "model14200fusion/staged/serve/v23-14200-fusion.csv": {
+      "sha256": "0bbaf1f327b3a38795b05ea1be6c4da1cc231e8b8cd6f86497dcc9d16960520a",
+      "bytes": 1463251,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-08/model-u-fusion-13800-gate3-x20-2/outputs/model14200-fusion/deployment/motions/v23-14200-fusion.csv"
+      }
+    },
+    "model14200fusion/staged/planner/model14200fusion.json": {
+      "sha256": "2448b4d5d9653b56b7f3c5b0cdaa11fdaef01d1487fbd5588b36c5b2c5f32345",
+      "bytes": 671,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-08/model-u-fusion-13800-gate3-x20-2/outputs/model14200-fusion/model14200fusion.json"
+      }
+    },
+    "model14200best/earlier-staged/policy/exported/policy.onnx": {
+      "sha256": "95e63b544763ee52e9d6dfa45e0584e4205479a09eba2ba31cf2572e9e9be7e8",
+      "bytes": 1145313,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-08/model-u-fusion-13800-gate3-x20-2/outputs/model14200-best/deployment/policy/exported/policy.onnx"
+      }
+    },
+    "model14200best/earlier-staged/policy/params/deploy.yaml": {
+      "sha256": "4283d536ef0aa574f51233d161e388dfcc478405e997324d0f7056a998f98dd4",
+      "bytes": 11630,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-08/model-u-fusion-13800-gate3-x20-2/outputs/model14200-best/deployment/policy/params/deploy.yaml"
+      }
+    },
+    "model14200best/earlier-staged/serve/v23-14200-best.csv": {
+      "sha256": "fa37dd8ffc89390163d30cda29ebea47c4e56db4317ceafcc4d33fcd971ff4c9",
+      "bytes": 1463162,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-08/model-u-fusion-13800-gate3-x20-2/outputs/model14200-best/deployment/motions/v23-14200-best.csv"
+      }
+    },
+    "model14200best/earlier-staged/planner/model14200best.json": {
+      "sha256": "2448b4d5d9653b56b7f3c5b0cdaa11fdaef01d1487fbd5588b36c5b2c5f32345",
+      "bytes": 671,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-08/model-u-fusion-13800-gate3-x20-2/outputs/model14200-best/model14200best.json"
+      }
+    },
+    "model15200body/offline-candidate/policy/exported/policy.onnx": {
+      "sha256": "fba50fb4da58c90faad4e72b0022a25800c16d3e609613a4a37e5a83b08df860",
+      "bytes": 1197311,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-09/new-chat-5/work/bundle-v2/deployment/policy/exported/policy.onnx"
+      }
+    },
+    "model15200body/offline-candidate/policy/params/deploy.yaml": {
+      "sha256": "accef8f2815152edc09817f567564f3fc5143bba481766465d55d97e4f685bff",
+      "bytes": 9997,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-09/new-chat-5/work/bundle-v2/deployment/policy/params/deploy.yaml"
+      }
+    },
+    "model15200body/offline-candidate/serve/v23-15200-body.csv": {
+      "sha256": "aa5788bc3a7bdcc33d0d82cbd4554ba8d9a3a61e22517e5cccdb0cd945c2e53a",
+      "bytes": 1462348,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-09/new-chat-5/work/bundle-v2/deployment/motions/v23-15200-body.csv"
+      }
+    },
+    "model15200body/offline-candidate/planner/model15200body.json": {
+      "sha256": "4669f83ebe75e3b3492ad9c083e734e63dc39d0af64c4e96c1d8eadda9d098fa",
+      "bytes": 668,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-09/new-chat-5/work/bundle-v2/model15200body.json"
+      }
+    },
+    "model15200body/offline-candidate/evidence/STATUS.json": {
+      "sha256": "9d6ef25afd74fd8d0cf134252977156176d9e8425eb10083104b0be1a10b3c96",
+      "bytes": 1839,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-09/new-chat-5/outputs/model15200body-offline-candidate/STATUS.json"
+      }
+    },
+    "modelfusion/mix25/policy/exported/policy.onnx": {
+      "sha256": "b2bbec73305d3a18c38358e3402568df183e75caa076f721dfb6119e66569dc6",
+      "bytes": 2027516,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/staged-mix25/deployment/policy/exported/policy.onnx"
+      }
+    },
+    "modelfusion/mix25/policy/params/deploy.yaml": {
+      "sha256": "1f539d5ceaf70bbd18d1c5cef2dd899f75c00981b45ec22dd889bf1f7ab0b9c7",
+      "bytes": 10426,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/staged-mix25/deployment/policy/params/deploy.yaml"
+      }
+    },
+    "modelfusion/mix25/serve/v23-fusion.csv": {
+      "sha256": "7d5cf748ce546a4be8e7b790e77f2a68df3cce3e1e8e4d72cd5e0f8633ab010b",
+      "bytes": 1462579,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/staged-mix25/deployment/motions/v23-fusion.csv"
+      }
+    },
+    "modelfusion/mix25/planner/modelfusion.json": {
+      "sha256": "2448b4d5d9653b56b7f3c5b0cdaa11fdaef01d1487fbd5588b36c5b2c5f32345",
+      "bytes": 671,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/staged-mix25/modelfusion.json"
+      }
+    },
+    "modelfusion/phase/policy/exported/policy.onnx": {
+      "sha256": "b275f657eb70f91df965a9ea2077c6ac1ba8128b20af364517ddcb0db6a3a5fb",
+      "bytes": 2028084,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/staged-phase/deployment/policy/exported/policy.onnx"
+      }
+    },
+    "modelfusion/phase/policy/params/deploy.yaml": {
+      "sha256": "b1b5bfb17dac16c3fa5f060b43314a55ab6e40b6f28afbd9275ab7b8d2e8c043",
+      "bytes": 10279,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/staged-phase/deployment/policy/params/deploy.yaml"
+      }
+    },
+    "modelfusion/phase/serve/v23-fusion.csv": {
+      "sha256": "35f7465dcece57cb8f3231b84267e9230851e526817e9064fe70c89e54d0ba93",
+      "bytes": 1462889,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/staged-phase/deployment/motions/v23-fusion.csv"
+      }
+    },
+    "modelfusion/phase/planner/modelfusion.json": {
+      "sha256": "2448b4d5d9653b56b7f3c5b0cdaa11fdaef01d1487fbd5588b36c5b2c5f32345",
+      "bytes": 671,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/staged-phase/modelfusion.json"
+      }
+    },
+    "modelfusion/clock/policy/exported/policy.onnx": {
+      "sha256": "89de4971efbb2524e2ea616aaa4b2af1bb64c3c3d1231c97b464872ad9d242ec",
+      "bytes": 1142491,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/weight-edit/staged-clock/deployment/policy/exported/policy.onnx"
+      }
+    },
+    "modelfusion/clock/policy/params/deploy.yaml": {
+      "sha256": "814687f00aa28680dfd466b305b182053ebddb390e04d8e9cf46aaaf414a59da",
+      "bytes": 9693,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/weight-edit/staged-clock/deployment/policy/params/deploy.yaml"
+      }
+    },
+    "modelfusion/clock/serve/v23-fusion.csv": {
+      "sha256": "1c24bb2140318677b56442157b373406c4a6f376c96db747c094e9cb525ce1f1",
+      "bytes": 1463003,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/weight-edit/staged-clock/deployment/motions/v23-fusion.csv"
+      }
+    },
+    "modelfusion/clock/planner/modelfusion.json": {
+      "sha256": "2448b4d5d9653b56b7f3c5b0cdaa11fdaef01d1487fbd5588b36c5b2c5f32345",
+      "bytes": 671,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/weight-edit/staged-clock/modelfusion.json"
+      }
+    },
+    "modelfusion/joint-astra/policy/exported/policy.onnx": {
+      "sha256": "fa9f8470fab43da30d9884afee0a207f6e1eb6dedfdf8b98b7f2d2e5302a5a9d",
+      "bytes": 1142511,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/target-pvn/staged-joint/deployment/policy/exported/policy.onnx"
+      }
+    },
+    "modelfusion/joint-astra/policy/params/deploy.yaml": {
+      "sha256": "0570621dbb1ba92c77aa8429d4eaec752dc51d962a264eecd1cd04876cc5e10f",
+      "bytes": 9964,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/target-pvn/staged-joint/deployment/policy/params/deploy.yaml"
+      }
+    },
+    "modelfusion/joint-astra/serve/v23-fusion.csv": {
+      "sha256": "b52352d127ad6e147d8355544ef953c59625b60a276eee1470bf4af54ac77f39",
+      "bytes": 1462969,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/target-pvn/staged-joint/deployment/motions/v23-fusion.csv"
+      }
+    },
+    "modelfusion/joint-astra/planner/modelfusion.json": {
+      "sha256": "2448b4d5d9653b56b7f3c5b0cdaa11fdaef01d1487fbd5588b36c5b2c5f32345",
+      "bytes": 671,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/target-pvn/staged-joint/modelfusion.json"
+      }
+    },
+    "modelfusion/original-wrapper/policy/exported/policy.onnx": {
+      "sha256": "8a11ebe5d997a115a9f3a55ea57339c4d47773a2978083e2e6b6aeb346d4d79d",
+      "bytes": 2027287,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/policy/exported/policy.onnx"
+      }
+    },
+    "modelfusion/original-wrapper/policy/params/deploy.yaml": {
+      "sha256": "64b3c681a5f0ad25020b3f9e3c2ce32771aebfd914c13a1aacb800cc8d590442",
+      "bytes": 10065,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/policy/params/deploy.yaml"
+      }
+    },
+    "modelfusion/original-wrapper/evidence/fusion-adaptation.json": {
+      "sha256": "401168c792c52b97f854bcff867896189dbf0a5b71ba49c054ba099c59801826",
+      "bytes": 1065,
+      "source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-04/new-chat-6/work/policy/fusion-adaptation.json"
+      }
+    }
+  },
+  "installed_console_extension_sha256": "e73afe2ddf3a419e8852f2606ab36edcedad7030bc8811027d6c62214a39b434"
+}

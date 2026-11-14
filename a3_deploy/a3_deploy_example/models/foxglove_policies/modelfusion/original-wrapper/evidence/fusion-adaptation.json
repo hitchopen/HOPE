@@ -1,0 +1,40 @@
+{
+  "model": "modelfusion",
+  "fusion_actor_sha256": "c3c5ae5a2261f46ddf74d25d42ce016a258744ff849ee04dffc0c126fd92cf1b",
+  "policy_sha256": "8a11ebe5d997a115a9f3a55ea57339c4d47773a2978083e2e6b6aeb346d4d79d",
+  "deploy_sha256": "64b3c681a5f0ad25020b3f9e3c2ce32771aebfd914c13a1aacb800cc8d590442",
+  "sources": {
+    "13800": [
+      "24b021194ae5fd4c7d3ef59d3930c917feadb8f4242df9ada80fe1fb42ad6922",
+      "5ff5695ad771cef67f0a2b6d40e5e0d1a6b8775ac16b573008aaf27b0fc36a93"
+    ],
+    "17400": [
+      "7d81d3250933cba72623de3544dff1abd9ba983aae77f3581f22fdd375dab854",
+      "1e2be028e503c19954d9b0414075a6698dc1e9db93adca73e5d9ea6026baea40"
+    ]
+  },
+  "leg_indices_policy_order": [
+    0,
+    1,
+    3,
+    4,
+    6,
+    7,
+    9,
+    10,
+    14,
+    15,
+    19,
+    20
+  ],
+  "shared_previous_applied_action": true,
+  "parity_samples": 128,
+  "max_abs_errors": {
+    "wrapper_actions": 0.0,
+    "source_composition": 0.0,
+    "reference_outputs": 0.0
+  },
+  "status": "PARITY_ONLY_PENDING_DYNAMICS",
+  "trained_composite": false,
+  "physical_qualified": false
+}
