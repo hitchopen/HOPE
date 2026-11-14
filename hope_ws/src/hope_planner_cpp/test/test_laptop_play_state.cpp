@@ -126,6 +126,53 @@ TEST(LaptopPlayState, IsolatedHeightDipDoesNotCountAsSecondBounce) {
   }
 }
 
+TEST(LaptopPlayState, RepeatedContactsRequire100msSourceSeparation) {
+  // Port Score Board eb0d889's boundary cases. The coherent 25 mm arc passes
+  // the other noise checks, so this isolates source-time separation.
+  for (int direction : {-1, 1}) for (int separation_ms : {80, 99, 100, 130}) {
+    for (double epoch : {10., 1794186544.}) {
+      SCOPED_TRACE(::testing::Message() << direction << " / " << separation_ms << " ms / " << epoch);
+      LaptopPlayState c;
+      const double separation = separation_ms * .001;
+      const int flight_samples = separation_ms / 3;
+      bool saw_first_bounce = false;
+      for (int i = 0; i <= 50 + flight_samples + 9; ++i) {
+        const double t = i <= 50 ? i * .003 : i <= 50 + flight_samples
+            ? .15 + (i - 50) * separation / flight_samples
+            : .15 + separation + (i - 50 - flight_samples) * .003;
+        double z;
+        if (i < 50) {
+          const double remaining = .15 - t;
+          z = .02 + 1.6 * remaining - 4.905 * remaining * remaining;
+        } else if (i < 50 + flight_samples) {
+          const double phase = (t - .15) / separation;
+          z = .02 + 4 * .025 * phase * (1 - phase);
+        } else {
+          const double after = t - .15 - separation;
+          z = .02 + .65 * after - 4.905 * after * after;
+        }
+        const double x = 1.45 + 2.2 * t;
+        auto s = sample(t, {direction > 0 ? x : 2.74 - x, -.7, z});
+        s.source_time_s = epoch + t;
+        s.source_time_ns = std::llround(s.source_time_s * 1e9);
+        c.observe(s);
+        saw_first_bounce |= c.receiver_bounces() == 1;
+      }
+      EXPECT_TRUE(saw_first_bounce);
+      if (separation_ms < 100) {
+        EXPECT_EQ(c.state(), direction > 0 ? PlayState::RALLY : PlayState::OPPONENT_RALLY);
+        EXPECT_EQ(c.receiver_bounces(), 1);
+        EXPECT_EQ(c.may_forward(), direction < 0);
+      } else {
+        EXPECT_EQ(c.state(), PlayState::INVALID);
+        EXPECT_STREQ(c.substate_name(), "Double bounce");
+        EXPECT_EQ(c.reason(), "second_receiver_bounce");
+        EXPECT_FALSE(c.may_forward());
+      }
+    }
+  }
+}
+
 TEST(LaptopPlayState, LocalServeWaitsForBallAndRepeatedServePreservesIntent) {
   LaptopPlayState c;c.local_intent("SERVE");
   EXPECT_EQ(c.state(),PlayState::SERVE);EXPECT_TRUE(c.serve_armed());EXPECT_FALSE(c.may_forward());

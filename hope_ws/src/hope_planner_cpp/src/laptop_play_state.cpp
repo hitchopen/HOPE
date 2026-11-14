@@ -18,8 +18,11 @@ constexpr double kBounceDisplayS = 0.225;
 // 15.55 mm and the p99.5 height interpolation residual was 5.25 mm.
 constexpr double kRepeatClearanceM = 0.016, kRepeatMotionFloorM = 0.006;
 constexpr double kRepeatClearanceSpanS = 0.006, kRepeatMotionSpanS = 0.012;
+// Same-side repeats within 100 ms are one contact, including coherent height
+// oscillations. Keep the first receiving bounce/serve contact timing unchanged.
+constexpr double kRepeatSeparationS = 0.100;
 // Source seconds are epoch doubles; contemporary Unix timestamps have ~0.24 us
-// resolution. Do not require an exact 40 ms subtraction at that magnitude.
+// resolution. Allow for subtraction rounding at timing boundaries.
 constexpr double kSourceTimeToleranceS = 1e-6;
 bool is_serve(PlayState s) { return s == PlayState::SERVE || s == PlayState::OPPONENT_SERVE; }
 
@@ -647,6 +650,8 @@ bool LaptopPlayState::observe(const BallSample& s) {
 
 bool LaptopPlayState::distinct_repeat_contact(std::size_t left, std::size_t index,
                                              std::size_t right) const {
+  if (history_[index].source_time_s - last_bounce_ < kRepeatSeparationS - kSourceTimeToleranceS)
+    return false;
   const double clearance = std::max(last_bounce_height_, history_[index].position.z()) + kRepeatClearanceM;
   double raised_since = 0;
   int raised_samples = 0;

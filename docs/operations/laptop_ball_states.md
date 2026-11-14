@@ -93,8 +93,8 @@ The 35 m/s discontinuity threshold is unchanged: an outlier pauses observation,
 it does not declare the ball illegal.
 
 The observed state and substate rules come from the
-[HOPE Score Board classifier](https://github.com/hitchopen/hope-scoreboard/blob/aab5349971921f2d92bdc98ae0bdbd0010112d81/tracking/laptop_play_state.cpp)
-at source commit `aab5349971921f2d92bdc98ae0bdbd0010112d81`.
+[HOPE Score Board classifier](https://github.com/hitchopen/hope-scoreboard/blob/eb0d8898eed845caebe17d50ecd3f49b5e1b1c5c/tracking/laptop_play_state.cpp)
+at source commit `eb0d8898eed845caebe17d50ecd3f49b5e1b1c5c`.
 When the first usable observations are all on the receiving half, a confirmed
 direction and a 35 ms ballistic arc can qualify a rally. Missing pre-net
 history stays unknown. A return starts a new generation at the observed X
@@ -106,6 +106,17 @@ separate track after a gap or discontinuity, or sustained non-flight followed
 by a new launch, can re-arm reception. A same-point rebound or late swing
 cannot reopen the rejected trajectory on its own. Local Stop requires an
 explicit Ready or Serve.
+
+The shared classifier was checked against Score Board main
+`575339ed025786976cc1d831af483f8fc53942eb`. Its latest classifier change is
+`eb0d889` (100 ms repeat separation); the remaining newer changes belong to the
+scoreboard application: Start-to-VRPN reset acknowledgement, rally-score rollback
+and automatic recording Stop, local leaderboard saving, and GitHub uploads.
+The operator already applies local Ready/Serve/Stop directly inside the C++
+packetizer before processing subsequent observations. It has no scoreboard set
+counter, camera recorder, leaderboard, or GitHub uploader. Those application
+routines are not copied into the robot-data gate. Existing local Stop latching,
+fresh-flight recovery, and incoming-only forwarding remain the operator contract.
 
 ### Measured near-stationary rally
 
@@ -148,7 +159,10 @@ outside this gate, and no classifier state is sent to A3.
 A confirmed reversal near the net without reaching the receiving half marks a
 net rebound. A table-height miss, a return before the required receiving bounce,
 or two distinct contacts on one half end the shot. A second contact must show
-separation above the first contact and sustained descending and rising motion.
+at least **100 ms of source-time separation**, clearance above the first contact,
+and sustained descending and rising motion. Contacts less than 100 ms apart
+remain one contact even if their height oscillation passes the other noise checks.
+The first receiving contact and the serve's cross-table contact timing are unchanged.
 The classifier uses the Score Board's ChingMu noise thresholds to filter
 duplicate contacts. A tracking gap clears the fit while preserving confirmed
 receiving contact evidence when the same shot is reacquired.
