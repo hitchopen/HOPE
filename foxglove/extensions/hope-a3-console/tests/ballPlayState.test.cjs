@@ -25,6 +25,11 @@ test('local status freshness is independent of robot session or mode', () => {
   for(const patch of [{forwarding:true},{serve_armed:true},{receive_armed:true},{state:'RALLY'}])
     assert.equal(decodeBallPlayState(JSON.stringify({...stopped,...patch})),undefined);
 });
+test('reads the classifier phase or fault alongside the five-state label', () => {
+  const fault = {...status,state:'INVALID',forwarding:false,substate:'Double bounce'};
+  assert.equal(decodeBallPlayState(JSON.stringify(fault)).substate,'Double bounce');
+  assert.equal(decodeBallPlayState(JSON.stringify({...fault,substate:42})),undefined);
+});
 
 test('local receiver Ready opens sample gate without fabricated history', () => {
   const ready = {...status, state:'OPPONENT_SERVE', history_known:false, receive_armed:true};

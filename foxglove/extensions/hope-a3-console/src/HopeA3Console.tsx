@@ -1361,7 +1361,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       <fieldset className="robot-controls" disabled={Boolean(pendingTarget)}>
       <div className="source-row">
         <div className="source-block">
-          <div className="eyebrow">{t("hopeA3Console.version", { version: "1.9.13" })}</div>
+          <div className="eyebrow">{t("hopeA3Console.version", { version: "1.9.14" })}</div>
           <div className="source-value">
             <span>{context.dataSourceProfile?.toUpperCase() ?? t("hopeA3Console.ros2")} {t("hopeA3Console.control8766")}</span>
             <span
@@ -2061,7 +2061,8 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           <span>{(() => {
             const state = currentBallPlayState(localBall?.state, localBall?.receivedAt, now);
             return state == undefined ? t("hopeA3Console.ballStateUnavailable") :
-              t("hopeA3Console.ballState", { state: state.state,
+              t("hopeA3Console.ballState", {
+                state: state.substate ? `${state.state} · ${state.substate}` : state.state,
                 gate: state.forwarding ? t("hopeA3Console.ballForwarding") : t("hopeA3Console.ballSuppressed"),
                 reason: state.forecast_advisory ? t("hopeA3Console.ballForecastAdvisory", {
                   reason: state.reason, forecast: state.forecast_advisory,

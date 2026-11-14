@@ -18,6 +18,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <vector>
 
@@ -68,7 +69,8 @@ class FlightPacketizerNode final : public rclcpp::Node {
   std::int64_t state_publish_ns_ = 0;
   std::string last_state_text_;
   using DisplayKey = std::tuple<std::string, PlayState, std::string, std::string,
-      std::uint64_t, bool, bool, bool, bool, bool, int, int, bool, std::uint64_t, bool>;
+      std::uint64_t, bool, bool, bool, bool, bool, int, int, bool, std::uint64_t, bool,
+      std::string_view>;
   std::optional<DisplayKey> last_state_key_;
   std::int64_t last_forwarded_pose_ns_ = 0;
   std::uint64_t local_intent_revision_ = 0;

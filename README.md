@@ -3,7 +3,7 @@
 Mac users: see [macOS development and operator setup](docs/operations/macos_deployment.md).
 The operator backend supports any normal Mac login, with explicit Mac/Linux
 profiles and separate configurable container/robot accounts; no personal Mac
-username or local administrator account is hardcoded. Console 1.9.13 includes
+username or local administrator account is hardcoded. Console 1.9.14 includes
 operator, gripper and NatNet/VRPN selectors. The final Mac build includes both
 mocap workspaces, uses the `hope` container group, and preserves schema-5 venue
 settings through the combined schema-6 backend. It does not deploy to the robot
@@ -138,18 +138,20 @@ and [configuration relay guide](foxglove/README.md#native-mocap-configuration-tr
 
 The Ubuntu/macOS operator computer classifies five ball-flight states in C++
 after P1/P2 coordinate conversion. Only `OPPONENT_RALLY` and `OPPONENT_SERVE`
-forward ball data to A3; pelvis/base poses bypass this gate. Explicit local
+forward qualified ball data to A3. Pelvis/base poses bypass this gate. Explicit local
 Ready initializes `OPPONENT_SERVE`, Serve initializes `SERVE`, and Stand/Stop
 holds `INVALID` until another local Ready/Serve. Runner mode, serve phase and
 lifecycle feedback never change this classifier or its gate; local intents do
-not wait for robot acknowledgement. Console 1.9.13 uses a local HTTP endpoint.
+not wait for robot acknowledgement. Ready waits for a qualified incoming arc.
+Console 1.9.14 displays the Score Board flight phase or observed fault through
+the local HTTP endpoint.
 No classifier state or state-derived robot command is sent to A3. Desktop local
 controls require one-time private pairing; web access uses an exact Foxglove
 origin check. A held ego serve waits for a fresh ballistic launch, which can
 establish a new flight with or without Ready. Hand-carried motion does not
 qualify; an uninterrupted incoming return becomes `OPPONENT_RALLY`.
 
-Forecast violations are advisory. Observed incoming violations close the gate.
+Forecast violations are advisory. Observed violations end the current shot.
 Observation loss pauses output and clears old fits/retries while preserving the
 logical state; fresh qualified observations resume output without another button
 press. Sustained measured 3D speed below 0.10 m/s also invalidates either
