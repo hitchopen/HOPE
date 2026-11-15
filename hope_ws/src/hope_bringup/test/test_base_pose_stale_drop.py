@@ -17,7 +17,6 @@ sys.path.insert(0, str(SRC / 'hope_bringup/scripts'))
 @pytest.fixture
 def relay():
     rclpy.init(args=['--ros-args', '-p', 'localization_source:=vrpn_ground_truth',
-                    '-p', 'vrpn_pelvis_asset_confirmed:=true',
                     '-p', 'extrinsic_calibrated:=true',
                     '-p', 'world_frame_calibrated:=true',
                     '-p', 'calibration_sha256:=' + 'a' * 64,

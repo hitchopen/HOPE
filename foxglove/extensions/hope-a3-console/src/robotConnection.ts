@@ -18,9 +18,38 @@ export function switchRobot(ip: string, saveTarget: (ip: string) => void, open: 
   open(url);
 }
 
+// Confirming the current robot must preserve the Host data source and layout.
+// A different robot remains an explicit direct-connect fallback, never a config write.
+export function confirmRobotConnection(ip: string, liveHost: string | undefined, fresh: boolean,
+  confirmed: (ip: string) => void, switching: (ip: string) => void, open: (url: string) => void): void {
+  robotConnectionUrl(ip);
+  if (!fresh || !liveHost) throw new LocalizedError(msg("connection.waitForIdentity"));
+  if (ip === liveHost) { confirmed(ip); return; }
+  switchRobot(ip, switching, open);
+}
+
 // A saved target is only a draft. Only a fresh robot receipt can confirm it.
 export function reconcileRobotTarget(target: string, edited: boolean, pending: string, liveHost: string) {
   if (!liveHost) { return { target, edited, pending }; }
   if (pending === liveHost) { return { target: liveHost, edited: false, pending: "" }; }
   return { target: !edited && !pending ? liveHost : target, edited, pending };
+}
+
+export type RobotIdentity = { machine_id: string; boot_id: string;
+  connection?: { hdu_ip: string; laptop_ip: string } };
+export function decodeRobotIdentity(raw: unknown): RobotIdentity | undefined {
+  if (raw == undefined || typeof raw !== "object") { return undefined; }
+  const r = raw as Record<string, unknown>;
+  if (typeof r.machine_id !== "string" || !/^[0-9a-f]{32}$/.test(r.machine_id) ||
+      typeof r.boot_id !== "string" || !/^[0-9a-f-]{36}$/.test(r.boot_id)) { return undefined; }
+  const result: RobotIdentity = { machine_id: r.machine_id, boot_id: r.boot_id };
+  if (r.connection != undefined && typeof r.connection === "object") {
+    const c = r.connection as Record<string, unknown>;
+    if (typeof c.hdu_ip === "string" && typeof c.laptop_ip === "string") {
+      try { robotConnectionUrl(c.hdu_ip); robotConnectionUrl(c.laptop_ip);
+        result.connection = { hdu_ip: c.hdu_ip, laptop_ip: c.laptop_ip };
+      } catch { /* Ambiguous or unsupported endpoint is never a confirmed target. */ }
+    }
+  }
+  return result;
 }

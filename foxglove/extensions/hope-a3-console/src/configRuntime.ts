@@ -1,17 +1,21 @@
+import { decodeRobotIdentity, RobotIdentity, robotConnectionUrl } from "./robotConnection";
 // One atomic saved-config/runtime report; legacy scalar topics cannot overwrite it.
 export const CONFIG_KEYS = ["laptop_wifi_ip", "hdu_wifi_ip", "mdu_internal_ip", "motive_ip",
   "vrpn_ip", "mocap_source", "vrpn_port", "vrpn_units", "table_side", "operator_profile",
-  "gripper_profile", "pants_profile", "vrpn_pelvis_asset_confirmed", "vrpn_world_frame_confirmed"] as const;
+  "gripper_profile", "pants_profile", "vrpn_world_frame_confirmed"] as const;
 export const MOCAP_BINDING_KEYS = ["hdu_wifi_ip", "mocap_source", "motive_ip", "vrpn_ip", "vrpn_port", "vrpn_units", "pants_profile", "table_side"] as const;
 export function sameMocapBinding(draft: Partial<RuntimeConfigValues>, saved: Partial<RuntimeConfigValues>): boolean {
   return MOCAP_BINDING_KEYS.every((key) => draft[key] === saved[key]);
 }
 export function configForSave(draft: RuntimeConfigValues, saved: Partial<RuntimeConfigValues>): RuntimeConfigValues {
-  return draft.mocap_source === "vrpn" && sameMocapBinding(draft, saved) ? { ...draft } :
-    { ...draft, vrpn_pelvis_asset_confirmed: "false", vrpn_world_frame_confirmed: "false" };
+  const values = Object.fromEntries(CONFIG_KEYS.map((key) => [key, draft[key]])) as RuntimeConfigValues;
+  return draft.mocap_source === "vrpn" && sameMocapBinding(draft, saved) ? values :
+    { ...values, vrpn_world_frame_confirmed: "false" };
 }
 export type RuntimeConfigValues = Record<(typeof CONFIG_KEYS)[number], string>;
 export type ConfigRuntime = {
+  robotIdentity?: RobotIdentity;
+  hostConnection?: { hdu_ip: string; laptop_ip: string };
   revision: number;
   source: string;
   config_sha256: string;
@@ -32,7 +36,7 @@ export function decodeConfigRuntime(raw: unknown): ConfigRuntime | undefined {
       s.values == null || typeof s.values !== "object") { return undefined; }
     const values = s.values as Record<string, unknown>;
     if (!CONFIG_KEYS.every((k) => typeof values[k] === "string") ||
-      !["vrpn_pelvis_asset_confirmed", "vrpn_world_frame_confirmed"].every((k) => values[k] === "true" || values[k] === "false")) { return undefined; }
+      !["vrpn_world_frame_confirmed"].every((k) => values[k] === "true" || values[k] === "false")) { return undefined; }
     const services: ConfigRuntime["services"] = [];
     for (const rawService of s.services as unknown[]) {
       if (!rawService || typeof rawService !== "object") { return undefined; }
@@ -43,7 +47,7 @@ export function decodeConfigRuntime(raw: unknown): ConfigRuntime | undefined {
         actual_peers: row.actual_peers, reason: typeof row.reason === "string" ? row.reason : "" });
     }
     const mocapProcesses: ConfigRuntime["mocapProcesses"] = [];
-    const laptop = s.laptop as { processes?: unknown } | undefined;
+    const laptop = s.laptop as { processes?: unknown; matches?: unknown; receipt?: Record<string, unknown> } | undefined;
     if (Array.isArray(laptop?.processes)) {
       for (const value of laptop.processes as unknown[]) {
         if (!value || typeof value !== "object") { continue; }
@@ -58,7 +62,20 @@ export function decodeConfigRuntime(raw: unknown): ConfigRuntime | undefined {
     }
     const applied = s.applied && s.state === "APPLIED" && (s.revision as number) > 0 &&
       services.length > 0 && services.every((row) => row.matches);
-    return { revision: s.revision as number, source: s.source, config_sha256: s.config_sha256,
+    const robotIdentity = decodeRobotIdentity(s.robot_identity);
+    const receipt = laptop?.receipt;
+    let hostConnection: ConfigRuntime["hostConnection"];
+    // Host :8767 reaches the robot through DDS; no direct :8766 browser socket
+    // is required. Trust only the applied, identity-bound receiver audit.
+    if (applied && laptop?.matches === true && robotIdentity && receipt &&
+        receipt.HOPE_LIFECYCLE_MACHINE_ID === robotIdentity.machine_id &&
+        receipt.HOPE_LIFECYCLE_HDU_IP === values.hdu_wifi_ip &&
+        receipt.HOPE_LIFECYCLE_LAPTOP_IP === values.laptop_wifi_ip) {
+      const hdu_ip = values.hdu_wifi_ip as string, laptop_ip = values.laptop_wifi_ip as string;
+      robotConnectionUrl(hdu_ip); robotConnectionUrl(laptop_ip);
+      hostConnection = { hdu_ip, laptop_ip };
+    }
+    return { robotIdentity, hostConnection, revision: s.revision as number, source: s.source, config_sha256: s.config_sha256,
       values: values as RuntimeConfigValues, applied, state: s.state, reason: s.reason, services, mocapProcesses };
   } catch { return undefined; }
 }
@@ -68,4 +85,8 @@ export function configRuntimeReady(status: ConfigRuntime | undefined, receivedAt
 export function savedConfigObserved(status: ConfigRuntime | undefined, request: { revision: number; values: RuntimeConfigValues }): boolean {
   return status != undefined && status.revision > request.revision &&
     CONFIG_KEYS.every((key) => status.values[key] === request.values[key]);
+}
+
+export function confirmedRobotHost(status: ConfigRuntime | undefined): string | undefined {
+  return status?.robotIdentity?.connection?.hdu_ip ?? status?.hostConnection?.hdu_ip;
 }

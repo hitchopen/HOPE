@@ -25,7 +25,7 @@ MODULES = (
     "hope_monitor_core.py", "hope_elink_health.py", "hope_elink_fault.py", "hope_elink_clock.py",
     "hope_elink_telemetry.py", "hope_elink_telemetry_ros.py", "hope_player_positions.py",
     "hope_time_calibration_core.py", "hope_mocap_recovery.py",
-    "hope_operations_recovery.py", "hope_config_runtime.py",
+    "hope_operations_recovery.py", "hope_config_runtime.py", "hope_connection_identity.py",
 )
 FILES = {"hope-operations": ("/usr/local/libexec/hope-operations", 0o755),
          "hope_operations_worker.py": ("/usr/local/libexec/hope_operations_worker.py", 0o755),

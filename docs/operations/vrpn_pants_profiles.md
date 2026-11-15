@@ -19,7 +19,7 @@ V4 对应同一个 17 孔 v3 壳体（前 7、后 10 个安装位），现在 P1
 运行时配置位于 `hope_ws/src/hope_bringup/config/pants_profiles/`。
 V4 的目录、两份文件及读取代码必须一同更新；V2 保持原样：
 
-| 裤子 | P1 侧机器人 | P2 侧机器人 |
+| 裤子版本 | P1 裤子刚体 | P2 裤子刚体 |
 | --- | --- | --- |
 | V2，10 点 | `a3_v2_P1_ground_truth.json` | `a3_v2_P2_ground_truth.json` |
 | V4，17 孔壳体、每侧 12 点 | `a3_v4_P1_ground_truth.json` | `a3_v4_P2_ground_truth.json` |
@@ -53,9 +53,14 @@ Console 动捕选项中，先选择 **MOCAP SYSTEM → 青瞳 / CMTracker · VRP
 
 在停止状态选择 **MARKER PANTS · 动捕裤子 → V2 / V4 → CONFIRM CONFIG**。
 同时在 CMTracker 导入匹配的文件。切换选项不会远程修改 CMTracker。
-旧配置升级默认 V2，保留已有网络、桌边和夹爪选择。
+旧配置升级默认 V2，保留已有网络、裤子标识和夹爪选择。
 
-Supervisor 发布原子配置 `/hope/lifecycle/config/mocap`，包括裤子、桌边和
+P1/P2 仅标识两套裤子贴纸布局和 UCB_P1/UCB_P2 刚体，与机器人站位无关。
+旧字段名 `table_side` 为兼容安装保留；选择 P2 不再旋转机器人或球的世界坐标。
+VRPN observation schema 2 明确标记 `coordinate_frame=hope_table_global`，
+配套 base adapter 拒绝旧的隐含旋转观测，避免混用旧接收器。
+
+Supervisor 发布原子配置 `/hope/lifecycle/config/mocap`，包括裤子版本、裤子标识和
 revision；VRPN 在处理下一条数据前同时应用这些字段，并清空旧缓存。
 配置超过 3 秒收不到时停止转发，防止断线后继续使用未知选择。
 VRPN 只提供位姿，没有 ModelDef，状态会明确写出 `live geometry NOT verified`，
@@ -88,16 +93,15 @@ ros2 launch hope_bringup avatar_pro_hope_bridge.launch.py \
 VRPN client 保留并验证服务器 report 的源时间戳；CMTracker 主机必须与接收端
 处于同一 NTP 时间基准，不能把 Laptop 到达时间当作相机采样时间。
 
-**完成导入原点/轴向检查和现场球桌坐标检查后**，再加
-`pelvis_asset_confirmed:=true world_frame_confirmed:=true`，才输出有效的
+**完成现场球桌坐标检查后**，再加
+`world_frame_confirmed:=true`，才输出有效的
 schema-2 `/a3/base_pose_laptop_flat`。缺少确认时输出 valid=0；旧 JSON 不会被加载。
 `world_frame_confirmed` 表示 VRPN 已输出右手系、Z 向上、桌面 z=0、
 桌长 x=[0,2.74]、桌宽 y=[-1.525,0] 的标准坐标。
 不要沿用 Motive 的 +90° 现场变换来猜测 VRPN 坐标。
-这两个参数是操作者对名义坐标约定的确认，不是实测安装校准证明。
+此参数确认球桌世界坐标；资产选择、版本与哈希由接收链路自动校验，不再设置骨盆原点／轴向确认开关。
 
-P2 模式对球和所有刚体统一执行 `(x,y,z) → (2.74-x,-1.525-y,z)`，
-姿态同步绕 Z 转 180°。`/a3/mocap/pelvis_pose` 保留真实骨盆高度；只有
+P1 / P2 仅选择裤子刚体，不按裤子标识旋转世界坐标。球和所有刚体统一使用 `hope_table_global`；站位由实时位置自适应。`/a3/mocap/pelvis_pose` 保留真实骨盆高度；只有
 schema-2 的策略坐标加 0.76 m。HDU 后续按既有链路改写时间戳，适配现有 Runner。
 陈旧/重复时间戳、非法姿态、异常位姿跳变和旧配置回放均被拒绝。
 
@@ -110,3 +114,5 @@ Planner 的 packet 计数。此 launch 不启动 Runner；打包器恢复后，�
 可重新输出击球目标，调试时应保持 Runner 为 PASSIVE。
 `start_world` 仅保留旧命令兼容性，不再加载 Motive 场地参数；新的骨盆适配器由
 `start_base_pose` 控制，默认开启。
+
+当前配置使用 schema 8；旧 schema 7 迁移时保留世界坐标确认，忽略已删除的骨盆确认字段。

@@ -91,27 +91,30 @@ def validate_vrpn_setup(document, *, server, port, scale):
 def normalize_pose(position, quaternion, scale, selection, length=2.74, width=1.525):
     if scale not in (0.001, 1.0):
         raise ValueError("VRPN position_scale must be 0.001 (mm) or 1.0 (m)")
+    # P1/P2 identifies the pants asset, not the robot's physical table end.
+    # Keep robot and ball in the same canonical world at either location.
     return transform_pose_xyzw(tuple(v * scale for v in position), quaternion,
-                               selection.side, length, width)
+                               "P1", length, width)
 
 
 def observation(selection, profiles, stamp, position, quaternion):
     """Carry pose and its profile/side atomically to the guarded base adapter."""
-    return dict(schema_version=1, pants_profile=selection.profile, table_side=selection.side,
+    return dict(schema_version=2, coordinate_frame="hope_table_global",
+                pants_profile=selection.profile, table_side=selection.side,
                 revision=selection.revision, body=selection.body, stamp=list(stamp),
                 position=list(position), quaternion_xyzw=list(quaternion),
                 asset_sha256=profiles[selection.profile]["assets"][selection.side]["sha256"])
 
 
 def validate_observation(document, profiles):
-    if document["schema_version"] != 1:
+    if document["schema_version"] != 2 or document.get("coordinate_frame") != "hope_table_global":
         raise ValueError("unsupported VRPN observation")
     selection = Selection(document["pants_profile"], document["table_side"], document["revision"])
     asset = profiles[selection.profile]["assets"][selection.side]
     if document["body"] != selection.body or document["asset_sha256"] != asset["sha256"]:
         raise ValueError("VRPN selected body/asset mismatch")
     position, quaternion = normalize_pose(document["position"], document["quaternion_xyzw"],
-                                           1.0, Selection())  # already side-transformed
+                                           1.0, Selection())  # already canonical metres
     sec, nsec = document["stamp"]
     if type(sec) is not int or type(nsec) is not int or sec <= 0 or not 0 <= nsec < 1000000000:
         raise ValueError("invalid VRPN source timestamp")

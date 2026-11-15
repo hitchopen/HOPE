@@ -21,14 +21,14 @@ import { BALL_Y_FILTER_SERVICE, BallYFilterState, ballYFilterRequest, decodeBall
 import { BallYFilterDraft, withBallYPreview } from "./ballYFilterPreview";
 import { HIT_SPEED_SCALE_SERVICE, HitSpeedScaleState, decodeHitSpeedScale, hitSpeedScaleRequest } from "./hitSpeedScale";
 import { message as msg, LocalizedError, errorText, LocalText, Translator, Locale, readLocale, createTranslator } from "./i18n";
-import { configForSave, sameMocapBinding, ConfigRuntime, RuntimeConfigValues, decodeConfigRuntime, configRuntimeReady, savedConfigObserved } from "./configRuntime";
+import { confirmedRobotHost, configForSave, sameMocapBinding, ConfigRuntime, RuntimeConfigValues, decodeConfigRuntime, configRuntimeReady, savedConfigObserved } from "./configRuntime";
 import { mergeConfirmedConfig } from "./lifecycleConfig";
 import { MocapSafety, decodeMocapSafety, mocapSafetyText } from "./mocapSafety";
 import { MOCAP_LABELS, mocapSetupCommand } from "./mocapSetup";
 import { PLANE_MODE_SERVICE, PlaneMode, PlaneModeState, decodePlaneMode, planeModeRequest } from "./planeMode";
-import { PlayerPosition, decodePlayerPosition, playerSideAvailable } from "./playerPositions";
+import { PlayerPosition, decodePlayerPosition, selectedPlayerAvailable } from "./playerPositions";
 import { MocapRecovery, mocapRecoveryText, startBlockReason } from "./mocapRecovery";
-import { reconcileRobotTarget, robotConnectionUrl, switchRobot } from "./robotConnection";
+import { reconcileRobotTarget, robotConnectionUrl, confirmRobotConnection } from "./robotConnection";
 import { bindRunnerShortcuts, RUNNER_SHORTCUT_KEYS, RunnerShortcut } from "./runnerShortcuts";
 import { decodeTeleopState, teleopEntryReason, xboxInputFresh } from "./teleopStatus";
 import { timeCalibrationControls } from "./timeCalibration";
@@ -102,7 +102,6 @@ const TOPICS = {
   lifecycleBusy: "/hope/lifecycle/busy",
   lifecycleConfigRevision: "/hope/lifecycle/config/revision",
   configRuntime: "/hope/lifecycle/config/status",
-  pelvisConfirmed: "/hope/lifecycle/config/vrpn_pelvis_asset_confirmed",
   worldConfirmed: "/hope/lifecycle/config/vrpn_world_frame_confirmed",
   timeCalibrationState: "/hope/lifecycle/time_calibration/state",
   timeCalibrationStep: "/hope/lifecycle/time_calibration/step",
@@ -148,7 +147,7 @@ type TopicName = (typeof TOPICS)[keyof typeof TOPICS];
 type PolicyModel = "model14600" | "model11999" | "model12600" | "model17400" | "model12000" | "model14200" | "model14200fusion" | "model14200best" | "model13800" | "model13800astra" | "model15200body";
 type FieldStatus = {
   mocap_recovery?: MocapRecovery;
-  player_positions?: { P1: boolean; P2: boolean };
+  player_positions?: { P1: boolean; P2: boolean; players_x_m?: Record<string, number> };
   ball_model_status?: BallModelStatus;
   policy_model?: PolicyModel | null;
   policy_models?: Partial<Record<PolicyModel, { available: boolean; reason: string; receive_only?: boolean }>>;
@@ -182,7 +181,6 @@ const CONFIG_FIELDS = {
   gripper_profile: { label: msg("hopeA3Console.gripper"), topic: TOPICS.gripperProfile },
   pants_profile: { label: msg("hopeA3Console.markerPants"), topic: TOPICS.pantsProfile },
   operator_profile: { label: msg("hopeA3Console.operatorComputer"), topic: TOPICS.operatorProfile },
-  vrpn_pelvis_asset_confirmed: { label: msg("configRuntime.pelvisConfirmed"), topic: TOPICS.pelvisConfirmed },
   vrpn_world_frame_confirmed: { label: msg("configRuntime.worldConfirmed"), topic: TOPICS.worldConfirmed },
 } as const;
 
@@ -214,7 +212,6 @@ const EMPTY_CONFIG: LifecycleConfigDraft = {
   vrpn_port: "",
   vrpn_units: "",
   operator_profile: "",
-  vrpn_pelvis_asset_confirmed: "false",
   vrpn_world_frame_confirmed: "false",
 };
 
@@ -849,10 +846,10 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const [targetEdited, setTargetEdited] = useState(false);
   // A layout can outlive its connection. Never restore an in-flight switch.
   const [pendingTarget, setPendingTarget] = useState<string>("");
-  const configHost = snapshot.lifecycleConfig.hdu_wifi_ip;
+  const configHost = confirmedRobotHost(snapshot.configRuntime);
   const configHostFresh = snapshot.configRuntimeSeen
     ? snapshot.configRuntime != undefined && isFresh(snapshot, TOPICS.configRuntime, now, 1_500)
-    : isFresh(snapshot, TOPICS.hduWifiIp, now, 1_500);
+    : false;
   const previousHost = useRef<string>();
   useEffect(() => {
     if (!configHostFresh || !configHost) { return; }
@@ -872,10 +869,19 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   }, [configHost, configHostFresh, pendingTarget, robotTarget, targetEdited, snapshot.lifecycleConfig, context]);
   const connectRobot = () => {
     try {
-      switchRobot(robotTarget.trim(), (ip) => {
-        setPendingTarget(ip);
-        setNotice(msg("hopeA3Console.opening8766WaitingForTheNewRobotControls", {ip}));
-      }, (url) => { window.open(url, "_blank", "noopener,noreferrer"); });
+      const current = latest.current;
+      confirmRobotConnection(robotTarget.trim(), confirmedRobotHost(current.configRuntime),
+        current.configRuntime != undefined && isFresh(current, TOPICS.configRuntime, Date.now(), 1_500),
+        (ip) => {
+          setPendingTarget("");
+          setTargetEdited(false);
+          savedPanel.current = { ...savedPanel.current, robotTarget: ip };
+          context.saveState(savedPanel.current);
+          setNotice(msg("connection.confirmedInPlace", { ip }));
+        }, (ip) => {
+          setPendingTarget(ip);
+          setNotice(msg("hopeA3Console.opening8766WaitingForTheNewRobotControls", {ip}));
+        }, (url) => { window.open(url, "_blank", "noopener,noreferrer"); });
     } catch (error) { setNotice(errorText(error)); }
   };
   let validRobotTarget = false;
@@ -898,7 +904,12 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       const receivedAt = Date.now();
       const hostMessage = renderState.currentFrame?.find((event) => event.topic === TOPICS.hduWifiIp);
       const incomingHost = hostMessage ? stringValue(hostMessage.message) : undefined;
-      if (renderState.didSeek || (incomingHost !== undefined && latest.current.lifecycleConfig.hdu_wifi_ip !== undefined &&
+      const identityMessage = renderState.currentFrame?.find((event) => event.topic === TOPICS.configRuntime);
+      const incomingIdentity = identityMessage ? decodeConfigRuntime(scalar(identityMessage.message))?.robotIdentity : undefined;
+      const priorIdentity = latest.current.configRuntime?.robotIdentity;
+      const identityChanged = incomingIdentity != undefined && priorIdentity != undefined &&
+        (incomingIdentity.machine_id !== priorIdentity.machine_id || incomingIdentity.boot_id !== priorIdentity.boot_id);
+      if (renderState.didSeek || identityChanged || (incomingHost !== undefined && latest.current.lifecycleConfig.hdu_wifi_ip !== undefined &&
           incomingHost !== latest.current.lifecycleConfig.hdu_wifi_ip)) {
         confirmationRef.current = undefined;
         setConfirmation(undefined);
@@ -1133,11 +1144,6 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   };
 
   const confirmLifecycleConfig = useCallback(async () => {
-    // A robot address is a connection target, never an edit to the old robot.
-    if (configDraft.hdu_wifi_ip !== latest.current.lifecycleConfig.hdu_wifi_ip) {
-      setNotice(msg("hopeA3Console.robotIpChangedUseConfirmAtTheTop"));
-      return;
-    }
     const key: ServiceKey = "applyLifecycleConfig";
     if (context.callService == undefined || busy[key] === true) {
       setNotice(msg("hopeA3Console.currentDataSourceDoesNotExposeLifecycleConfiguration"));
@@ -1151,7 +1157,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     const parameters = (Object.keys(CONFIG_FIELDS) as ConfigField[])
       .filter((name) => name !== "operator_profile" || snapshot.lifecycleConfig.operator_profile != undefined)
       .map((name) => ({
-      name,
+      name: String(name),
       value: {
         type: 4,
         bool_value: false,
@@ -1165,6 +1171,13 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         string_array_value: [],
       },
     }));
+    const identity = latest.current.configRuntime?.robotIdentity;
+    const parameterTemplate = parameters[0];
+    if (identity != undefined && parameterTemplate != undefined && isFresh(latest.current, TOPICS.configRuntime, Date.now(), 1_500)) {
+      parameters.push({ name: "connection_identity", value: { ...parameterTemplate.value,
+        string_value: JSON.stringify({ machine_id: identity.machine_id, boot_id: identity.boot_id,
+          revision: requestedRevision }) } });
+    }
     try {
       const raw = (await Promise.race([
         context.callService(SERVICES.applyLifecycleConfig, { parameters }),
@@ -1318,9 +1331,9 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       configConfirmed: configApplied,
     }, t);
 
-  const selectedPlayerReady = playerSideAvailable(configDraft.table_side as "P1" | "P2",
+  const selectedPlayerReady = selectedPlayerAvailable(configDraft.table_side as "P1" | "P2",
     [snapshot.playerP1, snapshot.playerP2], now) &&
-    field?.player_positions?.[configDraft.table_side as "P1" | "P2"] === true;
+    field?.player_positions?.players_x_m?.[`UCB_${configDraft.table_side}`] != undefined;
   const startBlocked = startBlockReason({
     lifecycleState, lifecycleBusy: lifecycleBusy || busy.startLifecycle === true,
     calibrationBusy: timeCalibrationBlocksStart, configApplied, configTouched,
@@ -1414,11 +1427,17 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         <label>{t("hopeA3Console.connectionTargetIp")} <input aria-label={t("hopeA3Console.robotConnectionIp")} value={robotTarget}
           onChange={(event) => { setRobotTarget(event.target.value); setTargetEdited(true); }} /></label>
         <button type="button" disabled={!validRobotTarget || Object.values(busy).some(Boolean) || fieldBusy || recordBusy}
-          onClick={connectRobot}>{t("hopeA3Console.confirmConnection")}</button>
+          onClick={connectRobot}>{t(configHostFresh && configHost && robotTarget.trim() !== configHost
+            ? "connection.directOtherRobot" : "hopeA3Console.confirmConnection")}</button>
+        {configHostFresh && configHost && robotTarget.trim() !== configHost &&
+          <div className="helper">{t("connection.directNoScene")}</div>}
         <div role="status">{pendingTarget ? t("hopeA3Console.switchingTo8766ControlsInThisPanelAre", {ip: pendingTarget}) :
           lifecycleFresh && configHostFresh && configHost ? t("hopeA3Console.addressReportedByTheCurrentRobot", {ip: configHost, state: snapshot.lifecycleState}) :
           lifecycleFresh ? t("hopeA3Console.liveStatusReceivedFromRobotAddressIsUnset", {state: snapshot.lifecycleState}) :
           t("hopeA3Console.noLiveRobotStatusTheTargetDoesNot")}</div>
+        <div className="helper">{t("connection.savedAddress", { ip: snapshot.lifecycleConfig.hdu_wifi_ip ?? "?" })}</div>
+        {snapshot.configRuntime?.robotIdentity && <div className="helper">{t("connection.robotIdentity", {
+          id: snapshot.configRuntime.robotIdentity.machine_id.slice(0, 12) })}</div>}
         {pendingTarget && <button type="button" disabled={!configHostFresh || !configHost} onClick={() => { setPendingTarget(""); setRobotTarget(configHost ?? ""); setTargetEdited(false); savedPanel.current = { ...savedPanel.current, robotTarget: configHost }; context.saveState(savedPanel.current); }}>
           {t("hopeA3Console.cancelSwitchAndContinueWithTheCurrentRobot")} {configHost}
         </button>}
@@ -1615,7 +1634,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         <div className="operator-notice" role="status">
           <strong>{t(configApplied ? "configRuntime.applied" : "configRuntime.pending")}</strong>
           <div>{t("configRuntime.bodyChain", {
-            raw: playerSideAvailable(snapshot.lifecycleConfig.table_side as "P1" | "P2", [snapshot.playerP1, snapshot.playerP2], now)
+            raw: selectedPlayerAvailable(snapshot.lifecycleConfig.table_side as "P1" | "P2", [snapshot.playerP1, snapshot.playerP2], now)
               ? t("configRuntime.dataFresh") : t("hopeA3Console.noData"),
             base: isFresh(snapshot, TOPICS.baseFresh, now, 1_500) && snapshot.baseFresh === true
               ? t("configRuntime.dataFresh") : t("configRuntime.baseUnavailable"),
@@ -1673,8 +1692,16 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             </button>
           ))}
         </div>}
+        <button type="button" disabled={!lifecycleStopped || lifecycleBusy || !configHostFresh ||
+          !snapshot.configRuntime?.robotIdentity?.connection || fieldBusy || recordBusy}
+          onClick={() => {
+            const pair = snapshot.configRuntime?.robotIdentity?.connection;
+            if (pair) { setConfigTouched(true); setConfigDraft(current => ({ ...current,
+              hdu_wifi_ip: pair.hdu_ip, laptop_wifi_ip: pair.laptop_ip })); }
+          }}>{t("connection.useObservedPair")}</button>
+        <p className="helper">{t("connection.repairHint")}</p>
         <div className="config-grid">
-          {NETWORK_CONFIG_FIELDS.filter((name) => name !== "hdu_wifi_ip").filter((name) =>
+          {NETWORK_CONFIG_FIELDS.filter((name) =>
             name === "motive_ip" ? configDraft.mocap_source === "motive" :
             name === "vrpn_ip" ? vrpnSelected : true).map((name) => (
             <label className="config-field" key={name}>
@@ -1742,8 +1769,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           <div>
             <div className="eyebrow">{t("hopeA3Console.ourTableSideLockedIntoNextStart")}</div>
             <div className="topic-path">
-              {t("hopeA3Console.bothMocapSystemsUseUcbP1UcbP2")} {!kernelMode && fieldFresh && field?.player_positions?.[configDraft.table_side as "P1" | "P2"] !== true &&
-                t("hopeA3Console.peerNotVerified")}
+              {t("hopeA3Console.bothMocapSystemsUseUcbP1UcbP2")}
             </div>
           </div>
           {(["P1", "P2"] as const).map((side) => (
@@ -1751,8 +1777,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
               key={side}
               className={configDraft.table_side === side ? "side-selected" : ""}
               type="button"
-              disabled={!lifecycleStopped || lifecycleBusy || (!kernelMode &&
-                !playerSideAvailable(side, [snapshot.playerP1, snapshot.playerP2], now))}
+              disabled={!lifecycleStopped || lifecycleBusy}
               onClick={() => {
                 setConfigTouched(true);
                 setConfigDraft((current) => ({ ...current, table_side: side }));
@@ -1799,7 +1824,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         </label>}
         {vrpnSelected && <div className="operator-notice">
           <div>{t("configRuntime.attestationBinding")}</div>
-          {(["vrpn_pelvis_asset_confirmed", "vrpn_world_frame_confirmed"] as const).map((key) => (
+          {(["vrpn_world_frame_confirmed"] as const).map((key) => (
             <label key={key}>
               <input type="checkbox" checked={mocapBindingUnchanged && configDraft[key] === "true"}
                 disabled={!lifecycleStopped || lifecycleBusy || !mocapBindingUnchanged || !runtimeFresh}

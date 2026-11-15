@@ -6,6 +6,15 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'a3'))
 from hope_mocap_connection import require_receiver_owner
 
+
+def test_same_robot_changed_ip_is_reconnectable_but_other_identity_is_not(tmp_path):
+    receipt = tmp_path / 'runtime.env'
+    receipt.write_text('HOPE_LIFECYCLE_HDU_IP=192.168.8.182\nHOPE_LIFECYCLE_MACHINE_ID=' + 'a' * 32 + '\n')
+    require_receiver_owner(receipt, '192.168.200.202', 'a' * 32)
+    for machine in ['', 'b' * 32]:
+        with pytest.raises(ValueError):
+            require_receiver_owner(receipt, '192.168.8.182', machine)
+
 ROOT = Path(__file__).resolve().parents[2]
 
 @pytest.mark.parametrize('content', ['', 'HOPE_LIFECYCLE_HDU_IP=192.168.8.181\n', 'HOPE_LIFECYCLE_HDU_IP=192.168.8.182\nHOPE_LIFECYCLE_HDU_IP=192.168.8.181\n'])
@@ -42,8 +51,8 @@ def test_geometry_confirmations_retained_only_for_exact_connection(tmp_path):
     values=['192.168.8.182','vrpn','192.168.100.99','192.168.100.99','3883','mm','v2','P1']
     receipt=tmp_path/'runtime.env'
     receipt.write_text(''.join(f'HOPE_LIFECYCLE_{key}={value}\n' for key,value in zip(fields,values))+'HOPE_VRPN_PELVIS_ASSET_CONFIRMED=true\nHOPE_VRPN_WORLD_FRAME_CONFIRMED=true\n')
-    assert retained_confirmations(receipt,values)=='true true'
-    assert retained_confirmations(receipt,[*values[:-1],'P2'])=='false false'
+    assert retained_confirmations(receipt,values)=='true'
+    assert retained_confirmations(receipt,[*values[:-1],'P2'])=='false'
 
 
 def test_reconnect_releases_lock_while_detached_tmux_remains_alive(tmp_path):

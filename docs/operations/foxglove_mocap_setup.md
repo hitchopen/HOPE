@@ -48,19 +48,13 @@ Lifecycle schema 6 提供三个选项：无动捕、Motive（NatNet）、
   VRPN 不提供在线贴纸点数或 ModelDef，界面显示 `POSE ONLY` / `N/A`。
 - 接收端核对 Foxglove 原子快照中的系统、地址、端口和单位。选择错误、参数
   不匹配或快照超过 3 秒未更新时停止转发，等待修正并重启。
-- 默认不确认资产原点或世界坐标，base 输出 valid=0，flight packetizer 关闭。
-  完成实际导入和场地检查后，可在 Laptop 的
-  `~/.config/hope-foxglove/lifecycle.env` 中设置以下两项，再重新启动动捕：
-
-  ```bash
-  HOPE_VRPN_PELVIS_ASSET_CONFIRMED=true
-  HOPE_VRPN_WORLD_FRAME_CONFIRMED=true
-  ```
-
-  前者确认当前所选资产保留 pelvis 原点/轴向；后者确认 VRPN 世界为右手系、
-  Z向上、桌面 z=0、桌长 x=[0,2.74]、桌宽 y=[-1.525,0]。
-  世界确认还会开启 flight packetizer。换资产或场地后先恢复 false 并重新检查。
-  这两项是操作者确认，不是程序测得的校准结果。
+- 默认世界坐标未确认，base 输出 valid=0，flight packetizer 关闭。
+  核对 VRPN 世界为右手系、Z 向上、桌面 z=0、桌长 x=[0,2.74]、
+  桌宽 y=[-1.525,0] 后，在 Console 勾选世界坐标确认并保存。
+  机器人唯一配置源保存 `vrpn_world_frame_confirmed`；不再使用本机环境文件确认。
+  此确认还会开启 flight packetizer。更换动捕设置后需重新检查和确认。
+  骨盆原点／轴向不再单独设确认开关，接收链路继续校验所选资产及哈希。
+  P1 / P2 仅标识裤子刚体，站位由实时位置自适应，不随裤子选择翻转世界坐标。
 
 ## 更新与旧配置
 

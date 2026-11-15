@@ -76,17 +76,17 @@ def test_generated_receipt_uses_canonical_empty_ips_and_same_revision_values(tmp
     from hope_mocap_connection import retained_confirmations
     values=['192.168.8.182','none','NONE','NONE','3883','mm','v4','P1']
     path=tmp_path/'.config/hope-foxglove/laptop-runtime.env'
-    path.write_text(path.read_text().replace('HOPE_VRPN_PELVIS_ASSET_CONFIRMED=false','HOPE_VRPN_PELVIS_ASSET_CONFIRMED=true').replace('HOPE_VRPN_WORLD_FRAME_CONFIRMED=false','HOPE_VRPN_WORLD_FRAME_CONFIRMED=true'))
-    assert retained_confirmations(path,values)=='true true'
-    assert retained_confirmations(path,[*values[:-1],'P2'])=='false false'
+    path.write_text(path.read_text().replace('HOPE_VRPN_WORLD_FRAME_CONFIRMED=false','HOPE_VRPN_WORLD_FRAME_CONFIRMED=true'))
+    assert retained_confirmations(path,values)=='true'
+    assert retained_confirmations(path,[*values[:-1],'P2'])=='false'
 
 
-def test_body_confirmation_evidence_is_separate_from_raw_vrpn(receipt):
+def test_world_confirmation_evidence_is_separate_from_raw_vrpn(receipt):
     from mocap_config_evidence import endpoint_evidence
-    false=endpoint_evidence('base',{'vrpn_pelvis_asset_confirmed':False,'world_frame_calibrated':False},receipt)
+    false=endpoint_evidence('base',{'world_frame_calibrated':False},receipt)
     assert false['matches']  # configuration consistency is not localization readiness
-    confirmed=dict(receipt,HOPE_VRPN_PELVIS_ASSET_CONFIRMED='true',HOPE_VRPN_WORLD_FRAME_CONFIRMED='true')
-    stale=endpoint_evidence('base',{'vrpn_pelvis_asset_confirmed':False,'world_frame_calibrated':False},confirmed)
+    confirmed=dict(receipt,HOPE_VRPN_WORLD_FRAME_CONFIRMED='true')
+    stale=endpoint_evidence('base',{'world_frame_calibrated':False},confirmed)
     assert not stale['matches']
 
 

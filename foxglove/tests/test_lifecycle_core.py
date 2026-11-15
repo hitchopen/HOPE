@@ -57,7 +57,6 @@ class LifecycleConfigTests(unittest.TestCase):
                 "vrpn_ip": "",
                 "vrpn_port": "3883",
                 "vrpn_units": "mm",
-                "vrpn_pelvis_asset_confirmed": "false",
                 "vrpn_world_frame_confirmed": "false",
             },
         )
@@ -189,7 +188,7 @@ class LifecycleConfigTests(unittest.TestCase):
             save_config_atomic(path, config)
             self.assertEqual(load_config(path), config)
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
-            self.assertEqual(json.loads(path.read_text())["schema_version"], 7)
+            self.assertEqual(json.loads(path.read_text())["schema_version"], 8)
 
     def test_unconfirmed_or_malformed_documents_fail(self):
         document = config_to_document(self.valid_config(revision=1))

@@ -17,7 +17,7 @@ from hope_lifecycle_supervisor import LifecycleModule
 
 def test_disconnect_grace_cooldown_and_three_attempt_limit():
     p = RecoveryPolicy()
-    observe = lambda now: p.observe(now, eligible=True, tracked=False, side_ready=False)
+    observe = lambda now: p.observe(now, eligible=True, tracked=False, selected_tracked=False)
     assert not observe(0)
     assert not observe(9.9)
     assert observe(10)
@@ -32,27 +32,27 @@ def test_disconnect_grace_cooldown_and_three_attempt_limit():
 
 def test_brief_tracking_does_not_reset_retry_budget():
     p = RecoveryPolicy(attempts=3)
-    p.observe(10, eligible=True, tracked=True, side_ready=True)
+    p.observe(10, eligible=True, tracked=True, selected_tracked=True)
     assert p.attempts == 3
-    assert not p.observe(11, eligible=True, tracked=False, side_ready=False)
-    p.observe(12, eligible=True, tracked=True, side_ready=True)
-    p.observe(17, eligible=True, tracked=True, side_ready=True)
+    assert not p.observe(11, eligible=True, tracked=False, selected_tracked=False)
+    p.observe(12, eligible=True, tracked=True, selected_tracked=True)
+    p.observe(17, eligible=True, tracked=True, selected_tracked=True)
     assert p.attempts == 0
 
 
 def test_running_time_does_not_count_towards_stopped_grace():
     p = RecoveryPolicy()
-    assert not p.observe(0, eligible=False, tracked=False, side_ready=False)
-    assert not p.observe(100, eligible=True, tracked=False, side_ready=False)
-    assert not p.observe(109, eligible=True, tracked=False, side_ready=False)
-    assert p.observe(110, eligible=True, tracked=False, side_ready=False)
+    assert not p.observe(0, eligible=False, tracked=False, selected_tracked=False)
+    assert not p.observe(100, eligible=True, tracked=False, selected_tracked=False)
+    assert not p.observe(109, eligible=True, tracked=False, selected_tracked=False)
+    assert p.observe(110, eligible=True, tracked=False, selected_tracked=False)
 
 
-def test_fresh_wrong_side_is_not_a_dead_receiver():
+def test_other_pants_asset_is_not_a_dead_receiver():
     p = RecoveryPolicy()
     for now in (0, 20, 100):
-        assert not p.observe(now, eligible=True, tracked=True, side_ready=False)
-    assert p.state == "WRONG_SIDE"
+        assert not p.observe(now, eligible=True, tracked=True, selected_tracked=False)
+    assert p.state == "ASSET_NOT_TRACKED"
 
 
 class DeferredPool:
@@ -93,7 +93,7 @@ class Harness(MocapRecoveryMixin):
 def node(monkeypatch):
     h = Harness()
     h.hardware_lock = threading.Lock()
-    monkeypatch.setattr(recovery, "require_applied", lambda config: None)
+    monkeypatch.setattr(recovery, "require_receiver_recovery", lambda config: None)
     monkeypatch.setattr(recovery, "try_acquire_hardware_operation_lock",
                         lambda: h.hardware_lock if h.hardware_lock.acquire(False) else None)
     monkeypatch.setattr(recovery, "release_hardware_operation_lock", lambda lock: lock.release())

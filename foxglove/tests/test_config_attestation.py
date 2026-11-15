@@ -17,7 +17,7 @@ def config():
     return LifecycleConfig(laptop_wifi_ip='192.168.8.150', hdu_wifi_ip='192.168.8.182',
         mdu_internal_ip='10.42.10.12', motive_ip='192.168.100.99', vrpn_ip='192.168.100.99',
         mocap_source='vrpn', pants_profile='v4', table_side='P1', revision=54,
-        vrpn_pelvis_asset_confirmed='true', vrpn_world_frame_confirmed='true')
+        vrpn_world_frame_confirmed='true')
 
 
 @pytest.mark.parametrize('key,value', [('hdu_wifi_ip','192.168.8.183'),('mocap_source','none'),
@@ -29,12 +29,12 @@ def test_setup_change_cannot_carry_old_confirmations(key, value, legacy):
     values = {**current.values(), key:value}
     if legacy: values = {k:v for k,v in values.items() if k in V6_CONFIG_FIELDS}
     saved = apply_config_updates(current, list(values.items()))
-    assert saved.vrpn_pelvis_asset_confirmed == saved.vrpn_world_frame_confirmed == 'false'
+    assert saved.vrpn_world_frame_confirmed == 'false'
     assert saved.revision == 55
     # Attestation is a separate save against the already saved binding.
     if saved.mocap_source == 'vrpn':
         attested = apply_config_updates(saved, list({**saved.values(),
-            'vrpn_pelvis_asset_confirmed':'true','vrpn_world_frame_confirmed':'true'}.items()))
+            'vrpn_world_frame_confirmed':'true'}.items()))
         assert attested.vrpn_world_frame_confirmed == 'true'
 
 
@@ -42,7 +42,7 @@ def test_setup_change_cannot_carry_old_confirmations(key, value, legacy):
 def test_transport_change_preserves_physical_setup_confirmation(key,value):
     current = config()
     saved = apply_config_updates(current,list({**current.values(), key:value}.items()))
-    assert saved.vrpn_pelvis_asset_confirmed == saved.vrpn_world_frame_confirmed == 'true'
+    assert saved.vrpn_world_frame_confirmed == 'true'
 
 
 def test_old_schema_never_invents_confirmation_and_schema7_requires_valid_flags():
@@ -61,8 +61,8 @@ def test_helper_arguments_override_retired_environment_flags():
     funcs = helper[helper.index('valid_ipv4() {'):helper.index('require_user() {')]
     args = ['model21800_20261109T010203Z','192.168.8.150','192.168.8.182','10.42.10.12',
             '192.168.100.99','P1','OPTITRACK','DEFAULT','legacy','vrpn','192.168.100.99','3883','mm','v4']
-    for extra, expected in [([], 'false,false'),(['false','true'],'false,true'),(['true','true'],'true,true')]:
-        r = subprocess.run(['bash','-c',funcs+'\nparse_common "$@" || exit 1; printf "%s,%s" "$HOPE_VRPN_PELVIS_ASSET_CONFIRMED" "$HOPE_VRPN_WORLD_FRAME_CONFIRMED"',
+    for extra, expected in [([], 'false'),(['false'],'false'),(['true'],'true')]:
+        r = subprocess.run(['bash','-c',funcs+'\nparse_common "$@" || exit 1; printf "%s" "$HOPE_VRPN_WORLD_FRAME_CONFIRMED"',
                             'test',*args,*extra],capture_output=True,text=True,
                            env={**os.environ,'HOPE_VRPN_PELVIS_ASSET_CONFIRMED':'true','HOPE_VRPN_WORLD_FRAME_CONFIRMED':'true'})
         assert r.returncode == 0, r.stderr
@@ -113,3 +113,18 @@ def test_migration_allows_only_session_change_after_recorded_attestation():
     assert result['source_sha256']['laptop-runtime.env'] == hashlib.sha256(current).hexdigest()
     with pytest.raises(ValueError):
         migrate_attested_config(json.dumps(document).encode(),raw,json.dumps(evidence).encode(),current.replace(b'192.168.100.99',b'192.168.100.98'))
+
+
+@pytest.mark.parametrize('retired', ['false', 'true'])
+@pytest.mark.parametrize('world', ['false', 'true'])
+def test_schema7_migration_discards_pelvis_switch_without_changing_world_confirmation(retired, world):
+    old = {**config_to_document(config()), 'schema_version': 7,
+           'vrpn_pelvis_asset_confirmed': retired, 'vrpn_world_frame_confirmed': world}
+    loaded = config_from_document(old)
+    assert loaded.vrpn_world_frame_confirmed == world
+    assert 'vrpn_pelvis_asset_confirmed' not in loaded.values()
+    saved = config_to_document(loaded)
+    assert saved['schema_version'] == 8
+    assert 'vrpn_pelvis_asset_confirmed' not in saved
+    with pytest.raises(ValueError):
+        apply_config_updates(loaded, list({**loaded.values(), 'vrpn_pelvis_asset_confirmed': retired}.items()))

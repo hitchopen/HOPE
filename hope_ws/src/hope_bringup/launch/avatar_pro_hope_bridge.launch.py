@@ -2,8 +2,8 @@
 
 Import config/pants_profiles/a3_{v2,v4}_{P1,P2}_ground_truth.json first.
 VRPN has no marker ModelDef: geometry cannot be verified over this protocol.
-The base wire remains invalid until the asset and table-world setup are
-explicitly confirmed. This launch never starts the robot Runner.
+The base wire remains invalid until table-world coordinates are confirmed.
+The receiver validates the selected catalog asset automatically. This launch never starts the robot Runner.
 """
 import hashlib
 import os
@@ -42,9 +42,8 @@ def generate_launch_description():
         ("ball_object", "Ball", "Case-sensitive ball sender name."),
         ("position_scale", "0.001", "0.001 for millimetres; 1.0 for metres."),
         ("pants_profile", "v2", "v2 or v4; initial standalone selection."),
-        ("table_side", "P1", "P1 or P2; applies to ball AND robot."),
+        ("table_side", "P1", "P1 or P2 pants asset; never rotates the world or specifies a table end."),
         ("follow_lifecycle_config", "true", "Follow Foxglove CONFIRM CONFIG; wait if unavailable."),
-        ("pelvis_asset_confirmed", "false", "Operator verified imported selected asset retains pelvis pivot/axes."),
         ("world_frame_confirmed", "false", "Operator verified VRPN world matches canonical table surface frame."),
         ("start_flight_packetizer", arg("world_frame_confirmed"),
          "Enable Planner ball packets; defaults to world_frame_confirmed. Set false only for pose-only diagnostics."),
@@ -66,7 +65,7 @@ def generate_launch_description():
                  "position_scale": typed("position_scale", float), "pants_profile": arg("pants_profile"),
                  "table_side": arg("table_side"), "follow_lifecycle_config": typed("follow_lifecycle_config", bool),
                  "debug_session_id": arg("debug_session_id"),
-                 # Classifier/gate runs AFTER this relay's table-side transform.
+                 # Ball and robot share canonical world coordinates for either pants asset.
                  "poses_topic": "/poses/operator_raw",
                  "ball_point_topic": "/ball/operator_raw_point",
              }]),
@@ -74,7 +73,6 @@ def generate_launch_description():
              name="hope_base_pose_flat_relay", output="screen", condition=IfCondition(arg("start_base_pose")),
              parameters=[{
                  "localization_source": "vrpn_ground_truth",
-                 "vrpn_pelvis_asset_confirmed": typed("pelvis_asset_confirmed", bool),
                  "world_frame_calibrated": typed("world_frame_confirmed", bool),
                  "world_frame_sha256": world_sha, "source_stamp_mode": "input_header",
                  "output_topic": arg("base_pose_output_topic"), "policy_z_offset": 0.76,

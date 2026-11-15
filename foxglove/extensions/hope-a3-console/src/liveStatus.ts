@@ -42,3 +42,15 @@ export function poseDetails(value: unknown, now: number, t: Translator = default
   const yaw = Math.atan2(2*(w!*z!+x!*y!),1-2*(y!*y!+z!*z!))*180/Math.PI;
   return t("liveStatus.pose", {x:p.x!.toFixed(3),y:p.y!.toFixed(3),z:p.z!.toFixed(3),roll:r.toFixed(1),pitch:pitch.toFixed(1),yaw:yaw.toFixed(1)});
 }
+
+
+/** Mocap availability is independent of Runner /base/fresh while stopped. */
+export function mocapStatusDisplay(pose: TimedValue | undefined, tfReady: TimedValue | undefined,
+  now: number, t: Translator = defaultTranslator): StatusDisplay {
+  const value = freshValue(pose, now) as { header?: { frame_id?: unknown } } | undefined;
+  const ready = freshValue(tfReady, now);
+  const detail = value?.header?.frame_id === "world" ? poseDetails(value, now, t) : undefined;
+  if (ready === true && detail) return { title: t("liveStatus.poseGood"), detail, tone: "good" };
+  return { title: ready === false ? t("liveStatus.poseBad") : t("liveStatus.noUpdate"),
+    detail: t("liveStatus.waitPose"), tone: "unavailable" };
+}

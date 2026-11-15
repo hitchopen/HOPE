@@ -15,6 +15,7 @@ import re
 import subprocess
 import time
 import xml.etree.ElementTree as ET
+from hope_connection_identity import connection_identity
 
 from hope_lifecycle_core import config_to_document, load_config, try_acquire_hardware_operation_lock, release_hardware_operation_lock
 
@@ -72,7 +73,8 @@ def owner_status(config, state, busy, path=OWNER, now=None):
 def read_status(config, path=REPORT, now=None):
     result = {'schema_version': 1, 'source': str(CONFIG), 'revision': config.revision,
               'values': config.values(), 'config_sha256': identity(config), 'applied': False,
-              'state': 'UNKNOWN', 'reason': 'Waiting for configuration runtime audit', 'services': [], 'laptop': {}}
+              'state': 'UNKNOWN', 'reason': 'Waiting for configuration runtime audit', 'services': [], 'laptop': {},
+              'robot_identity': connection_identity()}
     try:
         report = json.loads(Path(path).read_text())
         age = (time.monotonic() if now is None else now) - report['monotonic_s']
@@ -97,6 +99,19 @@ def require_applied(config):
     status = read_status(config)
     if not status['applied']:
         raise ValueError('CONFIG_NOT_APPLIED: ' + status['reason'])
+
+
+def require_receiver_recovery(config):
+    # A missing receiver is exactly what reconnect repairs. Requiring the
+    # complete Laptop process audit here would make that failure unrecoverable.
+    # Keep a fresh, revision-bound audit of every HDU consumer; the receiver
+    # helper independently refuses takeover of another robot's receiver.
+    status = read_status(config)
+    services = status['services']
+    if (config.revision < 1 or len(services) != len(UNITS)
+            or {s['service'] for s in services} != set(UNITS)
+            or not all(s.get('matches') is True for s in services)):
+        raise ValueError('HDU_CONFIG_NOT_APPLIED: ' + status['reason'])
 
 
 def process_status(pid, config, proc=Path('/proc')):
@@ -204,7 +219,6 @@ def laptop_matches(config, result):
                 'HOPE_LIFECYCLE_MOCAP_SOURCE': config.mocap_source, 'HOPE_LIFECYCLE_PANTS_PROFILE': config.pants_profile,
                 'HOPE_LIFECYCLE_VRPN_IP': config.vrpn_ip, 'HOPE_LIFECYCLE_VRPN_PORT': config.vrpn_port,
                 'HOPE_LIFECYCLE_VRPN_UNITS': config.vrpn_units, 'HOPE_LIFECYCLE_MOTIVE_IP': config.motive_ip,
-                'HOPE_VRPN_PELVIS_ASSET_CONFIRMED': config.vrpn_pelvis_asset_confirmed,
                 'HOPE_VRPN_WORLD_FRAME_CONFIRMED': config.vrpn_world_frame_confirmed}
     mismatches = {k: {'expected': v, 'actual': result.get('receipt', {}).get(k)} for k, v in expected.items()
                   if result.get('receipt', {}).get(k) != v}

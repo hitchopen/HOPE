@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const loadSource = require('./loadSource.cjs');
-const { configForSave, sameMocapBinding, CONFIG_KEYS, decodeConfigRuntime, configRuntimeReady, savedConfigObserved } = loadSource('configRuntime');
+const { confirmedRobotHost, configForSave, sameMocapBinding, CONFIG_KEYS, decodeConfigRuntime, configRuntimeReady, savedConfigObserved } = loadSource('configRuntime');
 const { applyMessage, TOPICS, INITIAL_SNAPSHOT } = loadSource('HopeA3Console', '\nexport { applyMessage, TOPICS, INITIAL_SNAPSHOT };');
 function report(overrides = {}) {
   return { schema_version: 1, source: '/var/lib/hope-lifecycle/config.json', revision: 54,
@@ -44,15 +44,34 @@ test('actual Console reducer keeps fields and revision in the same snapshot', ()
 });
 
 test('changing the setup clears old attestations before sending and awaiting acknowledgement', () => {
-  const saved = {...report().values, mocap_source:'vrpn', vrpn_pelvis_asset_confirmed:'true', vrpn_world_frame_confirmed:'true'};
+  const saved = {...report().values, mocap_source:'vrpn', vrpn_world_frame_confirmed:'true'};
   for (const key of ['hdu_wifi_ip','vrpn_ip','vrpn_port','vrpn_units','pants_profile','table_side','motive_ip','mocap_source']) {
     const draft = {...saved,[key]:'changed'};
     assert.equal(sameMocapBinding(draft,saved),false);
     const sent = configForSave(draft,saved);
-    assert.equal(sent.vrpn_pelvis_asset_confirmed,'false');
+    assert.equal('vrpn_pelvis_asset_confirmed' in sent,false);
     assert.equal(sent.vrpn_world_frame_confirmed,'false');
     assert.equal(savedConfigObserved(decode(report({revision:55,values:sent})),{revision:54,values:sent}),true);
   }
   assert.equal(configForSave({...saved,laptop_wifi_ip:'192.168.8.151'},saved).vrpn_world_frame_confirmed,'true');
   for (const value of [true,1,'yes','']) assert.equal(decode(report({values:{...saved,vrpn_world_frame_confirmed:value}})),undefined);
+});
+
+test('retired config fields cannot be sent back from an older snapshot', () => {
+  const saved = {...report().values, mocap_source:'vrpn', vrpn_world_frame_confirmed:'true', vrpn_pelvis_asset_confirmed:'false'};
+  const sent = configForSave(saved, saved);
+  assert.equal('vrpn_pelvis_asset_confirmed' in sent, false);
+  assert.equal(sent.vrpn_world_frame_confirmed, 'true');
+});
+
+test('Host connection identity does not depend on a direct browser socket', () => {
+ const r=report();r.values.hdu_wifi_ip='192.168.200.202';r.values.laptop_wifi_ip='192.168.100.89';
+ r.robot_identity={machine_id:'a'.repeat(32),boot_id:'b'.repeat(36),connection:null};
+ r.laptop={matches:true,receipt:{HOPE_LIFECYCLE_MACHINE_ID:'a'.repeat(32),HOPE_LIFECYCLE_HDU_IP:r.values.hdu_wifi_ip,HOPE_LIFECYCLE_LAPTOP_IP:r.values.laptop_wifi_ip}};
+ assert.equal(confirmedRobotHost(decode(r)),'192.168.200.202');
+ assert.equal(confirmedRobotHost(decode({...r,applied:false})),undefined);
+ assert.equal(confirmedRobotHost(decode({...r,laptop:{...r.laptop,matches:false}})),undefined);
+ for(const [key,value] of [['HOPE_LIFECYCLE_MACHINE_ID','c'.repeat(32)],['HOPE_LIFECYCLE_HDU_IP','192.168.200.203']]) {
+  assert.equal(confirmedRobotHost(decode({...r,laptop:{...r.laptop,receipt:{...r.laptop.receipt,[key]:value}}})),undefined);
+ }
 });

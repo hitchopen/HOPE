@@ -29,6 +29,7 @@ from std_msgs.msg import Bool, Float64MultiArray, String, UInt32
 from std_srvs.srv import Trigger
 
 from hope_config_runtime import owner_status, read_status, require_applied
+from hope_connection_identity import validate_network_migration
 from hope_field_operations import FieldOperations
 from hope_distributed_recording import DistributedRecorder
 from hope_elink_health import ElinkHealthLatch, ProbeError, run_passive_probe
@@ -210,10 +211,12 @@ class LifecycleBackend:
             # The independently connected receiver may carry an old debug session.
             # Rebind it through the managed helper before HAL/Runner so role-2
             # echoes use this START's fingerprint; never learn it from DDS.
-            ("MOCAP", self._ssh(laptop, laptop_helper, "reconnect-laptop", *common,
+            ("MOCAP", self._ssh(laptop, "/usr/bin/env",
+                                      "HOPE_LIFECYCLE_MACHINE_ID=" + Path("/etc/machine-id").read_text().strip(),
+                                      laptop_helper, "reconnect-laptop", *common,
                                config.mocap_source, config.vrpn_ip or "NONE",
                                config.vrpn_port, config.vrpn_units, config.pants_profile,
-                               config.vrpn_pelvis_asset_confirmed, config.vrpn_world_frame_confirmed), 25.0),
+                               config.vrpn_world_frame_confirmed), 25.0),
             ("SESSION", [LIFECYCLE_HELPER, "prepare-hdu", *common], 15.0),
             ("SESSION", self._ssh(mdu, LIFECYCLE_HELPER, "prepare-mdu", *common), 15.0),
             # The receiver above is bound to the same session as the Runner
@@ -322,8 +325,10 @@ class LifecycleBackend:
                   config.mdu_internal_ip, config.motive_ip or "NONE", config.table_side,
                   "OPTITRACK", "DEFAULT", config.gripper_profile, config.mocap_source,
                   config.vrpn_ip or "NONE", config.vrpn_port, config.vrpn_units, config.pants_profile,
-                  config.vrpn_pelvis_asset_confirmed, config.vrpn_world_frame_confirmed]
-        self._invoke(self._ssh(target, helper, "reconnect-laptop", *common),
+                  config.vrpn_world_frame_confirmed]
+        self._invoke(self._ssh(target, "/usr/bin/env",
+                                    "HOPE_LIFECYCLE_MACHINE_ID=" + Path("/etc/machine-id").read_text().strip(),
+                                    helper, "reconnect-laptop", *common),
                      timeout_s=25.0, event_callback=lambda _event: None)
 
     def exchange_recording(self, host: str, config: LifecycleConfig, request: dict) -> dict:
@@ -836,9 +841,13 @@ class LifecycleModule(MocapRecoveryMixin, RosComponent):
         saved = False
         claimed = False
         try:
-            updated = apply_config_updates(current, updates)
-            if current.hdu_wifi_ip and updated.hdu_wifi_ip != current.hdu_wifi_ip:
-                raise ValueError("Robot IP selects a new Foxglove connection; current robot configuration is unchanged")
+            proofs = [value for name, value in updates if name == "connection_identity"]
+            if len(proofs) > 1:
+                raise ValueError("duplicate connection identity")
+            updated = apply_config_updates(current, [(name, value) for name, value in updates
+                                                     if name != "connection_identity"])
+            migrating = current.revision > 0 and any(getattr(current, key) != getattr(updated, key)
+                                                     for key in ("hdu_wifi_ip", "laptop_wifi_ip"))
             with self._lock:
                 if self._config is not current or self._busy or self._field_busy or self._state not in {"STOPPED", "CONFIG_ERROR"}:
                     raise ValueError("state changed while confirming configuration; retry")
@@ -848,9 +857,11 @@ class LifecycleModule(MocapRecoveryMixin, RosComponent):
                 self._field_busy = True
                 claimed = True
                 reconnect = any(getattr(current, name) != getattr(updated, name) for name in (
-                    "operator_profile", "laptop_wifi_ip", "motive_ip", "vrpn_ip", "mocap_source", "vrpn_port",
+                    "operator_profile", "hdu_wifi_ip", "laptop_wifi_ip", "motive_ip", "vrpn_ip", "mocap_source", "vrpn_port",
                     "vrpn_units", "pants_profile", "table_side",
-                    "vrpn_pelvis_asset_confirmed", "vrpn_world_frame_confirmed")) or "MOCAP_FAILED" in self._last_result or not read_status(current)["applied"]
+                    "vrpn_world_frame_confirmed")) or "MOCAP_FAILED" in self._last_result or not read_status(current)["applied"]
+            if migrating:
+                validate_network_migration(current, updated, proofs[0] if proofs else "")
             save_config_atomic(CONFIG_PATH, updated)
             saved = True
             with self._lock:

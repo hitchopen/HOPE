@@ -27,7 +27,7 @@ def load(name):
 def ros():
     rclpy.init(args=['--ros-args','-p','localization_source:=vrpn_ground_truth',
         '-p','world_frame_calibrated:=true','-p','world_frame_sha256:='+'a'*64,
-        '-p','vrpn_pelvis_asset_confirmed:=true','-p','position_scale:=0.001',
+        '-p','position_scale:=0.001',
         '-p','follow_lifecycle_config:=true','-p','server:=192.168.100.99',
         '-p','ball_tracking_mode:=rigid_body','-p','ball_object:=Ball'])
     yield
@@ -65,12 +65,12 @@ def test_switch_flows_from_snapshot_through_vrpn_into_guarded_base(ros):
         assert raw_players[-1].header.frame_id == 'hope_table_global'
         assert outputs[-1].data[1]==1
         assert base._vrpn_selection==Selection(profile,side,revision)
-        assert outputs[-1].data[5:8]==pytest.approx([2.1,-1.1,.96] if side=='P1' else [.64,-.425,.96])
+        assert outputs[-1].data[5:8]==pytest.approx([2.1,-1.1,.96])
         assert pelvis[-1].pose.position.z==pytest.approx(.2)  # policy offset only on flat ABI
         ball_pose=pose(relay,2000)
         ball_pose.pose.orientation.w=0.0  # a point-only ball has no useful orientation
         relay._on_pose('/vrpn_mocap/Ball/pose','ball',ball_pose)
-        assert balls[-1].point.x==pytest.approx(2 if side=='P1' else .74)
+        assert balls[-1].point.x==pytest.approx(2)
     base._vrpn_pose_cb(observations[0])
     assert outputs[-1].data[1]==0  # prior configuration cannot roll back
     relay._config_seen=time.monotonic()-4
@@ -80,17 +80,14 @@ def test_switch_flows_from_snapshot_through_vrpn_into_guarded_base(ros):
     relay.destroy_node();base.destroy_node()
 
 
-def test_unconfirmed_import_bad_timestamp_and_jump_do_not_produce_valid_base(ros):
+def test_bad_timestamp_and_jump_do_not_produce_valid_base(ros):
     base=load('hope_base_pose_flat_relay').BasePoseFlatRelay()
     output=[];base._pub.publish=output.append
     stamp=base.get_clock().now().nanoseconds
     def send(ns,p=(0.,0.,0.)):
         doc=observation(Selection('v4','P1',2),load_profiles(),divmod(ns,10**9),p,(0.,0.,0.,1.))
         base._vrpn_pose_cb(String(data=json.dumps(doc)))
-    base._vrpn_confirmed=False
-    send(stamp);assert output[-1].data[1]==0
-    base._vrpn_confirmed=True
-    send(stamp-10**9);assert output[-1].data[1]==0
+    send(stamp-10**9);assert not output  # stale input is dropped, never restamped
     send(stamp);assert output[-1].data[1]==1
     accepted_count = len(output)
     accepted_stamp = base._last_source_ns
@@ -159,18 +156,18 @@ def test_rigid_ball_orientation_reaches_pose_array_and_invalid_spin_stays_invali
         relay._config_cb(String(data=json.dumps(dict(revision=revision,pants_profile='v2',table_side=side,
             state='STOPPED',busy=False,mocap_source='vrpn',vrpn_ip='192.168.100.99',vrpn_port='3883',vrpn_units='mm'))))
         msg=pose(relay,2000)
-        # 90 degrees about X; P2 also rotates the world by pi about Z.
+        # 90 degrees about X, unchanged by the pants identifier.
         msg.pose.orientation.x=2**-.5;msg.pose.orientation.w=2**-.5
         relay._on_pose('/vrpn_mocap/Ball/pose_id_4','ball',msg)
         q=arrays[-1].poses[0].orientation
-        expected=[2**-.5,0,0,2**-.5] if side=='P1' else [0,2**-.5,2**-.5,0]
+        expected=[2**-.5,0,0,2**-.5]
         assert [q.x,q.y,q.z,q.w]==pytest.approx(expected)
         for bad in [0.,float('nan')]:
             msg.pose.orientation.x=0.;msg.pose.orientation.w=bad
             relay._on_pose('/vrpn_mocap/Ball/pose_id_4','ball',msg)
             q=arrays[-1].poses[0].orientation
             assert [q.x,q.y,q.z,q.w]==[0,0,0,0]
-            assert arrays[-1].poses[0].position.x==pytest.approx(2 if side=='P1' else .74)
+            assert arrays[-1].poses[0].position.x==pytest.approx(2)
     relay.destroy_node()
 
 
@@ -194,7 +191,7 @@ def test_planner_full_stream_preserves_all_300hz_ball_exposures(ros, side):
         assert msg.header.stamp.sec * 10**9 + msg.header.stamp.nanosec == (
             100_000_000_000 + round(i * 1e9 / 300))
         assert len(msg.poses) == 1
-        assert msg.poses[0].position.x == pytest.approx(2.0 if side == 'P1' else .74)
+        assert msg.poses[0].position.x == pytest.approx(2.0)
     relay.destroy_node()
 
 @pytest.mark.parametrize('hz',[150,300])
@@ -216,3 +213,26 @@ def test_pelvis_flat_publishes_in_same_callback_without_any_ball(ros,hz,side):
             time.sleep(1/hz)
     finally:
         relay.destroy_node();base.destroy_node()
+
+
+@pytest.mark.parametrize('world_confirmed', [False, True])
+def test_catalog_asset_requires_only_world_confirmation_not_pelvis_checkbox(ros, world_confirmed):
+    base = load('hope_base_pose_flat_relay').BasePoseFlatRelay()
+    output = []
+    base._pub.publish = output.append
+    base._pelvis_pub.publish = lambda msg: None
+    base._world_calibrated = world_confirmed
+    try:
+        assert not base.has_parameter('vrpn_pelvis_asset_confirmed')
+        stamp = base.get_clock().now().nanoseconds
+        doc = observation(Selection('v4', 'P2', 2), load_profiles(),
+                          divmod(stamp, 10**9), (3.2, -.7, .1), (0., 0., 0., 1.))
+        base._vrpn_pose_cb(String(data=json.dumps(doc)))
+        assert output[-1].data[1] == int(world_confirmed)
+        if world_confirmed:
+            assert output[-1].data[5:8] == pytest.approx([3.2, -.7, .86])
+        doc['asset_sha256'] = '0' * 64
+        base._vrpn_pose_cb(String(data=json.dumps(doc)))
+        assert output[-1].data[1] == 0  # catalog integrity remains mandatory
+    finally:
+        base.destroy_node()

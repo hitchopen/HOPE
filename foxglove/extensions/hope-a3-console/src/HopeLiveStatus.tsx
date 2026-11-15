@@ -4,12 +4,12 @@ import { PanelExtensionContext } from "@foxglove/extension";
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BallPlayState, currentBallPlayState, readLocalBallPlayState, readLocalControlKey, saveLocalControlKey } from "./ballPlayState";
-import { ballStatusDisplay, freshValue, poseDetails, StatusTone, TimedValue } from "./liveStatus";
+import { ballStatusDisplay, freshValue, mocapStatusDisplay, poseDetails, StatusTone, TimedValue } from "./liveStatus";
 import "./liveStatus.css";
 
 const topics = {
   runner: "/hope/runner/mode", alive: "/hope/runner/alive",
-  base: "/hope/base/fresh", pose: "/hope/pelvis/pose", side: "/hope/lifecycle/config/table_side",
+  tfReady: "/hope/vendor/tf_ready", pose: "/hope/pelvis/pose", side: "/hope/lifecycle/config/table_side",
 } as const;
 
 function StatusCard({label,title,detail,tone}: {label:string;title:string;detail:string;tone:StatusTone}) {
@@ -70,7 +70,7 @@ function HopeLiveStatus({context}: {context:PanelExtensionContext}) {
   const alive=freshValue(values.current[topics.alive],now);
   const runnerKnown=typeof runner==="string" && runner!=="UNKNOWN" && alive===true;
   const runnerNames:Record<string,string>={PASSIVE:t("liveStatus.passive"),PD_STAND:t("liveStatus.stand"),MOTION:t("liveStatus.motion"),SERVE:t("liveStatus.serve"),TELEOP:t("liveStatus.teleop")};
-  const base=freshValue(values.current[topics.base],now);
+  const mocap=mocapStatusDisplay(values.current[topics.pose],values.current[topics.tfReady],now,t);
   const pose=poseDetails(freshValue(values.current[topics.pose],now),now,t);
   const side=freshValue(values.current[topics.side],now,5000);
   return <main className="hope-live-status">
@@ -79,8 +79,7 @@ function HopeLiveStatus({context}: {context:PanelExtensionContext}) {
       <StatusCard label={t("liveStatus.robot")} title={runnerKnown?(runnerNames[runner as string]??String(runner)):t("liveStatus.noUpdate")}
         detail={runnerKnown?t("liveStatus.runnerLive"):t("liveStatus.waitRunner")} tone={runnerKnown?"neutral":"unavailable"} />
       <StatusCard label={t("liveStatus.mocap",{side:side==="P1"||side==="P2"?` · ${side}`:""})}
-        title={base===true?t("liveStatus.poseGood"):base===false?t("liveStatus.poseBad"):t("liveStatus.noUpdate")}
-        detail={base===true?t("liveStatus.poseData"):t("liveStatus.waitPose")} tone={base===true?"good":"unavailable"} />
+        {...mocap} />
     </div>
     <details className="hope-live-diagnostics">
       <summary>{t("liveStatus.details")}</summary>

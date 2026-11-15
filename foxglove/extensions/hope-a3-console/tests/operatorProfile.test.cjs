@@ -169,31 +169,31 @@ test('missing or unknown profile cannot be confirmed; active or busy sessions lo
   }
 });
 
-test('table assignment buttons require live end-position evidence and lock until STOP', () => {
+test('pants asset buttons ignore table position and lock until STOP', () => {
   for (const [p1, p2] of [[true, false], [false, true], [false, false], [true, true]]) {
     const field = { mode: 'OPTITRACK' };
     const players = [{x:p1 ? -.5 : 1, receivedAt:Date.now(), sec:1, nanosec:0},
       {x:p2 ? 3 : 1, receivedAt:Date.now(), sec:1, nanosec:0}];
     let tree = panelHarness('linux', 'STOPPED', false, field, 0, players).render();
-    assert.equal(button(tree, 'UCB_P1 · DIRECT').props.disabled, !p1);
-    assert.equal(button(tree, 'UCB_P2 · ROTATE 180°').props.disabled, !p2);
+    assert.equal(button(tree, 'P1 裤子 · UCB_P1').props.disabled, false);
+    assert.equal(button(tree, 'P2 裤子 · UCB_P2').props.disabled, false);
     for (const state of ['STARTING', 'RUNNING', 'FAILED', 'KILLING']) {
       tree = panelHarness('linux', state, false, field, 0, players).render();
-      assert.equal(button(tree, 'UCB_P1 · DIRECT').props.disabled, true);
-      assert.equal(button(tree, 'UCB_P2 · ROTATE 180°').props.disabled, true);
+      assert.equal(button(tree, 'P1 裤子 · UCB_P1').props.disabled, true);
+      assert.equal(button(tree, 'P2 裤子 · UCB_P2').props.disabled, true);
     }
   }
 });
 
-test('missing/stale position status disables both sides; offline Kernel remains selectable', () => {
+test('pants remain selectable without tracking while stopped, including Kernel', () => {
   for (const players of [[], [{x:-.5, receivedAt:Date.now()-251}, {x:3, receivedAt:Date.now()-251}]]) {
     const tree = panelHarness('linux', 'STOPPED', false, undefined, 0, players).render();
-    assert.equal(button(tree, 'UCB_P1 · DIRECT').props.disabled, true);
-    assert.equal(button(tree, 'UCB_P2 · ROTATE 180°').props.disabled, true);
+    assert.equal(button(tree, 'P1 裤子 · UCB_P1').props.disabled, false);
+    assert.equal(button(tree, 'P2 裤子 · UCB_P2').props.disabled, false);
   }
   const tree = panelHarness('linux', 'STOPPED', false, {mode:'KERNEL'}).render();
-  assert.equal(button(tree, 'UCB_P1 · DIRECT').props.disabled, false);
-  assert.equal(button(tree, 'UCB_P2 · ROTATE 180°').props.disabled, false);
+  assert.equal(button(tree, 'P1 裤子 · UCB_P1').props.disabled, false);
+  assert.equal(button(tree, 'P2 裤子 · UCB_P2').props.disabled, false);
 });
 
 test('panel subscribes to raw unrotated player topics and decodes them directly', () => {
@@ -209,14 +209,14 @@ test('panel subscribes to raw unrotated player topics and decodes them directly'
   assert.equal(snapshot.playerP2.receivedAt, 100);
 });
 
-test('PASSIVE START permits absent HDU player verdict; side buttons stay raw-driven', () => {
+test('PASSIVE START and pants selection permit absent position evidence', () => {
   for (const verified of [true, false, undefined]) {
     for (const visible of [true, false]) {
     const players = visible ? [{x:-.5, receivedAt:Date.now(), sec:1, nanosec:0}] : [];
     const field = {mode:'OPTITRACK', player_positions: verified == null ? undefined : {P1:verified, P2:false},
       ball_model_status:{state:'CONFIGURED', configured_model:'ppq004', age_s:0, endpoints:{}}};
     const tree = panelHarness('linux','STOPPED',false,field,0,players,{lifecycleConfigRevision:1,configRuntime:{applied:true,services:[],mocapProcesses:[]},lastReceived:{'/hope/lifecycle/config/status':Date.now(),'/hope/lifecycle/state':Date.now(),'/hope/field/status':Date.now()}}).render();
-    assert.equal(button(tree,'UCB_P1 · DIRECT').props.disabled, !visible);
+    assert.equal(button(tree,'P1 裤子 · UCB_P1').props.disabled, false);
     assert.equal(button(tree,'START SYSTEM').props.disabled, false);
     }
   }
@@ -236,8 +236,8 @@ test('Foxglove-normalized pose messages enable physical sides and START through 
     ball_model_status:{state:'CONFIGURED', configured_model:'ppq004', age_s:0, endpoints:{}}};
   const tree = panelHarness('linux', 'STOPPED', false, field, 0,
     [snapshot.playerP1, snapshot.playerP2], {lifecycleConfigRevision:51,configRuntime:{applied:true,services:[],mocapProcesses:[]},lastReceived:{'/hope/lifecycle/config/status':Date.now(),'/hope/lifecycle/state':Date.now(),'/hope/field/status':Date.now()}}).render();
-  assert.equal(button(tree, 'UCB_P1 · DIRECT').props.disabled, false);
-  assert.equal(button(tree, 'UCB_P2 · ROTATE 180°').props.disabled, false);
+  assert.equal(button(tree, 'P1 裤子 · UCB_P1').props.disabled, false);
+  assert.equal(button(tree, 'P2 裤子 · UCB_P2').props.disabled, false);
   assert.equal(button(tree, 'START SYSTEM').props.disabled, false);
 });
 
@@ -364,8 +364,9 @@ test('only verified installed models are selectable and disabled models explain 
 test('old saved robot target does not restore a pending switch or masquerade as live identity', () => {
  const live='192.168.200.202';
  const h=panelHarness('linux','STOPPED',false,undefined,0,[],{
-  lifecycleConfig:{hdu_wifi_ip:live},
-  lastReceived:{'/hope/lifecycle/state':Date.now(),'/hope/lifecycle/config/hdu_wifi_ip':Date.now()},
+  lifecycleConfig:{hdu_wifi_ip:'192.168.8.196'},
+  configRuntimeSeen:true,configRuntime:{services:[],mocapProcesses:[],robotIdentity:{machine_id:'a'.repeat(32),boot_id:'b'.repeat(36),connection:{hdu_ip:live,laptop_ip:'192.168.100.89'}}},
+  lastReceived:{'/hope/lifecycle/state':Date.now(),'/hope/lifecycle/config/status':Date.now()},
  },{robotTarget:'192.168.8.182'});
  const tree=h.render();const all=elements(tree);
  assert.equal(all.find(n=>n.type==='fieldset' && n.props.className==='robot-controls').props.disabled,false);
@@ -379,7 +380,7 @@ test('fresh status with an empty robot address says address unknown rather than 
   lastReceived:{'/hope/lifecycle/state':Date.now(),'/hope/lifecycle/config/hdu_wifi_ip':Date.now()},
  },{robotTarget:'192.168.8.182'});
  const status=elements(h.render()).find(n=>n.props?.role==='status').props.children;
- assert.ok(status.includes('STOPPED'));assert.ok(status.includes('地址尚未配置'));assert.ok(!status.includes('192.168.8.182'));
+ assert.ok(status.includes('STOPPED'));assert.ok(status.includes('连接身份尚未验证'));assert.ok(!status.includes('192.168.8.182'));
 });
 
 test('language switch persists independently and preserves unsaved controls without service calls', () => {
@@ -394,7 +395,7 @@ test('language switch persists independently and preserves unsaved controls with
  assert.equal(button(tree,'English').props['aria-pressed'],true);
  assert.equal(button(tree,'Mac').props['aria-pressed'],true);
  assert.equal(elements(tree).find(n=>n.props?.['aria-label']==='Robot connection IP').props.value,'192.168.200.203');
- assert.equal(button(tree,'CONFIRM connection').props.disabled,false);
+ assert.equal(button(tree,'Confirm current connection').props.disabled,false);
  assert.deepEqual(JSON.parse(JSON.stringify(h.savedStates.at(-1))),{...initial,language:'en'});
  assert.equal(h.calls.length,0);
  button(tree,'Chinese').props.onClick();
@@ -413,7 +414,7 @@ test('pending notice and confirmation prompts follow language changes', async ()
  configInput.props.onChange({target:{value:'192.0.2.11'}});
  // Generate a local IPv4 validation error using the actual connection callback.
  elements(h.render()).find(n=>n.props?.['aria-label']==='Robot connection IP').props.onChange({target:{value:'bad'}});
- button(h.render(),'CONFIRM 连接').props.onClick();
+ button(h.render(),'确认当前连接').props.onClick();
  button(h.render(),'English').props.onClick();
  tree=h.render();
  const notice=elements(tree).find(n=>n.props?.className==='operator-notice ');
@@ -617,4 +618,24 @@ test('local endpoint failure never blocks the existing robot request', async () 
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(h.calls.length,1);assert.deepEqual(h.localRequests,[]);
   assert.ok(elements(h.render()).some(n=>n.props?.role==='alert'));
+});
+
+test('actual Confirm callback keeps Host window and invokes no robot service', () => {
+ const ip='192.168.200.202';
+ const h=panelHarness('linux','STOPPED',false,undefined,0,[],{
+  configRuntimeSeen:true,
+  configRuntime:{hostConnection:{hdu_ip:ip,laptop_ip:'192.168.100.89'},
+   robotIdentity:{machine_id:'a'.repeat(32),boot_id:'b'.repeat(36)},mocapProcesses:[],services:[]},
+  lastReceived:{'/hope/lifecycle/config/status':Date.now()},
+ },{robotTarget:ip});
+ for(let i=0;i<3;i++) button(h.render(),'确认当前连接').props.onClick();
+ assert.equal(h.calls.length,0);
+ assert.equal(h.savedStates.at(-1).robotTarget,ip);
+ const notice=elements(h.render()).find(n=>n.props?.className==='operator-notice ');
+ assert.match(JSON.stringify(notice),/保持当前窗口/);
+ h.advance(1600);
+ button(h.render(),'确认当前连接').props.onClick();
+ const stale=elements(h.render()).find(n=>n.props?.className==='operator-notice ');
+ assert.match(JSON.stringify(stale),/等待当前连接的实时机器人身份/);
+ assert.equal(h.calls.length,0);
 });

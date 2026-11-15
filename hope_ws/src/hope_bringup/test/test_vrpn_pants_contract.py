@@ -41,13 +41,13 @@ def test_atomic_selection_requires_stopped_and_monotonic_revision():
     assert update_selection(current, dict(changed, pants_profile='v2',table_side='P1', revision=1, state='RUNNING')) == current
 
 
-def test_mm_and_p2_conversion_apply_once_to_ball_and_robot():
+def test_p2_pants_preserve_canonical_ball_and_robot_coordinates():
     selected=Selection('v4','P2',7)
     robot,q=normalize_pose([2100,-1100,200],[0,0,0,1],.001,selected)
     ball,_=normalize_pose([2000,-1000,500],[0,0,0,1],.001,selected)
-    assert robot == pytest.approx([.64,-.425,.2])
-    assert ball == pytest.approx([.74,-.525,.5])
-    assert q == pytest.approx([0,0,1,0])
+    assert robot == pytest.approx([2.1,-1.1,.2])
+    assert ball == pytest.approx([2,-1,.5])
+    assert q == pytest.approx([0,0,0,1])
     envelope=observation(selected,load_profiles(),(100,2),robot,q)
     sel,p,outq=validate_observation(envelope,load_profiles())
     assert sel==selected and p==robot and outq==q
@@ -70,3 +70,18 @@ def test_selected_source_endpoint_and_units_must_match_running_receiver():
                     {"vrpn_units": "m"}, {"vrpn_units": "cm"}):
         with pytest.raises(ValueError):
             validate_vrpn_setup({**snapshot, **changed}, server="192.168.100.99", port=3883, scale=.001)
+
+@pytest.mark.parametrize('x', [-500, 1370, 3200])
+def test_pants_identity_does_not_move_or_rotate_world_pose(x):
+    p1 = normalize_pose([x, -700, 800], [.5, .5, .5, .5], .001, Selection('v4', 'P1'))
+    p2 = normalize_pose([x, -700, 800], [.5, .5, .5, .5], .001, Selection('v4', 'P2'))
+    assert p1 == p2
+    assert p2[0] == pytest.approx([x*.001, -.7, .8])
+
+
+def test_legacy_rotated_observation_is_rejected():
+    profiles=load_profiles()
+    packet=observation(Selection('v4','P2',1), profiles, (100, 2), [3,-1,.7], [0,0,0,1])
+    packet['schema_version']=1
+    with pytest.raises(ValueError, match='unsupported'):
+        validate_observation(packet, profiles)

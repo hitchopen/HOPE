@@ -13,7 +13,7 @@ import tempfile
 from typing import IO, Mapping, Sequence
 
 
-CONFIG_SCHEMA_VERSION = 7
+CONFIG_SCHEMA_VERSION = 8
 NETWORK_CONFIG_FIELDS = (
     "laptop_wifi_ip",
     "hdu_wifi_ip",
@@ -28,7 +28,7 @@ MAIN_CONFIG_FIELDS = (*OPERATOR_CONFIG_FIELDS, "gripper_profile")
 FIELD_CONFIG_FIELDS = (*NETWORK_CONFIG_FIELDS, "table_side", "gripper_profile", "pants_profile",
                        "mocap_source", "vrpn_port", "vrpn_units")
 V6_CONFIG_FIELDS = (*FIELD_CONFIG_FIELDS, "operator_profile")
-MOCAP_CONFIRMATION_FIELDS = ("vrpn_pelvis_asset_confirmed", "vrpn_world_frame_confirmed")
+MOCAP_CONFIRMATION_FIELDS = ("vrpn_world_frame_confirmed",)
 MOCAP_BINDING_FIELDS = ("hdu_wifi_ip", "mocap_source", "motive_ip", "vrpn_ip", "vrpn_port",
                        "vrpn_units", "pants_profile", "table_side")
 CONFIG_FIELDS = (*V6_CONFIG_FIELDS, *MOCAP_CONFIRMATION_FIELDS)
@@ -64,7 +64,6 @@ class LifecycleConfig:
     operator_profile: str = "linux"
     gripper_profile: str = "legacy"
     pants_profile: str = "v2"
-    vrpn_pelvis_asset_confirmed: str = "false"
     vrpn_world_frame_confirmed: str = "false"
     revision: int = 0
 
@@ -225,7 +224,7 @@ def config_to_document(config: LifecycleConfig) -> dict[str, object]:
 
 def config_from_document(document: Mapping[str, object]) -> LifecycleConfig:
     schema_version = document.get("schema_version")
-    if schema_version not in {1, 2, 3, 4, 5, 6, CONFIG_SCHEMA_VERSION}:
+    if schema_version not in {1, 2, 3, 4, 5, 6, 7, CONFIG_SCHEMA_VERSION}:
         raise ValueError("unsupported lifecycle configuration schema")
     revision = document.get("revision")
     if not isinstance(revision, int) or isinstance(revision, bool) or revision < 1:

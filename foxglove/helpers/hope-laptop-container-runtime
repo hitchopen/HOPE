@@ -40,7 +40,6 @@ if [[ "$mocap_source" == vrpn ]]; then
       position_scale:="$position_scale" pants_profile:="$HOPE_LIFECYCLE_PANTS_PROFILE" \
       table_side:="$HOPE_LIFECYCLE_TABLE_SIDE" follow_lifecycle_config:=true \
       ball_tracking_mode:=rigid_body ball_object:=Ball start_vrpn_client:=true \
-      pelvis_asset_confirmed:="${HOPE_VRPN_PELVIS_ASSET_CONFIRMED:-false}" \
       world_frame_confirmed:="${HOPE_VRPN_WORLD_FRAME_CONFIRMED:-false}" \
       base_pose_output_topic:=/a3/base_pose_laptop_flat \
       debug_session_id:="$HOPE_LIFECYCLE_SESSION_ID" \
@@ -116,7 +115,7 @@ exec "$dds_wrap" --domain-id 232 --peer "$HOPE_LIFECYCLE_HDU_IP" --peer 127.0.0.
       hostname:="$motive_ip" interface_ip:="$interface_ip" start_mocap_node:=true \
       publish_ucb_markers:=true start_world:=true start_calibration:=false \
       localization_source:=motive_live \
-      table_side:="$table_side" \
+      table_side:=P1 \
       tracked_marker_frame:="$tracked_asset" \
       tracked_pose_topic:="/$tracked_asset/pose" \
       ucb_calibration_file:="$hope_root/calibration/ucb_robot_to_pelvis.json" \

@@ -116,10 +116,10 @@ def migrate_attested_config(config_bytes, runtime_bytes, evidence_bytes, current
     if any(receipt.get('HOPE_LIFECYCLE_' + key) != value for key, value in binding.items()):
         raise ValueError('Config differs from the attested receiver binding')
     if any(receipt.get(key) != 'true' for key in
-           ('HOPE_VRPN_PELVIS_ASSET_CONFIRMED', 'HOPE_VRPN_WORLD_FRAME_CONFIRMED')):
+           ('HOPE_VRPN_WORLD_FRAME_CONFIRMED',)):
         raise ValueError('Existing receiver is not attested')
     migrated = replace(config, revision=config.revision + 1,
-                       vrpn_pelvis_asset_confirmed='true', vrpn_world_frame_confirmed='true')
+                       vrpn_world_frame_confirmed='true')
     return {'config': config_to_document(migrated), 'activation_requires_source_hash_match': True,
             'source_sha256': {name: hashlib.sha256(data).hexdigest() for name, data in
                               [('config.json', config_bytes), ('laptop-runtime.env', current_runtime_bytes),

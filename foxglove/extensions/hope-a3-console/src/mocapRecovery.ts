@@ -13,7 +13,7 @@ export type MocapRecovery = {
 export function mocapRecoveryText(status: MocapRecovery | undefined, t: Translator = defaultTranslator): string {
   if (!status) {return t("mocapRecovery.unavailable");}
   const labels = {
-    HEALTHY: "mocapRecovery.healthy", WRONG_SIDE: "mocapRecovery.wrongSide",
+    HEALTHY: "mocapRecovery.healthy", ASSET_NOT_TRACKED: "mocapRecovery.wrongSide",
     WAITING: "mocapRecovery.waiting", BLOCKED: "mocapRecovery.blocked",
     RECONNECTING: "mocapRecovery.reconnecting", VERIFYING: "mocapRecovery.verifying",
     NEEDS_ATTENTION: "mocapRecovery.attention",

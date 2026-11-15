@@ -79,7 +79,6 @@ def probe(receipt, proc=Path('/proc'), run=subprocess.run):
     r = run(['systemctl', '--user', 'is-active', 'hope-host-bridge.service'], capture_output=True, text=True, timeout=2)
     return {'receipt': receipt, 'processes': processes, 'errors': errors,
             'mocap_setup': {'source': 'laptop-runtime.env (current generated receiver receipt)',
-                'pelvis_asset_confirmed': receipt.get('HOPE_VRPN_PELVIS_ASSET_CONFIRMED') == 'true',
                 'world_frame_confirmed': receipt.get('HOPE_VRPN_WORLD_FRAME_CONFIRMED') == 'true',
                 'packetizer_running': any(p['kind'] == 'packetizer' for p in processes)},
             'display_active': r.stdout.strip() == 'active' and not errors}

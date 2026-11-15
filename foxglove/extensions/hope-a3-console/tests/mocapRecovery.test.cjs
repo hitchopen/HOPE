@@ -27,6 +27,6 @@ test('existing FAILED cleanup and kernel semantics are retained', () => {
 test('old backend and exhausted recovery have visible actionable status', () => {
   assert.match(mocapRecoveryText(undefined), /尚未提供/);
   assert.match(mocapRecoveryText({state:'NEEDS_ATTENTION',retry_after_s:0}), /3 次.*VRPN.*重新连接/);
-  assert.match(mocapRecoveryText({state:'WRONG_SIDE',retry_after_s:0}), /桌端/);
+  assert.match(mocapRecoveryText({state:'ASSET_NOT_TRACKED',retry_after_s:0}), /裤子刚体/);
   assert.match(mocapRecoveryText({state:'BLOCKED',retry_after_s:0}), /暂停/);
 });

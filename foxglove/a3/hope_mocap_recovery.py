@@ -9,7 +9,7 @@ import math
 import time
 
 from std_msgs.msg import Bool
-from hope_config_runtime import require_applied
+from hope_config_runtime import require_receiver_recovery
 from hope_lifecycle_core import try_acquire_hardware_operation_lock, release_hardware_operation_lock
 
 
@@ -22,7 +22,7 @@ class RecoveryPolicy:
     state: str = "WAITING"
     error: str = ""
 
-    def observe(self, now, *, eligible, tracked, side_ready):
+    def observe(self, now, *, eligible, tracked, selected_tracked):
         if not math.isfinite(now):
             return False
         if tracked:
@@ -32,7 +32,7 @@ class RecoveryPolicy:
             if now - self.healthy_since >= 5:
                 self.attempts = 0
                 self.error = ""
-            self.state = "HEALTHY" if side_ready else "WRONG_SIDE"
+            self.state = "HEALTHY" if selected_tracked else "ASSET_NOT_TRACKED"
             return False
         self.healthy_since = None
         if not eligible:
@@ -122,7 +122,7 @@ class MocapRecoveryMixin:
             self._mocap_recovery_blocked = blocked
             due = self._mocap_policy.observe(
                 now, eligible=not blocked, tracked=bool(positions.get("players_x_m")),
-                side_ready=positions.get(self._config.table_side) is True)
+                selected_tracked="UCB_" + self._config.table_side in positions.get("players_x_m", {}))
         if due:
             try:
                 self._request_mocap_reconnect(automatic=True)
@@ -145,7 +145,7 @@ class MocapRecoveryMixin:
                 raise ValueError("Automatic reconnect limit reached")
             # The config object and selected receiver owner cannot change while
             # field_busy is held. The helper also checks laptop ownership.
-            require_applied(self._config)
+            require_receiver_recovery(self._config)
             operation_lock = try_acquire_hardware_operation_lock()
             if operation_lock is None:
                 raise ValueError("Another lifecycle or clock operation owns the interlock")

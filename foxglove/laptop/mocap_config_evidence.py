@@ -50,8 +50,7 @@ def endpoint_evidence(kind, parameters, receipt):
                             pants_profile=receipt.get('HOPE_LIFECYCLE_PANTS_PROFILE'),
                             table_side=receipt.get('HOPE_LIFECYCLE_TABLE_SIDE'), follow_lifecycle_config=True)
     elif kind == 'base' and receipt.get('HOPE_LIFECYCLE_MOCAP_SOURCE') == 'vrpn':
-        expected = {'vrpn_pelvis_asset_confirmed': receipt.get('HOPE_VRPN_PELVIS_ASSET_CONFIRMED') == 'true',
-                    'world_frame_calibrated': receipt.get('HOPE_VRPN_WORLD_FRAME_CONFIRMED') == 'true'}
+        expected = {'world_frame_calibrated': receipt.get('HOPE_VRPN_WORLD_FRAME_CONFIRMED') == 'true'}
     elif kind == 'motive':
         expected = {'hostname': receipt.get('HOPE_LIFECYCLE_MOTIVE_IP')}
     else:

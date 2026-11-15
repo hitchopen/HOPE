@@ -72,7 +72,7 @@ emit() { :; }
     code = "set -eu\n" + parser + starter + stubs + '\nparse_common "$@"; start_laptop'
     result = subprocess.run(["bash", "-c", code, "test", *common], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
-    assert result.stdout.splitlines()[-7:] == common[-5:] + ["false", "false"]
+    assert result.stdout.splitlines()[-6:] == common[-5:] + ["false"]
     result = subprocess.run(["bash", "-c", code, "test", *common], capture_output=True,
                             text=True, env={**os.environ, "EXISTING_STACK": "0"})
     assert result.returncode != 0 and "UNMANAGED_BRIDGE_PRESENT" in result.stdout
@@ -124,7 +124,7 @@ HOPE_LIFECYCLE_TABLE_SIDE=P2
     args = capture.read_text().splitlines()
     assert args[:3] == ["launch", "hope_bringup", "avatar_pro_hope_bridge.launch.py"]
     for arg in ("server:=192.168.100.99", "port:=3884", f"position_scale:={scale}",
-                "pants_profile:=v4", "table_side:=P2", "pelvis_asset_confirmed:=false",
+                "pants_profile:=v4", "table_side:=P2",
                 "world_frame_confirmed:=false", "follow_lifecycle_config:=true"):
         assert arg in args
 

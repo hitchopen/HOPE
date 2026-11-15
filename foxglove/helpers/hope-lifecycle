@@ -99,7 +99,7 @@ static_peer_list_contains() {
 }
 
 parse_common() {
-  [[ "$#" == 6 || "$#" == 8 || "$#" == 9 || "$#" == 14 || "$#" == 16 ]] || return 1
+  [[ "$#" == 6 || "$#" == 8 || "$#" == 9 || "$#" == 14 || "$#" == 15 ]] || return 1
   SESSION_ID="$1"
   LAPTOP_WIFI_IP="$2"
   HDU_WIFI_IP="$3"
@@ -115,9 +115,8 @@ parse_common() {
   VRPN_UNITS="${13:-mm}"
   PANTS_PROFILE="${14:-v2}"
   # Authoritative arguments from HDU config. Legacy env-file values never win.
-  export HOPE_VRPN_PELVIS_ASSET_CONFIRMED="${15:-false}"
-  export HOPE_VRPN_WORLD_FRAME_CONFIRMED="${16:-false}"
-  for confirmed in "$HOPE_VRPN_PELVIS_ASSET_CONFIRMED" "$HOPE_VRPN_WORLD_FRAME_CONFIRMED"; do
+  export HOPE_VRPN_WORLD_FRAME_CONFIRMED="${15:-false}"
+  for confirmed in "$HOPE_VRPN_WORLD_FRAME_CONFIRMED"; do
     [[ "$confirmed" == true || "$confirmed" == false ]] || return 1
   done
   [[ "$MOCAP_SOURCE" == none || "$MOCAP_SOURCE" == motive || "$MOCAP_SOURCE" == vrpn ]] || return 1
@@ -510,7 +509,7 @@ prepare_laptop() {
   cd "$HOPE_ROOT"
   mkdir -p "real_logs/$SESSION_ID/laptop"
   mkdir -p calibration
-  [[ "$TABLE_SIDE" == P1 ]] || world_transform=rotate_z_pi_about_table_center
+  # TABLE_SIDE is the legacy field name for pants identity; world stays canonical.
   printf '%s\n' "$SESSION_ID" > real_logs/.active_session_id
   {
     printf 'session_id=%s\n' "$SESSION_ID"
@@ -1016,6 +1015,7 @@ write_laptop_runtime() {
     printf 'HOPE_LIFECYCLE_MDU_IP=%q\n' "$MDU_INTERNAL_IP"
     printf 'HOPE_LIFECYCLE_SESSION_ID=%q\n' "$SESSION_ID"
     printf 'HOPE_LIFECYCLE_HDU_IP=%q\n' "$HDU_WIFI_IP"
+    printf 'HOPE_LIFECYCLE_MACHINE_ID=%q\n' "${HOPE_LIFECYCLE_MACHINE_ID:-}"
     printf 'HOPE_LIFECYCLE_MOTIVE_IP=%q\n' "$canonical_motive"
     printf 'HOPE_LIFECYCLE_MOTIVE_INTERFACE_IP=%q\n' "${HOPE_MOTIVE_INTERFACE_IP:-}"
     printf 'HOPE_LIFECYCLE_ROOT=%q\n' "$HOPE_ROOT"
@@ -1026,7 +1026,6 @@ write_laptop_runtime() {
     printf 'HOPE_LIFECYCLE_VRPN_PORT=%q\n' "$VRPN_PORT"
     printf 'HOPE_LIFECYCLE_VRPN_UNITS=%q\n' "$VRPN_UNITS"
     printf 'HOPE_LIFECYCLE_PANTS_PROFILE=%q\n' "$PANTS_PROFILE"
-    printf 'HOPE_VRPN_PELVIS_ASSET_CONFIRMED=%q\n' "${HOPE_VRPN_PELVIS_ASSET_CONFIRMED:-false}"
     printf 'HOPE_VRPN_WORLD_FRAME_CONFIRMED=%q\n' "${HOPE_VRPN_WORLD_FRAME_CONFIRMED:-false}"
   } > "$runtime_env_tmp"
   mv -f -- "$runtime_env_tmp" "$runtime_env"
@@ -1051,7 +1050,7 @@ validate_laptop_mocap() {
     vrpn) valid_ipv4 "$VRPN_IP" motive || die MOCAP VRPN_IP_REQUIRED ;;
     *) die MOCAP NO_SOURCE_SELECTED ;;
   esac
-  for confirmed in "${HOPE_VRPN_PELVIS_ASSET_CONFIRMED:-false}" "${HOPE_VRPN_WORLD_FRAME_CONFIRMED:-false}"; do
+  for confirmed in "${HOPE_VRPN_WORLD_FRAME_CONFIRMED:-false}"; do
     [[ "$confirmed" == true || "$confirmed" == false ]] || die MOCAP INVALID_SETUP_CONFIRMATION
   done
 }
@@ -1065,7 +1064,7 @@ reconnect_laptop() {
   flock -n "$connection_lock" || die MOCAP CONNECTION_BUSY
   if tmux_exists "$LAPTOP_SESSION"; then
     python3 "$HOPE_ROOT/foxglove/a3/hope_mocap_connection.py" \
-      "$runtime_env" "$HDU_WIFI_IP" || die MOCAP OTHER_ROBOT_RECEIVER_UNTOUCHED
+      "$runtime_env" "$HDU_WIFI_IP" "${HOPE_LIFECYCLE_MACHINE_ID:-}" || die MOCAP OTHER_ROBOT_RECEIVER_UNTOUCHED
     stop_laptop
   fi
   if [[ "$MOCAP_SOURCE" == none ]]; then
@@ -1087,13 +1086,13 @@ start_laptop() {
     die MOCAP UNMANAGED_BRIDGE_PRESENT
   fi
   start_tmux "$LAPTOP_SESSION" /usr/bin/env \
-    "HOPE_VRPN_PELVIS_ASSET_CONFIRMED=${HOPE_VRPN_PELVIS_ASSET_CONFIRMED:-false}" \
+    "HOPE_LIFECYCLE_MACHINE_ID=${HOPE_LIFECYCLE_MACHINE_ID:-}" \
     "HOPE_VRPN_WORLD_FRAME_CONFIRMED=${HOPE_VRPN_WORLD_FRAME_CONFIRMED:-false}" \
     "$SELF" _run-laptop \
     "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
     "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" "$FIELD_MODE" "$SERVE_CSV_SHA" "$GRIPPER_PROFILE" \
     "$MOCAP_SOURCE" "$VRPN_IP" "$VRPN_PORT" "$VRPN_UNITS" "$PANTS_PROFILE" \
-    "$HOPE_VRPN_PELVIS_ASSET_CONFIRMED" "$HOPE_VRPN_WORLD_FRAME_CONFIRMED" || \
+    "$HOPE_VRPN_WORLD_FRAME_CONFIRMED" || \
     die OPTITRACK ALREADY_RUNNING
   sleep 2
   tmux_exists "$LAPTOP_SESSION" || die OPTITRACK START_FAILED

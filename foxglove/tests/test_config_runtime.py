@@ -151,3 +151,18 @@ def test_kernel_without_children_file_still_audits_real_descendants(config,tmp_p
     run=Mock(return_value=SimpleNamespace(stdout='LoadState=loaded\nActiveState=active\nMainPID=100\n'))
     result=m.service_status(m.UNITS[0],config,run,tmp_path)
     assert not result['matches'] and {p['pid'] for p in result['processes']}=={100,101}
+
+
+def test_missing_laptop_receiver_can_be_repaired_without_weakening_start(config, monkeypatch):
+    report = {'applied': False, 'reason': 'Laptop receiver absent',
+              'services': [{'service': unit, 'matches': True} for unit in m.UNITS]}
+    monkeypatch.setattr(m, 'read_status', lambda _: report)
+    m.require_receiver_recovery(config)
+    with pytest.raises(ValueError):
+        m.require_applied(config)
+    report['services'][0]['matches'] = False
+    with pytest.raises(ValueError):
+        m.require_receiver_recovery(config)
+    report['services'] = []
+    with pytest.raises(ValueError):
+        m.require_receiver_recovery(config)
