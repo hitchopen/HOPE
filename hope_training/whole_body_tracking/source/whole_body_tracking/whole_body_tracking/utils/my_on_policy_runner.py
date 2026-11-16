@@ -47,7 +47,9 @@ class MotionOnPolicyRunner(OnPolicyRunner):
         # its passive columns before rsl_rl constructs the policy, so entropy optimizes the 29
         # active A3 channels while preserving the 31-D network/export shape.
         policy_cfg = train_cfg.get("policy", {})
-        if policy_cfg.get("class_name") == "BoundedStdActorCritic":
+        if policy_cfg.get("class_name") in {
+            "BoundedStdActorCritic", "BoundedStdActorCriticRecurrent"
+        }:
             action_term = env.unwrapped.action_manager.get_term("joint_pos")
             policy_cfg["entropy_action_transform"] = (
                 "tanh"
@@ -849,6 +851,41 @@ class MotionOnPolicyRunner(OnPolicyRunner):
             "initial_observations": observations,
         }
 
+    def _capture_policy_memory_state(self) -> dict:
+        """Save both GRU hidden states at the completed PPO boundary."""
+        saved = {}
+        for name in ("memory_a", "memory_c"):
+            memory = getattr(self.alg.policy, name, None)
+            if memory is None:
+                continue
+            supported, packed = self._clone_resume_tree(getattr(memory, "hidden_state", None))
+            if not supported:
+                raise RuntimeError(f"Cannot serialize {name}.hidden_state")
+            saved[name] = packed
+        return saved
+
+    def _restore_policy_memory_state(self, saved: dict) -> None:
+        expected = {
+            name for name in ("memory_a", "memory_c")
+            if getattr(self.alg.policy, name, None) is not None
+        }
+        if set(saved) != expected:
+            raise RuntimeError(
+                f"Recurrent memory mismatch: checkpoint={sorted(saved)}, runtime={sorted(expected)}"
+            )
+        for name in expected:
+            memory = getattr(self.alg.policy, name)
+            value = saved[name]
+            if value is None:
+                memory.reset()
+                continue
+            shape = (memory.rnn.num_layers, int(self.env.num_envs), memory.rnn.hidden_size)
+            if not torch.is_tensor(value) or tuple(value.shape) != shape:
+                raise RuntimeError(
+                    f"GRU {name} hidden shape mismatch: checkpoint={getattr(value, 'shape', None)}, runtime={shape}"
+                )
+            memory.reset(hidden_state=value.to(device=self.device).clone())
+
     def _restore_environment_resume_state(self, resume_state: dict) -> None:
         """Restore a schema-v3 logical MDP boundary without calling ``env.reset()``."""
         env = self.env.unwrapped
@@ -1357,6 +1394,7 @@ class MotionOnPolicyRunner(OnPolicyRunner):
             "wandb_run_id": wandb_run_id,
             "wandb_run_name": wandb_run_name,
             "environment_resume_state": self._capture_environment_resume_state(),
+            "policy_memory_state": self._capture_policy_memory_state(),
             "rollout_bookkeeping_state": getattr(
                 self, "_rollout_bookkeeping_state", None
             ),
@@ -1567,6 +1605,12 @@ class MotionOnPolicyRunner(OnPolicyRunner):
                 "Exact resume metadata is absent. Use a checkpoint written after exact-resume "
                 f"support was enabled, or use ordinary checkpoint_path warm-start semantics: {path}"
             )
+        if hasattr(self.alg.policy, "memory_a") and (
+            schema_version != 3 or "policy_memory_state" not in state
+        ):
+            raise RuntimeError(
+                "GRU exact resume requires schema-v3 checkpoint with actor and critic memory"
+            )
         if schema_version == 3:
             self._validate_runtime_manifest(state.get("runtime_manifest", {}))
 
@@ -1616,6 +1660,7 @@ class MotionOnPolicyRunner(OnPolicyRunner):
         }
         if schema_version == 3:
             self._restore_environment_resume_state(state)
+            self._restore_policy_memory_state(state.get("policy_memory_state", {}))
             self._restored_rollout_bookkeeping = state.get(
                 "rollout_bookkeeping_state"
             )

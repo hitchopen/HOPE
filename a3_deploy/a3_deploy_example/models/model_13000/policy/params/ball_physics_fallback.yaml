@@ -1,0 +1,125 @@
+# =============================================================================
+# HOPE — no-spin ball physics (single source of truth)
+# =============================================================================
+# Read at runtime by ALL of:
+#   * training     (whole_body_tracking table_tennis task: ball.py / geometry.py)
+#   * the planner   (hope_ws hope_planner: no-spin trajectory prediction)
+#   * evaluation    (evaluate.py / mujoco_eval_onnx.py success_rate)
+#
+# The ball state is ONLY [x, y, z, vx, vy, vz] (position + linear velocity, SI).
+# There is no orientation, no angular velocity, and no spin anywhere in this
+# model, and therefore no spin-dependent aerodynamic lift (Magnus) term.
+#
+# All constants below were fitted to REAL ball-capture data (see the provenance
+# block and hope_training/ball_physics_fit/). They describe the specific ball and
+# table that were recorded; re-fit them for your own hardware with the pipeline
+# in hope_training/ball_physics_fit/ and copy the resulting values here.
+# -----------------------------------------------------------------------------
+
+provenance:
+  capture_date: "2026"
+  device: "~300 Hz optical motion capture"
+  measured: "ball centroid position over time (t, x, y, z)"
+  units: "SI throughout — metres, seconds, kilograms; velocities m/s"
+  coordinate_frame: >-
+    Right-handed world frame: +x forward (toward the opponent), +y left, +z up.
+    z = 0 is the table playing surface. The world origin is the near-side left
+    corner of the table surface, so the table occupies x in [0, table.length]
+    and y in [-table.width, 0].
+  data_source: "real ball capture (see hope_training/ball_physics_fit/sample_data/)"
+  fit_pipeline: "hope_training/ball_physics_fit/"
+  notes: >-
+    Constants are specific to the recorded ball + table. Re-fit for your own
+    equipment. Values outside the recorded operating range (ball speed a few m/s,
+    contact speeds up to ~7 m/s) are extrapolations.
+
+# --- Gravity -----------------------------------------------------------------
+gravity: 9.81              # m/s^2, applied along -z
+
+# --- Ball --------------------------------------------------------------------
+ball:
+  mass: 0.0027             # kg — standard 40 mm, 2.7 g ball (drag folds mass in
+                           # for flight; mass is used by the simulated rigid body).
+  radius: 0.020            # m — 40 mm ball. The ball centre contacts a surface at
+                           # centre-z = surface_z + radius and clears the net when
+                           # its centre is more than `radius` from the net plane.
+
+# --- Air (reference only; drag.k already folds in air density) ----------------
+air:
+  density: 1.20            # kg/m^3
+
+# --- Flight: aerodynamic drag ------------------------------------------------
+# Free-flight acceleration:  a = (0, 0, -gravity) - k * |v| * v
+# Quadratic ("Newtonian") drag written directly as an ACCELERATION coefficient,
+# so k already folds in ball mass, cross-section, and air density.
+drag:
+  k: 0.1261                # 1/m — quadratic drag coefficient (acceleration form),
+                           # fitted from real flight arcs (RK4 shooting fit).
+  velocity_clip: 50.0      # m/s — numeric safety clip on |v| in the drag term.
+  form: "a_drag = -k * |v| * v"
+
+# --- Contact / bounce materials ----------------------------------------------
+# `restitution` is the EFFECTIVE ball<->surface normal restitution (the ball's own
+# material is neutral = 1.0, combined multiplicatively by the simulator, so the
+# surface value is the effective one). `static_friction`/`dynamic_friction` are the
+# PhysX Coulomb coefficients used by the training simulator.
+#
+# The analytic no-spin contact model (planner + evaluator) uses the same
+# `restitution` as its normal coefficient e_n and the tangential terms below:
+#   normal:      v_n_out = -restitution * v_n_in
+#   tangential:  s = clip((tangential_damping) * |v_t_in|, 0,
+#                         tangential_cap * (1 + restitution) * |v_n_in|)
+#                v_t_out = v_t_in - s * unit(v_t_in)
+# so `tangential_damping` is the fraction of tangential speed removed on contact
+# and `tangential_cap` is a Coulomb friction cap that only binds on oblique hits.
+contact:
+
+  ball:                    # the ball's own (neutral) material
+    restitution: 1.0
+    static_friction: 1.0
+    dynamic_friction: 1.0
+
+  table:                   # ball vs the (static) table top; normal n = +z
+    restitution: 0.9215    # measured normal restitution from table bounces
+    static_friction: 0.40
+    dynamic_friction: 0.40
+    tangential_damping: 0.369   # fraction of tangential speed removed per bounce
+    tangential_cap: 2.0         # Coulomb friction cap on the tangential impulse
+
+  floor:                   # ball vs the floor (out-of-play)
+    restitution: 0.40
+    static_friction: 0.80
+    dynamic_friction: 0.80
+
+  net:                     # ball vs the net; low so the ball dies on a net touch
+    restitution: 0.10
+    static_friction: 0.50
+    dynamic_friction: 0.50
+
+  paddle:                  # ball vs the racket face; n = paddle face normal.
+    restitution: 0.654     # measured normal restitution from racket strikes.
+    static_friction: 0.60  # (used only if the racket-link material is simulated)
+    dynamic_friction: 0.60
+    tangential_damping: 0.52    # tangential damping fraction on the racket face
+    tangential_cap: 0.5         # Coulomb cap on the racket face
+
+# --- Geometry (ITTF regulation table) ----------------------------------------
+# Metres, in the world frame above (z = 0 at the surface). The net plane sits at
+# x = net.x_position; the opponent half is x in [net.x_position, table.length].
+# success_rate counts a return when the racket actually contacts the ball, the
+# ball crosses the net, and its first bounce lands on the opponent half.
+table:
+  length: 2.74             # m, along +x
+  width: 1.525             # m, along -y (table occupies y in [-width, 0])
+  height: 0.76             # m, playing surface above the floor (floor at z = -height)
+  thickness: 0.05          # m, collision slab thickness of the table top
+
+net:
+  height: 0.1525           # m, net top above the surface
+  x_position: 1.37         # m, net plane along x (= table.length / 2)
+  overhang: 0.15           # m, net extends this far past each table edge in y
+  thickness: 0.01          # m, net slab thickness along x
+
+lines:
+  width: 0.02              # m, painted boundary/centre line width (visual)
+  thickness: 0.001         # m, sits just above the surface

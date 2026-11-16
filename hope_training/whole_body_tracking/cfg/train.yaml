@@ -37,6 +37,9 @@ run_name: null
 # counter continues from the checkpoint). null -> fresh initialization. Example:
 #   checkpoint_path=logs/rsl_rl/hope_pingpong/<run>/model_<iter>.pt
 checkpoint_path: null
+# Exact stateful resume for recurrent runs; requires a schema-v3 checkpoint with
+# actor/critic GRU hidden state. Leave null for a fresh run.
+full_resume_checkpoint: null
 
 # Same-ABI actor + exploration only; fresh critic/optimizer/MDP, mutually exclusive with resume.
 warm_start_actor_checkpoint: null

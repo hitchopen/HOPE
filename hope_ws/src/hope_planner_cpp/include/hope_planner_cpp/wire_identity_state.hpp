@@ -11,6 +11,8 @@
 #include <fcntl.h>
 #include <sys/file.h>
 #include <unistd.h>
+#include <cerrno>
+#include <cstring>
 
 namespace hope_planner_cpp {
 
@@ -28,8 +30,17 @@ inline WireIdentityRange reserve_wire_identity_range(
     ~Fd() { if (value >= 0) ::close(value); }
   };
   const Fd lock{::open((path + ".lock").c_str(), O_RDWR | O_CREAT | O_NOFOLLOW, 0600)};
-  if (lock.value < 0 || ::flock(lock.value, LOCK_EX) != 0)
-    throw std::runtime_error("cannot lock Planner wire identity state");
+  if (lock.value < 0) {
+    const int error = errno;
+    throw std::runtime_error("Planner wire identity open path=" + path +
+        ".lock errno=" + std::to_string(error) + " (" + std::strerror(error) +
+        ") euid=" + std::to_string(::geteuid()) + " egid=" + std::to_string(::getegid()));
+  }
+  if (::flock(lock.value, LOCK_EX) != 0) {
+    const int error = errno;
+    throw std::runtime_error("Planner wire identity flock path=" + path +
+        ".lock errno=" + std::to_string(error) + " (" + std::strerror(error) + ")");
+  }
   std::uint64_t previous = 0;
   if (std::filesystem::exists(path)) {
     std::ifstream input(path);

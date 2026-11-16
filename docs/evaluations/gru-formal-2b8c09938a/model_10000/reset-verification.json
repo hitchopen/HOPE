@@ -1,0 +1,8 @@
+{
+  "result": "PASS",
+  "iteration": 10000,
+  "onnx_sha256": "fac6a43a81b10c65c2bf60464a96771e328be649f74d32c1318690764a1f8253",
+  "reset_zeroes_hidden": true,
+  "repeat_after_reset_action_and_hidden_exact": true,
+  "training_hidden_used": false
+}

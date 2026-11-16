@@ -1,0 +1,104 @@
+{
+  "status": "IMPLEMENTED_CANDIDATE_NATIVE_BUILD_PENDING",
+  "run_id": "gru-formal-2b8c09938a",
+  "training_source": "33c609022efbb4e85fe6a58a5a8947b0fbd46c76",
+  "checkpoint_sha256": "744526d2e7a9fdabe990070054ec3bd8126b286bc79041f94a930b0078c257c0",
+  "original_actor_sha256": "f3f56fe7e0c31f94bea1645fae8d2f776dca01033f2c895d850bf5c708801dda",
+  "candidate_onnx_sha256": "2b2a029b450fb8601ecf34eefdbd3df6ab9f8597a33593dc9b7d6419fcd34d27",
+  "deploy_yaml_sha256": "160f282fdb95d4ca5d0df5222897a203150152248fcc364f8ba723086357f3fc",
+  "original_nodes_and_initializers_preserved": true,
+  "actor_parity": {
+    "steps": 320,
+    "initial_nonzero_hidden": true,
+    "reset_ticks": [
+      32,
+      192
+    ],
+    "max_action_error": 0,
+    "max_hidden_error": 0,
+    "atol": 2e-05,
+    "rtol": 0.0002
+  },
+  "reference_parity": {
+    "sample_frames": [
+      -1,
+      0,
+      1,
+      106,
+      107,
+      215,
+      216,
+      226
+    ],
+    "max_abs_error": 0,
+    "semantics": "concat clips; time_step float->int64 truncation; clamp maximum; integer Gather; no interpolation",
+    "body_indexes": [
+      0,
+      4,
+      10,
+      20,
+      5,
+      11,
+      21,
+      9,
+      18,
+      24,
+      30,
+      19,
+      25,
+      31
+    ],
+    "body_names": [
+      "pelvis_link",
+      "left_hip_roll_Link",
+      "left_knee_Link",
+      "left_ankle_roll_Link",
+      "right_hip_roll_Link",
+      "right_knee_Link",
+      "right_ankle_roll_Link",
+      "torso_Link",
+      "left_shoulder_roll_Link",
+      "left_elbow_Link",
+      "left_wrist_yaw_Link",
+      "right_shoulder_roll_Link",
+      "right_elbow_Link",
+      "right_wrist_yaw_Link"
+    ],
+    "frames": "original saved motion world frame; native root/anchor consumers unchanged"
+  },
+  "reference_assets": [
+    {
+      "path": "hope_training/motions/preprocessed/hope_forehand.npz",
+      "sha256": "a6c68513720b12b168379cd6fa13f8b77607b4fa0bf7e828c4e1d81eda6f2094",
+      "frames": 107,
+      "fps": 50.0
+    },
+    {
+      "path": "hope_training/motions/preprocessed/hope_backhand.npz",
+      "sha256": "67d04e13deeed068bdb003e379e18330dcd29210d280188fab7af26c0764eaac",
+      "frames": 109,
+      "fps": 50.0
+    }
+  ],
+  "native_verification": "PENDING",
+  "formal_gate3": "NOT_RUN",
+  "metadata_exporter_source_sha256": "f68593104651aeb30ad3a04872e4ade913eb0b98b99f4e35812a2f0017148647",
+  "files_sha256": {
+    "actions.f32": "40ebce975c09d7daaa360a880d22d1a567c372e7f86052fa3b671596e289d42a",
+    "initial_h.f32": "85cd277679d435d41c24170df36e9cd226af219718a324e6e523deff8f8cefe7",
+    "obs.f32": "fd00dee6f1cae37f9b665f30e66008b6e00cea08168900c41c3c1b18e9bb180a",
+    "hidden.f32": "9e76e7928bb1e6c92d3379c7d311d35719357f15266e451d5ccf335282f1fbdf",
+    "refs.f32": "2c320e929cb7ec3194bd3a299abade74c325759e43160f3757e7f90ba4182cef"
+  },
+  "configuration_sources": {
+    "hope-stationary-gru-evaluations/20261106-eight-checkpoint-comparison/model_19000/params/env.yaml": "a9d28f88d1f98130f10b7de1979e9941330d1a1a1ab58041c77f5498ba2ccc90",
+    "hope-stationary-gru-evaluations/20261106-eight-checkpoint-comparison/model_19000/params/agent.yaml": "770dbc5f9ccba22c0957b0afc14178da8a3e45eafd3a66f9ee1596e30215a015",
+    "hope-stationary-gru-evaluations/20261106-eight-checkpoint-comparison/model_19000/params/task_resolved.yaml": "5fcbf22da9b99edb9919f28faca3f887c6901e9deb106a8683f10f5e54006ada"
+  },
+  "software_versions": {
+    "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+    "numpy": "2.5.4",
+    "onnxruntime_python": "1.31.1",
+    "yaml": "6.0.3"
+  }
+}

@@ -90,3 +90,12 @@ reference as its action default; direct temporal actor refinement is disabled,
 while physical command-smoothing costs remain in PPO rewards. Training and
 export support here do not qualify a checkpoint for hardware or change Planner,
 Runner, Foxglove, HOME handling, or deployment model selection.
+
+To train the recurrent variant, use the same command with
+`algo=ppo_stationary_gru`. It adds one GRU layer each to the actor and critic and
+inherits the PPQ004 task, question bank, and balanced-hold PPO settings. Start
+with fresh weights. For a later restart of the same run, set
+`full_resume_checkpoint` to its compatible schema-v3 checkpoint and keep the
+recipe and environment count. For evaluation, keep the checkpoint's
+`params/task_resolved.yaml` beside it or pass that file to `scripts/evaluate.py --recipe`.
+The current stateless ONNX export supports feed-forward policies.

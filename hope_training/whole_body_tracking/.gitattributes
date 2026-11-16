@@ -19,3 +19,7 @@
 
 # Ship the selected question bank as ordinary Git binary blobs.
 /assets/stationary_reach_v4_ppq004_generalization_20261022/*.npz -text -filter -diff -merge
+
+# Preserve the byte hashes referenced by the PPQ004 task and its bank receipts.
+/cfg/references/hold_pose_B_32_5_K20.json text eol=lf
+/assets/stationary_reach_v4_ppq004_generalization_20261022/*.receipt.json text eol=lf

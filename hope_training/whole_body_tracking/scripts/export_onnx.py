@@ -103,6 +103,11 @@ def export_deploy_policy(policy, contract, joint_names, output_dir: str, onnx_na
     Returns ``(onnx_path, manifest_path)``. Embeds the canonical ``joint_order``
     and the ``contract`` name into the ONNX metadata for the loader-side gate.
     """
+    if getattr(policy, "is_recurrent", False):
+        raise RuntimeError(
+            "The current A3 deploy runner accepts stateless ONNX only. "
+            "A GRU policy requires explicit hidden-state input/output and a reset-aware deploy runner."
+        )
     import onnx
     import torch
 

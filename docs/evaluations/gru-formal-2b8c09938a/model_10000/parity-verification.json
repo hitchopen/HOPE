@@ -1,0 +1,67 @@
+{
+  "result": "PASS",
+  "steps": 64,
+  "reset_at": 32,
+  "initial_hidden_nonzero": true,
+  "action_max_abs_error": 3.814697265625e-06,
+  "hidden_max_abs_error": 3.725290298461914e-07,
+  "tolerances": {
+    "atol": 2e-05,
+    "rtol": 0.0002,
+    "reason": "float32 fused GRU/MLP ordering and recurrent accumulation"
+  },
+  "finite": true,
+  "observation_columns_and_full_layout": "PASS",
+  "joint_actuator_force_mapping": "PASS",
+  "action_decode_and_delay": "PASS",
+  "control_dt": 0.02,
+  "physics_dt": 0.001,
+  "saved_virtual_table_geometry_and_no_robot_table_contacts": "PASS",
+  "racket_site_matches_saved_wrist_mount_within_micrometers": "PASS",
+  "onnx_providers": [
+    "CPUExecutionProvider"
+  ],
+  "training_hidden_used": false,
+  "physical_geometry": {
+    "ball_mass_kg": 0.0034,
+    "ball_radius_m": 0.02,
+    "pairs": {
+      "table": {
+        "restitution": 0.9373319241133231,
+        "friction": 0.218520906499864,
+        "solref": [
+          -100000.0,
+          -13.026023532949354
+        ]
+      },
+      "net": {
+        "restitution": 0.1,
+        "friction": 0.5,
+        "solref": [
+          -100000.0,
+          -373.8792714156674
+        ]
+      },
+      "floor": {
+        "restitution": 0.4,
+        "friction": 0.8,
+        "solref": [
+          -100000.0,
+          -177.08627984307535
+        ]
+      },
+      "paddle": {
+        "restitution": 0.654,
+        "friction": 0.5,
+        "solref": [
+          -100000.0,
+          -84.71834838215005
+        ]
+      }
+    },
+    "racket_geom": "right_racket_collision",
+    "contact_authority": "MuJoCo solver only; no strike-time impulse or ball pose snap",
+    "physics_dt": 0.001,
+    "substeps": 20
+  }
+}

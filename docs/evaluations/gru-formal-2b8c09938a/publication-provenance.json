@@ -1,0 +1,11 @@
+{
+  "publication_code_commit": "a22dcf3fd1609806dffa45040bfe1c5ec4dad904",
+  "training_source_commit": "33c609022efbb4e85fe6a58a5a8947b0fbd46c76",
+  "run_id": "gru-formal-2b8c09938a",
+  "checkpoint_sha256": "6e671c56d1de5ead2a7553f489bf346bb372957d87f0bcc30854e2931e472c88",
+  "onnx_sha256": "c361831725a4fd42661a7b6f46c738000120e248bae06e28f9e05195da3e96d3",
+  "bundle_archive_sha256": "ec8e0e76bc6b305ca1fb377e7a053f39c35d71a03fdb77103d054ae2ca3c7b6e",
+  "historical_videos_generated_by_publication_commit": false,
+  "video_compression": "No changes; exact original bytes",
+  "checkpoint_kept_local_reason": "221MB and not needed for ONNX runtime; exceeds ordinary GitHub100MiB limit"
+}

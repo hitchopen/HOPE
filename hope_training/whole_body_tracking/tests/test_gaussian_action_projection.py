@@ -66,6 +66,7 @@ def policy_modules(monkeypatch):
     config_utils.configclass = lambda cls: cls
     configs = types.ModuleType("isaaclab_rl.rsl_rl")
     configs.RslRlPpoActorCriticCfg = object
+    configs.RslRlPpoActorCriticRecurrentCfg = object
     configs.RslRlPpoAlgorithmCfg = object
     monkeypatch.setitem(sys.modules, "isaaclab.utils", config_utils)
     monkeypatch.setitem(sys.modules, "isaaclab_rl.rsl_rl", configs)

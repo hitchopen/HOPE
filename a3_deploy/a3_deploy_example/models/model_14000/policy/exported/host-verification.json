@@ -1,0 +1,14 @@
+{
+  "result": "PASS",
+  "iteration": 14000,
+  "checkpoint_sha256": "91894d52862ac43085226a070148a55b3e9ca2b1551e3aa2a7a10558e2d59f1d",
+  "onnx_sha256": "81ad7dc26d5ea6d42b8d25f0a83efdaf86038605291b6c622278d2028290f987",
+  "sequence_steps": 64,
+  "reset_at": 32,
+  "action_max_abs_error": 4.76837158203125e-06,
+  "hidden_max_abs_error": 4.76837158203125e-07,
+  "atol": 2e-05,
+  "rtol": 0.0002,
+  "zero_reset_repeat": "PASS",
+  "behavioral_evaluation_performed": false
+}

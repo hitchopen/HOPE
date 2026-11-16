@@ -446,6 +446,8 @@ int main(int argc, char** argv) {
       YAML::Emitter out;
       out << YAML::BeginMap << YAML::Key << "inspection_version" << YAML::Value << 1
           << YAML::Key << "policy_abi" << YAML::Value << policy.policy_abi()
+          << YAML::Key << "recurrent_explicit_state" << YAML::Value << policy.is_recurrent()
+          << YAML::Key << "recurrent_advances_during_inspection" << YAML::Value << policy.recurrent_advances()
           << YAML::Key << "observation_dim" << YAML::Value << policy.obs_dim()
           << YAML::Key << "action_dim" << YAML::Value << 31
           << YAML::Key << "step_dt" << YAML::Value << deploy.step_dt
@@ -1851,6 +1853,7 @@ int main(int argc, char** argv) {
         prev_mode_for_blend != Mode::kMotion && prev_mode_for_blend != Mode::kShadow;
     const bool serve_to_policy =
         policy_just_engaged && prev_mode_for_blend == Mode::kServe;
+    if (policy_just_engaged) ppp->begin_recurrent_session();
     if (serve_to_policy && !policy_native) {
       ppp->rearm_static_policy_handoff();
     } else if (policy_just_engaged) {

@@ -1,0 +1,21 @@
+# Eight training checkpoints: reference-sequence diagnostic videos
+
+Run: `gru-formal-2b8c09938a`, source33c609022efbb4e85fe6a58a5a8947b0fbd46c76. Exact selected iterations: **1000,5000,10000,15000,19000,23000,27000,29999**. All exist; no substitutions or duplicates. Each stable snapshot has a source/copy SHA256 match, complete ZIP CRC check, safely inspected iteration/schema/run metadata and hashed copies of agent/env/task configuration. Full hashes are in checkpoint-inventory.csv, batch.json and model_*/snapshot.json. No matching cached bundles were available at preparation time.
+
+Run/resume from a normal Ubuntu desktop terminal:
+
+```bash
+bash "$HOME/workspace/hope-stationary-gru-evaluations/20261106-eight-checkpoint-comparison/run-eight.sh"
+```
+
+Open `index.html` for the eight links/results. It updates after every saved result and video. JSON index also available. All are labelled reference-sequence diagnostic, NOT formal Gate3.
+
+- Exports the actual snapshot GRU actor in existing grasping, independently compares ONNX MLP/GRU/normalizer initializers with checkpoint weights, enforces identical environment/observation/action contracts, then performs64-step sequential PyTorch/ONNX comparison and repeat-after-zero-reset verification. Verified own bundles are reused. No full pytest suite runs per checkpoint.
+- Uses the existing hope ROS planner binary/install. No packages or unchanged components are rebuilt. Each model gets one isolated namespace/session, localhost discovery and the existing graph guard; models run sequentially under a batch lock. CPU export and offline software rendering use bounded thread counts.
+- Same fixed-home-100 ledger, seed0,20s initial idle, six clean flights, reference rapid1.15s slots and final2.5s closure, tail/drain, corrected PPQ004 actual-table-contact mode, robot initial state, controls and unchanged scoring. Robot/GRU carry between balls. Fall ends the rally, stops launches and drains safely without reset/rescue. Unlaunched/unresolved remain explicit. Planner HOME is derived from the measured model posture using the same existing configuration; side counts are never forced50/50.
+- Each actual simulation is bounded by the existing900s evaluator limit /915s outer guard. Export420s, verification120s and offline render900s bounds stop failed infrastructure. Failed attempts/logs remain untouched. Infrastructure/numerical interruption is not labelled policy failure. A clean fall termination is a valid early-termination comparison result and does not trigger another rally to fill100 serves.
+- Each full MP4 is800×500,20fps,1× playback, identical camera. Checkpoint iteration, current serve/planner side, cumulative raw contact balls/qualified contacts/legal returns, early fall and unresolved labels are burned into timed subtitles. Actual trails: orange before contact, cyan after contact. Purple dashed paths are actual recorded-command planner predictions, validated against its logged strike, never substituted for physical trajectories.
+- Full initial idle remains in every archive up to any genuine early termination. First serve is normally **20.00 video seconds**; exact timestamp is in the index/video receipt, or absent if the model falls before a serve. Renderer smoke media is explicitly NOT an evaluation and is not one of the eight index rows.
+- Simulation raw results are saved before encoding. On resume, verified saved simulations can proceed directly to offline render without rerunning policy/physics. Completed videos and supporting evidence are skipped only after hash verification against the frozen protocol. Invalid or incomplete encodings are archived before retry; no old movie fallback.
+
+Current status: **blocked before any of the eight exports or live evaluations**. Attempt model_1000/attempt-60fgmqil stopped on `chmod /run/user/1001/libpod: read-only file system`. This is an infrastructure failure, not model1000 behavior. There are currently0/8 requested videos; index values remain pending/unknown. The command above performs remaining stages from the desktop. Check-only source/snapshot verification, three focused batch/overlay/resume tests, existing-bundle reset check, an offline renderer smoke check, and100 recorded planner-reference path comparisons passed. No training, dependency, hardware or X11 security changes were made.
