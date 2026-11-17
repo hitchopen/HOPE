@@ -84,6 +84,32 @@ Status: Implemented (deploy-parity contract, sim-to-real verified 2026-07-02; re
 
 ## HITTER-Compatible Contract
 
+The default is `policy_target_frame: training`: real measured heading,
+world-axis relative position and world-axis racket velocity. The October 31
+field trial of rotated targets/forced heading was unsuccessful and was rolled
+back to `training`; the optional algorithms below are retained for research
+and are not an accepted correction for drift or missed hits. No runtime YAML
+in this change enables them.
+
+The hardware `policy_target_frame: body_once` override captures the accepted
+Planner shot on its first actor tick, after localization for that tick. It applies
+`R_commit^T * (p_world - base_commit)` to position and `R_commit^T * v_world` to
+velocity, then holds all six observation values fixed through that shot. A new
+committed shot (including rapid preemption) captures a new pose; mailbox repeats
+and same-shot refinements do not. WAIT/recovery retains its existing sentinel,
+mode re-entry clears the latch, and time-to-strike continues to count down.
+In this field convention the actor's explicit planar heading `obs[99:101]`
+is fixed to `[1, 0]` in ACTIVE and WAIT/recovery. This observation-only override
+is applied after capture: target conversion, localization, Planner and racket
+FK still use the real pose. Projected gravity, angular velocity, joint state
+and the station displacement inputs are unchanged.
+The optional face normal uses the same captured rotation but has no current wire
+or 110-D actor slot. `[pp target-latch]` logs the capture pose and world/body
+vectors for comparison with ball trajectories and measured-joint racket FK.
+This override requires a 110-D Planner actor and remains distinct from the
+exported model's world-axis training contract; it is not physical qualification.
+`training` retains the export contract; `body` is the earlier per-tick rotation.
+
 The baseline policy keeps the HITTER-style separation:
 
 - Planner provides target racket position, target racket velocity, target racket normal, and time to strike.
