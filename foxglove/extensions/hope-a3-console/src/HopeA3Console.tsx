@@ -210,7 +210,7 @@ const EMPTY_CONFIG: LifecycleConfigDraft = {
   vrpn_port: "",
   vrpn_units: "",
   operator_profile: "",
-  auto_dock: "off",
+  auto_dock: "on",
 };
 
 type XboxPreview = {
@@ -1122,7 +1122,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         bool_value: false,
         integer_value: 0,
         double_value: 0,
-        string_value: name === "auto_dock" ? (configDraft.auto_dock || "off") : configDraft[name],
+        string_value: name === "auto_dock" ? (configDraft.auto_dock || "on") : configDraft[name],
         byte_array_value: [],
         bool_array_value: [],
         integer_array_value: [],
@@ -1144,7 +1144,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       } else {
         setConfigTouched(false);
         setNotice(
-          msg("hopeA3Console.configConfirmed", {operator: configDraft.operator_profile ? msg("hopeA3Console.operator", {platform: configDraft.operator_profile.toUpperCase()}) : "", mocap: MOCAP_LABELS[configDraft.mocap_source] ?? "UNKNOWN", side: configDraft.table_side, gripper: configDraft.gripper_profile, pants: configDraft.pants_profile.toUpperCase(), autoDock: configDraft.auto_dock || "off"}),
+          msg("hopeA3Console.configConfirmed", {operator: configDraft.operator_profile ? msg("hopeA3Console.operator", {platform: configDraft.operator_profile.toUpperCase()}) : "", mocap: MOCAP_LABELS[configDraft.mocap_source] ?? "UNKNOWN", side: configDraft.table_side, gripper: configDraft.gripper_profile, pants: configDraft.pants_profile.toUpperCase(), autoDock: configDraft.auto_dock || "on"}),
         );
       }
     } catch (error) {
@@ -1580,8 +1580,8 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           </div>
           {(["off", "on"] as const).map((value) => (
             <button key={value} type="button"
-              className={(configDraft.auto_dock || "off") === value ? "side-selected" : ""}
-              aria-pressed={(configDraft.auto_dock || "off") === value}
+              className={(configDraft.auto_dock || "on") === value ? "side-selected" : ""}
+              aria-pressed={(configDraft.auto_dock || "on") === value}
               disabled={!lifecycleStopped || lifecycleBusy}
               onClick={() => {
                 setConfigTouched(true);

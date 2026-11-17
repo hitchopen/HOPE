@@ -55,7 +55,7 @@ class LifecycleConfigTests(unittest.TestCase):
                 "gripper_profile": "legacy",
                 "pants_profile": "v2", "mocap_source": "none",
                 "vrpn_ip": "", "vrpn_port": "3883", "vrpn_units": "mm",
-                "auto_dock": "off",
+                "auto_dock": "on",
             },
         )
 
@@ -196,9 +196,9 @@ class LifecycleConfigTests(unittest.TestCase):
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
             self.assertEqual(json.loads(path.read_text())["schema_version"], 7)
 
-    def test_auto_dock_defaults_off_and_survives_schema_six_clients(self):
+    def test_auto_dock_defaults_on_and_survives_schema_six_clients(self):
         current = self.valid_config(revision=3)
-        self.assertEqual(current.auto_dock, "off")
+        self.assertEqual(current.auto_dock, "on")
         selected = apply_config_updates(current, list({**current.values(), "auto_dock": "on"}.items()))
         self.assertEqual(selected.auto_dock, "on")
         self.assertEqual(config_from_document(config_to_document(selected)).auto_dock, "on")
@@ -208,7 +208,7 @@ class LifecycleConfigTests(unittest.TestCase):
         document = config_to_document(selected)
         document["schema_version"] = 6
         document.pop("auto_dock")
-        self.assertEqual(config_from_document(document).auto_dock, "off")
+        self.assertEqual(config_from_document(document).auto_dock, "on")
         for invalid in ("", "ON", "true", None, 1):
             with self.subTest(auto_dock=invalid), self.assertRaisesRegex(ValueError, "auto_dock"):
                 apply_config_updates(current, list({**current.values(), "auto_dock": invalid}.items()))

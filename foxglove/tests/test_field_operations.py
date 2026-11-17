@@ -255,7 +255,8 @@ class LifecycleModeTest(unittest.TestCase):
 
     def test_pure_start_and_stop_need_no_laptop_base_planner_or_mocap(self):
         config = LifecycleConfig(laptop_wifi_ip="10.0.0.2", hdu_wifi_ip="10.0.0.3",
-            mdu_internal_ip="10.42.10.12", motive_ip="", table_side="P1", revision=1)
+            mdu_internal_ip="10.42.10.12", motive_ip="", table_side="P1",
+            auto_dock="off", revision=1)
         calls = []
         backend = self.backend(calls)
         session = "model21800_20260912T010203Z"

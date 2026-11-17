@@ -18,7 +18,7 @@ The same header-only `PpDockController` runs in the Runner and in `scripts/sim_a
 
 ## Lifecycle
 
-Auto-dock is a lifecycle setting, `off` or `on`, default `off`. Confirm it while the lifecycle is `STOPPED`. Off is today's Kernel start: no laptop mocap, no base relay, no Planner. On keeps laptop mocap and `BASE_RELAY` during Kernel start, still skips `PLANNER`, and passes `--auto-dock --dock-config dock/dock.yaml` to the Runner. The package copy of that file is `dock/dock.yaml`.
+Auto-dock is a lifecycle setting, `off` or `on`, default `on`. Confirm it while the lifecycle is `STOPPED`. Off is today's Kernel start: no laptop mocap, no base relay, no Planner. On keeps laptop mocap and `BASE_RELAY` during Kernel start, still skips `PLANNER`, and passes `--auto-dock --dock-config dock/dock.yaml` to the Runner. The package copy of that file is `dock/dock.yaml`.
 
 Reposition is shown only when Auto-dock is on. It is enabled from fresh `PD_STAND` with `/hope/base/fresh` true and no serve in progress. Stand aborts the dock and waits for the feet.
 

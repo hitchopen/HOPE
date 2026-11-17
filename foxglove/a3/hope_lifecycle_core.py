@@ -62,7 +62,7 @@ class LifecycleConfig:
     operator_profile: str = "linux"
     gripper_profile: str = "legacy"
     pants_profile: str = "v2"
-    auto_dock: str = "off"
+    auto_dock: str = "on"
     revision: int = 0
 
     def values(self) -> dict[str, str]:
@@ -252,7 +252,7 @@ def config_from_document(document: Mapping[str, object]) -> LifecycleConfig:
         values[name] = (default if schema_version < 5
                         else validate_config_value(name, document.get(name)))
     values["auto_dock"] = (
-        "off" if schema_version < 7
+        "on" if schema_version < 7
         else validate_config_value("auto_dock", document.get("auto_dock")))
     validate_mocap_setup(values)
     return LifecycleConfig(**values, revision=revision)
