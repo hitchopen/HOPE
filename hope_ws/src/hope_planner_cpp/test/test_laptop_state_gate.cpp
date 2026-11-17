@@ -137,8 +137,8 @@ TEST_P(HeldServeRestart, HeldServeNewBallisticLaunchOpensBothChannelsWithOrWitho
       if(i%(hz/5)==0) {mode(t<1.?5:3);stage(t<1.?"FOLLOW_THROUGH":"COMPLETE");}
       if(!launched && t>=launch_at-1e-8) {
         const auto s=status();
-        ASSERT_NE(s.find("\"state\":\"SERVE\""),std::string::npos)<<s;
-        ASSERT_NE(s.find("\"serve_armed\":false"),std::string::npos)<<s;
+        ASSERT_NE(s.find("\"state\":\"INVALID\""),std::string::npos)<<s;
+        ASSERT_NE(s.find("\"substate\":\"Ball stopped\""),std::string::npos)<<s;
         ASSERT_TRUE(forwarded.empty());ASSERT_TRUE(packets.empty());
         if(manual_ready) {
           ASSERT_NE(local_intent(node->local_status_port(),"READY").find("202 Accepted"),std::string::npos);spin(1);
@@ -150,7 +150,7 @@ TEST_P(HeldServeRestart, HeldServeNewBallisticLaunchOpensBothChannelsWithOrWitho
       m.poses.resize(1);m.poses[0].position.x=p.x();m.poses[0].position.y=p.y();m.poses[0].position.z=p.z();
       input->publish(m);spin(1);
       if(!manual_ready && t>=launch_at && t<launch_at+.05) {
-        const auto s=status();EXPECT_NE(s.find("\"state\":\"SERVE\""),std::string::npos)<<s;
+        const auto s=status();EXPECT_NE(s.find("\"state\":\"INVALID\""),std::string::npos)<<s;
         EXPECT_TRUE(forwarded.empty());EXPECT_TRUE(packets.empty());
       }
       if(t>=launch_at+.20) {
@@ -312,7 +312,7 @@ TEST(LaptopStateGate, GatesBothBallChannelsAndSynchronizesOnlyLocalIntent) {
   ex.remove_node(node); ex.remove_node(io); rclcpp::shutdown();
 }
 
-TEST(LaptopStateGate, LocalReadyForwardsFirstExposureAndLocalStopStaysClosed) {
+TEST(LaptopStateGate, LocalReadyWaitsForQualifiedFlightAndLocalStopStaysClosed) {
   ::setenv("ROS_LOCALHOST_ONLY","1",1); ::setenv("ROS_DOMAIN_ID","228",1);
   rclcpp::init(0,nullptr);
   auto opts=rclcpp::NodeOptions();
@@ -338,25 +338,25 @@ TEST(LaptopStateGate, LocalReadyForwardsFirstExposureAndLocalStopStaysClosed) {
   geometry_msgs::msg::PoseArray m;m.header.stamp=io->now();m.poses.resize(1);
   m.poses[0].position.x=2.6;m.poses[0].position.y=-.7;m.poses[0].position.z=.5;
   poses->publish(m);spin(20);
-  EXPECT_EQ(count,1); // One exposure, no velocity/curvature/bounce evidence yet.
-  poses->publish(m);spin(20);EXPECT_EQ(count,1); // Duplicate never forwarded.
+  EXPECT_EQ(count,0); // One exposure cannot qualify an incoming flight.
+  poses->publish(m);spin(20);EXPECT_EQ(count,0); // Duplicate never forwarded.
   m.header.stamp=io->now();m.poses[0].position.z=-.2;poses->publish(m);spin(20);
-  EXPECT_EQ(count,1); // No invalid below-table sample, even when armed.
+  EXPECT_EQ(count,0); // No invalid below-table sample, even when armed.
   EXPECT_NE(local_intent(node->local_status_port(),"STOP").find("202 Accepted"),std::string::npos);spin(20);
   std_msgs::msg::Float64MultiArray remote;remote.data={2,42,9,3};state->publish(remote);spin(20);
   EXPECT_NE(status.find("\"state\":\"INVALID\""),std::string::npos) << status;
   m.header.stamp=io->now();m.poses[0].position.z=.5;poses->publish(m);spin(20);
-  EXPECT_EQ(count,1);
+  EXPECT_EQ(count,0);
   for(int i=0;i<30;++i) {
     double t=i/150.; m.header.stamp=io->now();
     m.poses[0].position.x=2.6-5*t;m.poses[0].position.z=.5+.5*t-4.905*t*t;
     poses->publish(m);spin(7);
   }
-  EXPECT_EQ(count,1); // Even a qualified incoming arc cannot leave local STOP.
+  EXPECT_EQ(count,0); // Even a qualified incoming arc cannot leave local STOP.
   EXPECT_NE(status.find("\"state\":\"INVALID\""),std::string::npos) << status;
   ex.remove_node(node);ex.remove_node(io);rclcpp::shutdown();
 }
-TEST(LaptopStateGate, EgoFlightStaysSuppressedUntilObservedIncomingReturn) {
+TEST(LaptopStateGate, FreshOpponentServePassesAfterAnInvalidPointWithoutReady) {
   ::setenv("ROS_LOCALHOST_ONLY","1",1); ::setenv("ROS_DOMAIN_ID","228",1);
   rclcpp::init(0,nullptr);
   for(int hz:{150,300}) {
@@ -379,17 +379,33 @@ TEST(LaptopStateGate, EgoFlightStaysSuppressedUntilObservedIncomingReturn) {
     for(int i=0;i<200 && input->get_subscription_count()==0;++i)spin(10);
     ASSERT_GT(input->get_subscription_count(),0U);
     const auto start=io->now().nanoseconds();const auto wall=std::chrono::steady_clock::now();
-    // The opponent returns before the outgoing leg has any bounce. This is
-    // deliberately insufficient for the old outbound-rule gate, but its
-    // observed incoming leg has a legal net crossing and first own-side bounce.
-    for(int i=0;i<=std::lround(.8*hz);++i) {
-      const double t=i/double(hz),after=t-.3;
+    // Opponent volleys the ego shot before its receiving bounce. The point
+    // ends. A separate opponent serve appears after a gap with no button input.
+    for(int i=0;i<=std::lround(1.74*hz);++i) {
+      const double t=i/double(hz);
       const auto due=wall+std::chrono::nanoseconds(std::llround(t*1e9));
       while(std::chrono::steady_clock::now()<due){ex.spin_some();std::this_thread::sleep_for(1ms);}
+      if(i==std::lround(.75*hz)) {
+        const auto invalid=local_status_get(node->local_status_port());
+        EXPECT_NE(invalid.find("\"state\":\"INVALID\""),std::string::npos) << invalid;
+        EXPECT_EQ(poses,0);EXPECT_EQ(packets,0);
+      }
+      if(t>.55 && t<1.) continue;
       geometry_msgs::msg::PoseArray m;m.header.stamp=rclcpp::Time(start+std::llround(t*1e9));
       m.header.frame_id="world";m.poses.resize(1);auto& p=m.poses[0].position;
-      p.x=t<=.3 ? .3+6*t : 2.1-3.5*after;p.y=-.7;
-      p.z=t<=.3 ? .6+.5*t-4.905*t*t : .30855+2*after-4.905*after*after;
+      p.y=-.7;
+      if(t<1.) {
+        const double after=t-.3;
+        p.x=t<=.3 ? .3+6*t : 2.1-3.5*after;
+        p.z=t<=.3 ? .6+.5*t-4.905*t*t : .30855+2*after-4.905*after*after;
+      } else {
+        const double flight=t-1.;
+        const double contact=(-2+std::sqrt(4+19.62*(.4-.02)))/9.81;
+        const double after=flight-contact;
+        p.x=2.7-3*flight;
+        p.z=flight<=contact ? .4-2*flight-4.905*flight*flight :
+            .02+(2+9.81*contact)*.9*after-4.905*after*after;
+      }
       input->publish(m);ex.spin_some();
       if(i==std::lround(.25*hz)) {
         EXPECT_EQ(poses,0);EXPECT_EQ(packets,0);
@@ -398,7 +414,7 @@ TEST(LaptopStateGate, EgoFlightStaysSuppressedUntilObservedIncomingReturn) {
     }
     spin(20);
     auto state=local_status_get(node->local_status_port());
-    EXPECT_NE(state.find("\"state\":\"OPPONENT_RALLY\""),std::string::npos) << state;
+    EXPECT_NE(state.find("\"state\":\"OPPONENT_SERVE\""),std::string::npos) << state;
     EXPECT_NE(state.find("\"return_confirmed\":false"),std::string::npos) << state;
     EXPECT_GT(poses,0);EXPECT_GT(packets,0);
     ex.remove_node(node);ex.remove_node(io);

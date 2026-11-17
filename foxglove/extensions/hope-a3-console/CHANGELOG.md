@@ -7,6 +7,12 @@
 - Show dock phase, world-frame error, distance, attempt, elapsed time, and result from `/hope/runner/dock_state_hdu_flat`.
 - Off leaves the Kernel workflow unchanged and hides Reposition.
 
+## 1.9.14
+
+- Show the Score Board ball phase or observed fault alongside the five-state label.
+- Require a qualified opponent flight before sending poses or flight packets, including after Ready.
+- Use the Score Board's short post-net acquisition, repeat-contact filtering, net rebound detection, and low return window.
+
 ## 1.9.13
 
 - Accept qualified incoming observations without invented pre-net history.

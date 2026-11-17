@@ -26,6 +26,7 @@ struct PlayStateConfig {
   double contact_excursion_m = 0.001;
   double contact_refractory_s = 0.060;
   double net_margin_m = 0.025;
+  double low_return_window_s = 0.350;
 };
 
 class LaptopPlayState {
@@ -44,6 +45,7 @@ class LaptopPlayState {
   void clear_hit_plane() { hit_x_ = std::numeric_limits<double>::quiet_NaN(); }
 
   PlayState state() const { return state_; }
+  const char* substate_name() const;
   // Qualified incoming evidence is independent of robot operating mode.
   bool incoming_flight() const;
   bool may_forward() const;
@@ -73,13 +75,16 @@ class LaptopPlayState {
                 const SpinEstimate& spin);
 
  private:
-  void start(int direction, bool serve);
+  enum class Fault { NONE, DOUBLE_BOUNCE, OUT_OF_BOUNDS, MISSED_BOUNCE, NET_NOT_CLEARED };
+
+  void start(int direction, bool serve, bool continuing_shot = false);
   void contact(const BallSample& sample);
+  bool distinct_repeat_contact(std::size_t left, std::size_t index, std::size_t right) const;
   void record_events(const BallSample& sample);
-  void end_point(const char* reason);
+  void end_point(const char* reason, Fault fault);
   bool on_table(const Vec3& p) const;
   bool striker_side(double x, int direction) const;
-  bool launch_evidence() const;
+  bool launch_evidence(int receiving_direction = 0) const;
   double slope() const;
   bool observe_rally_speed(const BallSample& sample);
   void reset_slow_rally();
@@ -90,6 +95,7 @@ class LaptopPlayState {
 
   PlayStateConfig config_;
   PlayState state_ = PlayState::INVALID;
+  Fault fault_ = Fault::NONE;
   std::string reason_ = "startup";
   std::string forecast_advisory_;
   std::deque<BallSample> candidate_, history_;
@@ -97,7 +103,9 @@ class LaptopPlayState {
   int direction_ = 0, candidate_direction_ = 0, rejected_direction_ = 0;
   int striker_bounces_ = 0, receiver_bounces_ = 0;
   bool crossed_net_ = false, history_known_ = false, target_reached_ = false;
+  bool reached_receiving_half_ = false;
   bool return_flight_ = false, point_ended_ = false;
+  bool rejected_receiver_history_ = false;
   double nonflight_since_ = std::numeric_limits<double>::quiet_NaN();
   bool serve_armed_ = false;
   bool receive_armed_ = false, sample_usable_ = false;
@@ -105,11 +113,13 @@ class LaptopPlayState {
   bool input_missing_ = false;
   bool reacquiring_ = false;
   const char* sample_rejection_reason_ = "";
-  bool held_serve_waiting_for_intent_ = false;
   bool neutral_seen_ = false;
   double candidate_since_ = 0, boundary_time_ = 0, last_source_ = 0;
   double last_bounce_ = -1e9, hit_x_ = std::numeric_limits<double>::quiet_NaN();
+  double last_bounce_height_ = 0;
+  double last_bounce_confirmation_ = -1e9;
   double net_time_ = 0;
+  double low_ball_since_ = 0;
   double neutral_source_time_ = 0;
   double slow_window_start_ = 0;
   double slow_since_ = std::numeric_limits<double>::quiet_NaN();

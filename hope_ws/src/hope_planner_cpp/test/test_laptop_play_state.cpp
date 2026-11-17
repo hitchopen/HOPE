@@ -95,6 +95,84 @@ TEST(LaptopPlayState, MissingPrehistoryAllowsQualifiedFlightButDuplicateDoesNotR
   EXPECT_FALSE(c.may_forward());
 }
 
+TEST(LaptopPlayState, ShortPostNetArcQualifiesButHandCarriedTrackDoesNot) {
+  for (int hz : {150, 300}) for (bool p2 : {false, true}) {
+    LaptopPlayState flight, carried;
+    arc(flight, hz, {1.29, -.7, .45}, {-3., 0., -1.}, .053, 0., p2);
+    EXPECT_EQ(flight.state(), PlayState::OPPONENT_RALLY);
+    EXPECT_TRUE(flight.may_forward());
+    EXPECT_FALSE(flight.history_known());
+    for (int i = 0; i <= std::lround(.053 * hz); ++i)
+      carried.observe(sample(i / double(hz), {1.29 - 3. * i / hz, -.7, .45}));
+    EXPECT_EQ(carried.state(), PlayState::INVALID);
+    EXPECT_FALSE(carried.may_forward());
+  }
+}
+
+TEST(LaptopPlayState, IsolatedHeightDipDoesNotCountAsSecondBounce) {
+  for (int hz : {150, 300}) {
+    LaptopPlayState c;
+    for (int i = 0; i <= std::lround(.40 * hz); ++i) {
+      const double t = i / double(hz);
+      const double after = t - .15;
+      double z = after < 0 ? .02 - 1.6 * after - 4.905 * after * after :
+          .02 + .025 * std::min(after / .035, 1.) + .0005 * std::sin(150. * t);
+      if (i == std::lround(.30 * hz)) z = .019;  // Single noisy exposure.
+      c.observe(sample(t, {1.29 - 2.2 * t, -.7, z}));
+    }
+    EXPECT_EQ(c.state(), PlayState::OPPONENT_RALLY) << c.reason();
+    EXPECT_EQ(c.receiver_bounces(), 1);
+    EXPECT_TRUE(c.may_forward());
+  }
+}
+
+TEST(LaptopPlayState, RepeatedContactsRequire100msSourceSeparation) {
+  // Port Score Board eb0d889's boundary cases. The coherent 25 mm arc passes
+  // the other noise checks, so this isolates source-time separation.
+  for (int direction : {-1, 1}) for (int separation_ms : {80, 99, 100, 130}) {
+    for (double epoch : {10., 1794186544.}) {
+      SCOPED_TRACE(::testing::Message() << direction << " / " << separation_ms << " ms / " << epoch);
+      LaptopPlayState c;
+      const double separation = separation_ms * .001;
+      const int flight_samples = separation_ms / 3;
+      bool saw_first_bounce = false;
+      for (int i = 0; i <= 50 + flight_samples + 9; ++i) {
+        const double t = i <= 50 ? i * .003 : i <= 50 + flight_samples
+            ? .15 + (i - 50) * separation / flight_samples
+            : .15 + separation + (i - 50 - flight_samples) * .003;
+        double z;
+        if (i < 50) {
+          const double remaining = .15 - t;
+          z = .02 + 1.6 * remaining - 4.905 * remaining * remaining;
+        } else if (i < 50 + flight_samples) {
+          const double phase = (t - .15) / separation;
+          z = .02 + 4 * .025 * phase * (1 - phase);
+        } else {
+          const double after = t - .15 - separation;
+          z = .02 + .65 * after - 4.905 * after * after;
+        }
+        const double x = 1.45 + 2.2 * t;
+        auto s = sample(t, {direction > 0 ? x : 2.74 - x, -.7, z});
+        s.source_time_s = epoch + t;
+        s.source_time_ns = std::llround(s.source_time_s * 1e9);
+        c.observe(s);
+        saw_first_bounce |= c.receiver_bounces() == 1;
+      }
+      EXPECT_TRUE(saw_first_bounce);
+      if (separation_ms < 100) {
+        EXPECT_EQ(c.state(), direction > 0 ? PlayState::RALLY : PlayState::OPPONENT_RALLY);
+        EXPECT_EQ(c.receiver_bounces(), 1);
+        EXPECT_EQ(c.may_forward(), direction < 0);
+      } else {
+        EXPECT_EQ(c.state(), PlayState::INVALID);
+        EXPECT_STREQ(c.substate_name(), "Double bounce");
+        EXPECT_EQ(c.reason(), "second_receiver_bounce");
+        EXPECT_FALSE(c.may_forward());
+      }
+    }
+  }
+}
+
 TEST(LaptopPlayState, LocalServeWaitsForBallAndRepeatedServePreservesIntent) {
   LaptopPlayState c;c.local_intent("SERVE");
   EXPECT_EQ(c.state(),PlayState::SERVE);EXPECT_TRUE(c.serve_armed());EXPECT_FALSE(c.may_forward());
@@ -275,28 +353,28 @@ TEST(LaptopPlayState, UnknownTopspinLongForecastCannotDiscardObservedLegalIncomi
   }
 }
 
-TEST(LaptopPlayState, SecondStrikerContactInvalidatesOnlyIncomingFlight) {
+TEST(LaptopPlayState, SecondStrikerContactInvalidatesEitherDirection) {
   for (int hz : {150,300}) for (int d : {-1,1}) {
     LaptopPlayState c;
     arc(c,hz,{d>0?.04:2.70,-.7,.4},{d*3.0,0,-2},.80,0,false,.2);
-    EXPECT_EQ(c.state(),d<0?PlayState::INVALID:PlayState::SERVE) << hz << ' ' << d << ' ' << c.reason();
-    if(d<0) EXPECT_EQ(c.retained_samples(),0U);
+    EXPECT_EQ(c.state(),PlayState::INVALID) << hz << ' ' << d << ' ' << c.reason();
+    EXPECT_EQ(c.retained_samples(),0U);
   }
 }
 
-TEST(LaptopPlayState, SecondReceiverBounceInvalidatesIncomingButRetainsVisibleEgo) {
+TEST(LaptopPlayState, SecondReceiverBounceInvalidatesEitherDirection) {
   for (int hz : {150,300}) {
     LaptopPlayState out, in;
     out.set_hit_plane(.15); in.set_hit_plane(.15);
     arc(out,hz,{.3,-.7,.6},{4,0,.5},1.15,0,false,.1);
     arc(in,hz,{2.44,-.7,.6},{-4,0,.5},1.15,0,false,.1);
-    EXPECT_EQ(out.state(),PlayState::RALLY) << out.reason();
+    EXPECT_EQ(out.state(),PlayState::INVALID) << out.reason();
     EXPECT_FALSE(out.may_forward());
     EXPECT_EQ(in.state(),PlayState::INVALID) << in.reason();
   }
 }
 
-TEST(LaptopPlayState, OnlyOpponentServeRejectsThirdBounceBeforeEndpoint) {
+TEST(LaptopPlayState, ServeRejectsThirdBounceInEitherDirection) {
   for (int hz : {150,300}) for (int d : {-1,1}) {
     LaptopPlayState c; c.set_hit_plane(0.0);
     arc(c,hz,{d>0?.04:2.70,-.7,.4},{d*3.0,0,-2},.78,0,false,1,.1);
@@ -304,15 +382,15 @@ TEST(LaptopPlayState, OnlyOpponentServeRejectsThirdBounceBeforeEndpoint) {
     EXPECT_EQ(c.striker_bounces(),1); EXPECT_EQ(c.receiver_bounces(),1);
     LaptopPlayState later; later.set_hit_plane(0.0);
     arc(later,hz,{d>0?.04:2.70,-.7,.4},{d*3.0,0,-2},1.4,0,false,1,.1);
-    EXPECT_EQ(later.state(),d<0?PlayState::INVALID:PlayState::SERVE) << later.reason();
+    EXPECT_EQ(later.state(),PlayState::INVALID) << later.reason();
   }
 }
 
-TEST(LaptopPlayState, EgoServeRetainsLabelWithoutFirstBounceWhileVisible) {
+TEST(LaptopPlayState, EgoServeCrossingWithoutFirstBounceIsInvalid) {
   LaptopPlayState c;
   c.local_intent("SERVE");
   arc(c,300,{.3,-.7,.6},{5,0,.5},.32);
-  EXPECT_EQ(c.state(),PlayState::SERVE) << c.reason();
+  EXPECT_EQ(c.state(),PlayState::INVALID) << c.reason();
   EXPECT_FALSE(c.may_forward());
 }
 
@@ -370,55 +448,14 @@ void trace_until(LaptopPlayState& c, TraceBall& b, int hz, double until,
   }
 }
 
-TEST(LaptopPlayState, VisibleEgoFlightsSurviveOutsideAndBadSamplesUntilDisappearance) {
-  for (int hz : {150,300}) for (bool serve : {false,true}) {
+TEST(LaptopPlayState, EndLineExitWithoutReceivingBounceEndsTheShot) {
+  for (int hz : {150, 300}) for (int direction : {-1, 1}) {
     LaptopPlayState c;
-    if(serve)c.local_intent("SERVE");
-    arc(c,hz,{.3,-.7,.6},{5,0,.5},.16);
-    const auto label = serve?PlayState::SERVE:PlayState::RALLY;
-    ASSERT_EQ(c.state(),label);
-    const auto generation=c.generation();
-    // SERVE may remain held. A moving RALLY remains valid outside the table
-    // and below tabletop; its separately measured low-speed rule still applies.
-    for(int i=1;i<=hz;++i) {
-      double t=.16+i/double(hz);
-      Vec3 p(1.1,-.7,.554432);
-      if(!serve)p.x()+=.2*i/double(hz);
-      if(i>hz/2) {const double a=(i-hz/2)/double(hz);p.y()-=2*a;p.z()-=2*a;}
-      c.observe(sample(t,p));c.poll(std::llround((10+t)*1e9));
-      ASSERT_EQ(c.state(),label) << c.reason(); ASSERT_FALSE(c.may_forward());
-    }
-    EXPECT_GE(c.generation(),generation);
-    const auto last=std::llround((10+1.16)*1e9);
-    for(int ms:{20,40,60,80}) {
-      auto bad=sample(1.16+ms/1000.,{0,0,0});bad.position.x()=NAN;
-      c.observe(bad);c.input_unavailable("ball_pose_missing",last+ms*1'000'000LL);
-      EXPECT_EQ(c.state(),label);
-    }
-    c.poll(last+101'000'000LL);
-    EXPECT_EQ(c.state(),label);EXPECT_EQ(c.retained_samples(),0U);
-  }
-}
-
-TEST(LaptopPlayState, EgoReturnNeedsIncomingInBoundsButNotOutgoingBounceProof) {
-  for(int hz:{150,300}) for(bool p2:{false,true}) for(bool serve:{false,true}) {
-    LaptopPlayState c;
-    if(serve)c.local_intent("SERVE");
-    TraceBall b{{2.40,-.7,.6},{3.,0,.5}};
-    trace_until(c,b,hz,.20,1,p2);
-    ASSERT_EQ(c.state(),serve?PlayState::SERVE:PlayState::RALLY);
-    ASSERT_EQ(c.receiver_bounces(),0); // No outgoing bounce proof required.
-    auto generation=c.generation();const double turn_time=10+b.t;
-    b.v={-4,0,1.};
-    trace_until(c,b,hz,.25,1,p2); // x still beyond opponent's end.
-    EXPECT_TRUE(c.ego_flight());EXPECT_FALSE(c.may_forward());
-    trace_until(c,b,hz,.31,1,p2); // Confirmed -X motion is now in table bounds.
-    EXPECT_EQ(c.state(),PlayState::OPPONENT_RALLY) << c.reason();
-    EXPECT_FALSE(c.return_confirmed());EXPECT_TRUE(c.may_forward());
-    EXPECT_GT(c.generation(),generation);
-    EXPECT_GE(c.boundary_time(),turn_time-1./hz);
-    EXPECT_EQ(c.striker_bounces(),0);EXPECT_EQ(c.receiver_bounces(),0);
-    for(const auto& s:c.samples())EXPECT_GE(s.source_time_s,turn_time-1./hz);
+    arc(c, hz, {direction > 0 ? 2.4 : .34, -.7, .6}, {direction * 3., 0, .5}, .20);
+    EXPECT_EQ(c.state(), PlayState::INVALID);
+    EXPECT_EQ(c.reason(), "no_receiver_bounce");
+    EXPECT_STREQ(c.substate_name(), "Missed bounce");
+    EXPECT_FALSE(c.may_forward());
   }
 }
 
@@ -451,12 +488,13 @@ TEST(LaptopPlayState, HeldServeReacquiresOnlyNewBallisticFlightWithOrWithoutRead
     trace_until(c,b,hz,.90,1,p2);
     ASSERT_EQ(c.state(),PlayState::SERVE);ASSERT_FALSE(c.serve_armed());
     for(int i=0;i<hz;++i) {c.observe(sample(b.t,b.p));b.t+=1./hz;}
-    EXPECT_EQ(c.reason(),"serve_held_waiting_for_launch");
+    EXPECT_EQ(c.reason(),"held_ball");
+    EXPECT_STREQ(c.substate_name(), "Ball stopped");
     const auto generation=c.generation();const auto held=b;
     b.v={-3.,0,-2.};b.contacts=0;const double launch=b.t;
     while(b.t<launch+.82-1e-8) {
       trace_until(c,b,hz,b.t+1./hz,1,p2);
-      if(b.t<launch+.05) { EXPECT_EQ(c.state(),PlayState::SERVE);EXPECT_FALSE(c.may_forward()); }
+      if(b.t<launch+.035) { EXPECT_EQ(c.state(),PlayState::INVALID);EXPECT_FALSE(c.may_forward()); }
     }
     EXPECT_EQ(c.state(),PlayState::OPPONENT_SERVE);EXPECT_TRUE(c.may_forward());
     EXPECT_GT(c.generation(),generation);
@@ -472,11 +510,11 @@ TEST(LaptopPlayState, HeldServeReacquiresOnlyNewBallisticFlightWithOrWithoutRead
   }
 }
 
-TEST(LaptopPlayState, HeldServeLossPreservesStateAndNewFlightReacquires) {
+TEST(LaptopPlayState, StoppedServeWithGapCanReacquireNewFlight) {
   LaptopPlayState c;c.local_intent("SERVE");TraceBall b{{.04,-.7,.4},{3.,0,-2.}};
   trace_until(c,b,300,.90);
   for(int i=0;i<300;++i){c.observe(sample(b.t,b.p));b.t+=1./300.;}
-  c.poll(std::llround((10+b.t+.101)*1e9));ASSERT_EQ(c.state(),PlayState::SERVE);
+  c.poll(std::llround((10+b.t+.101)*1e9));ASSERT_EQ(c.state(),PlayState::INVALID);
   b.t+=.2;b.v={-3.,0,-2.};b.contacts=0;trace_until(c,b,300,b.t+.82);
   EXPECT_EQ(c.state(),PlayState::OPPONENT_SERVE);EXPECT_TRUE(c.may_forward());
   c.local_intent("STOP");EXPECT_EQ(c.state(),PlayState::INVALID);
@@ -491,7 +529,7 @@ TEST(LaptopPlayState, HeldEgoServeMovedByHandDoesNotManufactureNewLaunch) {
     const auto generation=c.generation();
     for(int i=0;i<hz/3;++i) {
       c.observe(sample(b.t,b.p));b.p.x()-=1./hz;b.t+=1./hz;
-      EXPECT_EQ(c.state(),PlayState::SERVE);EXPECT_FALSE(c.may_forward());
+      EXPECT_EQ(c.state(),PlayState::INVALID);EXPECT_FALSE(c.may_forward());
       EXPECT_EQ(c.generation(),generation);EXPECT_FALSE(c.return_confirmed());
     }
   }
@@ -664,24 +702,24 @@ TEST(LaptopPlayState, ServeVolleyCannotBecomeRallyOrRearmOnTheLateReturn) {
   }
 }
 
-TEST(LaptopPlayState, EgoReturnOnOwnTableRetainsRallyInsteadOfInvalidOrServe) {
+TEST(LaptopPlayState, EgoReturnOnOwnTableEndsThePoint) {
   for(int hz:{150,300}) {
     LaptopPlayState c;TraceBall b{{2.70,-.7,.4},{-3.,0,-2.}};
     trace_until(c,b,hz,.85);
     b.v={1.,0,-.4};b.contacts=0;
     trace_until(c,b,hz,1.18);
-    EXPECT_EQ(c.state(),PlayState::RALLY) << c.reason();
-    EXPECT_GE(c.striker_bounces(),1); // Real evidence is retained, not rejected.
+    EXPECT_EQ(c.state(),PlayState::INVALID) << c.reason();
+    EXPECT_EQ(c.reason(),"return_bounced_on_striker_side");
     EXPECT_FALSE(c.may_forward());
   }
 }
 
-TEST(LaptopPlayState, SecondEgoReturnBounceOnOpponentTableRetainsVisibleRally) {
+TEST(LaptopPlayState, SecondEgoReturnBounceOnOpponentTableEndsThePoint) {
   for(int hz:{150,300}) {
     LaptopPlayState c;TraceBall b{{2.70,-.7,.4},{-3.,0,-2.}};
     trace_until(c,b,hz,.85); b.v={5.,0,1.6};b.contacts=0;
     trace_until(c,b,hz,1.9,.05);
-    EXPECT_EQ(c.state(),PlayState::RALLY) << c.reason();
+    EXPECT_EQ(c.state(),PlayState::INVALID) << c.reason();
     EXPECT_FALSE(c.may_forward());
   }
 }
@@ -695,7 +733,11 @@ TEST(LaptopPlayState, ServeMissAfterHitPlaneStillInvalidates) {
     // Missing return with no second table bounce: ball passes below tabletop
     // outside the end line. No assumption that crossing the hit plane is a hit.
     LaptopPlayState miss;miss.set_hit_plane(.35);
-    arc(miss,hz,{2.70,-.7,.4},{-3.,0,-2},1.35);
+    TraceBall ball{{2.70,-.7,.4},{-3.,0,-2.}};
+    trace_until(miss,ball,hz,1.35);
+    EXPECT_EQ(miss.state(),PlayState::OPPONENT_SERVE);
+    EXPECT_FALSE(miss.may_forward());
+    trace_until(miss,ball,hz,1.85);
     EXPECT_EQ(miss.state(),PlayState::INVALID) << miss.reason();
   }
 }
@@ -747,13 +789,13 @@ TEST(LaptopPlayState, TableSpinReversalIsNotARacketReturn) {
 TEST(LaptopPlayState, LocalReadyWaitsWithoutRobotFeedbackAndDoesNotInventHistory) {
   LaptopPlayState c;c.local_intent("READY");
   ASSERT_EQ(c.state(),PlayState::OPPONENT_SERVE);EXPECT_TRUE(c.receive_armed());
-  EXPECT_TRUE(c.may_forward());EXPECT_FALSE(c.history_known());
+  EXPECT_FALSE(c.may_forward());EXPECT_FALSE(c.history_known());
   c.poll(60'000'000'000LL); // No Runner heartbeat required while waiting for a human.
-  EXPECT_TRUE(c.receive_armed());EXPECT_TRUE(c.may_forward());
+  EXPECT_TRUE(c.receive_armed());EXPECT_FALSE(c.may_forward());
   c.observe(sample(.001,{2.7,-.7,.4}));EXPECT_TRUE(c.sample_usable());
   EXPECT_EQ(c.striker_bounces(),0);
   c.local_intent("STOP");EXPECT_FALSE(c.may_forward());EXPECT_TRUE(c.local_stopped());
-  c.local_intent("READY");EXPECT_TRUE(c.may_forward());EXPECT_FALSE(c.local_stopped());
+  c.local_intent("READY");EXPECT_FALSE(c.may_forward());EXPECT_FALSE(c.local_stopped());
 }
 
 TEST(LaptopPlayState, LocalReadyChecksSamplesAndReturnsToNormalFlightValidation) {
@@ -906,16 +948,32 @@ TEST(LaptopPlayState, LongLossPreservesEveryEstablishedLabelAndStopStillOverride
 }
 
 
-TEST(LaptopPlayState, OpponentPreparationBounceDoesNotProveIllegalRacketReturn) {
-  for(int hz:{150,300}) {
-    LaptopPlayState c;TraceBall b{{.04,-.7,.4},{3.,0,-2.}};
-    trace_until(c,b,hz,.90);
-    // The observed old serve crossed and bounced. A slow change of direction
-    // after the opponent catches it does not prove a new racket contact.
-    b.v={-.4,0,1.};b.contacts=0;
-    trace_until(c,b,hz,1.60);
-    EXPECT_NE(c.state(),PlayState::INVALID)<<c.reason();
-    EXPECT_FALSE(c.return_confirmed());
+TEST(LaptopPlayState, OpponentShotsRearmAfterInvalidWithoutReadyOrEgoServe) {
+  for (int hz : {150, 300}) for (bool p2 : {false, true}) {
+    for (bool first_serve : {false, true}) for (bool next_serve : {false, true}) {
+      LaptopPlayState c;
+      arc(c, hz, {2.70, -.7, first_serve ? .4 : .65},
+          {-3., 0, first_serve ? -2. : 0.}, .19, 0., p2);
+      ASSERT_EQ(c.state(), first_serve ? PlayState::OPPONENT_SERVE : PlayState::OPPONENT_RALLY);
+      ASSERT_TRUE(c.may_forward());
+      // This observed arc descends out of bounds before any receiver bounce.
+      for (int i = 1; i <= std::lround(.15 * hz); ++i) {
+        const double dt = i / double(hz);
+        const double height = c.state() == PlayState::INVALID ? -.05 :
+            c.samples().back().position.z() - 5. / hz;
+        c.observe(sample(.19 + dt, {2.13 - 3. * dt, -.7, height}));
+      }
+      ASSERT_EQ(c.state(), PlayState::INVALID);
+      ASSERT_FALSE(c.may_forward());
+      const auto prior_generation = c.generation();
+      // A new track is first seen in motion. There is no held exposure or button event.
+      arc(c, hz, {2.70, -.7, next_serve ? .4 : .65},
+          {-3., 0, next_serve ? -2. : 0.}, .19, .50, p2);
+      EXPECT_EQ(c.state(), next_serve ? PlayState::OPPONENT_SERVE : PlayState::OPPONENT_RALLY);
+      EXPECT_TRUE(c.may_forward());
+      EXPECT_GT(c.generation(), prior_generation);
+      EXPECT_GE(c.boundary_time(), 10.50);
+    }
   }
 }
 

@@ -7,12 +7,12 @@ Runner protections remain in force. See the
 [operational scope and validation limits](../docs/operations/foxglove_lifecycle.md#elink-startup-checks-and-runtime-diagnostics).
 
 For direct installation, use the committed
-[Console 1.9.13 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.9.13.foxe).
+[Console 1.9.14 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.9.14.foxe).
 Node.js is needed
 only to rebuild the extension, not to install this package.
 
 The Ubuntu/macOS operator computer runs the C++ ball-state classifier after
-P1/P2 conversion and forwards only opponent flights to A3. Console 1.9.13 reads
+P1/P2 conversion and forwards only opponent flights to A3. Console 1.9.14 reads
 its state and forecast advisories from the local HTTP endpoint at
 `127.0.0.1:8768`; state labels stay off A3's DDS graph. Explicit local Ready and
 Serve buttons initialize their respective states; Stand/Stop holds both ball
@@ -52,7 +52,7 @@ The V2/V3 capture descriptions below apply only to legacy calibration mode.
 
 Current Runner/serve behavior, v12 assets, PR status and validation limits:
 [Runner, Xbox and serving](../docs/operations/runtime_xbox.md).
-The public [Console 1.9.13 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.9.13.foxe)
+The public [Console 1.9.14 installer](extensions/hope-a3-console/hopeopen.hope-a3-console-1.9.14.foxe)
 includes Mac/Linux, gripper and NatNet/VRPN selectors and matches the checked-in source.
 Combined lifecycle schema 6 preserves existing field schema-5 settings; source
 and image builds do not overwrite or restart the live HDU backend.

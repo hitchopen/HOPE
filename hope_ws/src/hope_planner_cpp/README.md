@@ -10,9 +10,10 @@ chi-square admission logic.
 The operator-side `hope_ball_flight_packetizer` owns the high-rate
 `/poses/planner_full` callback after P1/P2 conversion. Its C++ five-state
 classifier gates both `/ball/flight_packet` and the legacy observer `/poses`
-output. Only eligible opponent flights pass; pelvis/base publishing bypasses
-this process. Explicit local Ready permits early usable poses before launch
-fitting, while packets still require a qualified trajectory. Local Serve arms
+output. Only eligible opponent flights pass. Pelvis/base publishing bypasses
+this process. Local Ready waits for a qualified incoming arc before either ball
+output opens. The Score Board logic qualifies short post-net arcs, filters
+repeated contacts and detects observed net rebounds. Local Serve arms
 without a ball; local Stand/Stop clears the shot and retries and holds the gate
 closed until local Ready/Serve. Runner mode, serve phase, boot and lifecycle
 feedback have no effect: this process has no subscriptions to them. Eligible
@@ -24,7 +25,7 @@ a new flight with or without Ready. Hand-carried motion does not qualify.
 Uninterrupted incoming returns become OPPONENT_RALLY; missing pre-net history
 does not block a qualified incoming arc or fabricate a contact ledger.
 The same classifier runs on Ubuntu and in the macOS operator container. Its
-local HTTP endpoint supplies Console 1.9.13 and accepts local button intents,
+local HTTP endpoint supplies Console 1.9.14 and accepts local button intents,
 with exact web-origin checks, private Desktop pairing and producer/revision
 checks preventing stale requests from reopening a newer Stop. Neither initialization nor display waits for robot acknowledgement.
 Forecast warnings remain advisory. Observed incoming violations and sustained

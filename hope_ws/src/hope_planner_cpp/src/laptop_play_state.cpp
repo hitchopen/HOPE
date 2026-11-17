@@ -9,11 +9,57 @@
 namespace hope_planner_cpp {
 namespace {
 constexpr double kNet = 1.37, kLength = 2.74, kWidth = 1.525, kRadius = 0.02;
+constexpr double kNetHeight = 0.1525;
 constexpr double kSpeedWindowS = 0.040, kSpeedPairSpanS = 0.020;
+constexpr double kLowReturnRiseM = 0.025;
+// Retain the Score Board's contact display interval.
+constexpr double kBounceDisplayS = 0.225;
+// Calibrated on 244 saved ChingMu bags. The p99 low-motion height span was
+// 15.55 mm and the p99.5 height interpolation residual was 5.25 mm.
+constexpr double kRepeatClearanceM = 0.016, kRepeatMotionFloorM = 0.006;
+constexpr double kRepeatClearanceSpanS = 0.006, kRepeatMotionSpanS = 0.012;
+// Same-side repeats within 100 ms are one contact, including coherent height
+// oscillations. Keep the first receiving bounce/serve contact timing unchanged.
+constexpr double kRepeatSeparationS = 0.100;
 // Source seconds are epoch doubles; contemporary Unix timestamps have ~0.24 us
-// resolution. Do not require an exact 40 ms subtraction at that magnitude.
+// resolution. Allow for subtraction rounding at timing boundaries.
 constexpr double kSourceTimeToleranceS = 1e-6;
 bool is_serve(PlayState s) { return s == PlayState::SERVE || s == PlayState::OPPONENT_SERVE; }
+
+double median(std::vector<double>& values) {
+  auto mid = values.begin() + values.size()/2;
+  std::nth_element(values.begin(), mid, values.end());
+  if (values.size() % 2) return *mid;
+  return (*mid + *std::max_element(values.begin(), mid))/2;
+}
+
+bool has_vertical_motion(const std::deque<BallSample>& samples,
+                         std::size_t first, std::size_t last, int direction) {
+  const double start = samples[first].source_time_s;
+  const double span = samples[last].source_time_s - start;
+  if (last - first < 2 || span < kRepeatMotionSpanS - kSourceTimeToleranceS) return false;
+
+  // Fit a median secant slope without the putative contact sample. A lone
+  // bad exposure cannot provide both approach and rebound evidence.
+  std::vector<double> slopes;
+  for (std::size_t i = first; i < last; ++i) {
+    for (std::size_t j = i + 1; j <= last; ++j) {
+      const double dt = samples[j].source_time_s - samples[i].source_time_s;
+      if (dt >= 0.004)
+        slopes.push_back((samples[j].position.z() - samples[i].position.z())/dt);
+    }
+  }
+  const double slope = median(slopes);
+  const double displacement = direction * slope * span;
+  if (displacement < kRepeatMotionFloorM) return false;
+  std::vector<double> residuals;
+  for (std::size_t i = first; i <= last; ++i)
+    residuals.push_back(samples[i].position.z() - slope*(samples[i].source_time_s - start));
+  const double center = median(residuals);
+  for (auto& residual : residuals) residual = std::abs(residual - center);
+  const double noise_sigma = 1.4826 * median(residuals);
+  return displacement >= 3 * noise_sigma;
+}
 
 }  // namespace
 
@@ -29,14 +75,36 @@ const char* play_state_name(PlayState state) noexcept {
 
 LaptopPlayState::LaptopPlayState(PlayStateConfig config) : config_(config) {}
 
+const char* LaptopPlayState::substate_name() const {
+  if (input_missing_) return "";
+  if (state_ == PlayState::INVALID) {
+    switch (fault_) {
+      case Fault::DOUBLE_BOUNCE: return "Double bounce";
+      case Fault::OUT_OF_BOUNDS: return "Out of bounds";
+      case Fault::MISSED_BOUNCE: return "Missed bounce";
+      case Fault::NET_NOT_CLEARED: return "Failed to clear the net";
+      default:
+        return reason_ == "held_ball" || reason_ == "rally_speed_below_threshold" ? "Ball stopped" : "";
+    }
+  }
+  const bool at_bounce = last_source_ - last_bounce_confirmation_ < kBounceDisplayS;
+  const bool serve = is_serve(state_);
+  if (receiver_bounces_ > 0) {
+    if (!at_bounce) return "Post-flight";
+    return serve ? "Second Bounce" : "Bounce";
+  }
+  if (serve && striker_bounces_ > 0)
+    return at_bounce ? "First Bounce" : "Mid-flight";
+  return "Pre-Flight";
+}
+
 bool LaptopPlayState::incoming_flight() const {
-  return !input_missing_ && !receive_armed_ && !serve_armed_ &&
+  return !local_stopped_ && !input_missing_ && low_ball_since_ == 0 &&
+      !waiting_for_launch() &&
       (state_ == PlayState::OPPONENT_RALLY || state_ == PlayState::OPPONENT_SERVE);
 }
 
 bool LaptopPlayState::may_forward() const {
-  if (local_stopped_ || input_missing_) return false;
-  if (receive_armed_) return state_ == PlayState::OPPONENT_SERVE;
   return incoming_flight();
 }
 
@@ -46,9 +114,14 @@ void LaptopPlayState::clear_shot() {
   history_.clear();
   striker_bounces_ = receiver_bounces_ = 0;
   crossed_net_ = history_known_ = target_reached_ = false;
+  reached_receiving_half_ = false;
   return_flight_ = false;
   net_time_ = 0;
+  low_ball_since_ = 0;
   last_bounce_ = -1e9;
+  last_bounce_height_ = 0;
+  last_bounce_confirmation_ = -1e9;
+  fault_ = Fault::NONE;
   direction_ = 0;
   ++generation_;
 }
@@ -56,9 +129,12 @@ void LaptopPlayState::clear_shot() {
 void LaptopPlayState::invalidate(const char* why) {
   if (state_ != PlayState::INVALID) {
     rejected_direction_ = direction_;
+    rejected_receiver_history_ = crossed_net_ || receiver_bounces_ > 0;
     nonflight_since_ = std::numeric_limits<double>::quiet_NaN();
     neutral_seen_ = false;
     clear_shot();
+    candidate_.clear();
+    candidate_direction_ = 0;
   }
   serve_armed_ = false;
   receive_armed_ = false;
@@ -74,6 +150,7 @@ void LaptopPlayState::pause_observations(const char* why) {
     candidate_.clear(); history_.clear(); candidate_direction_ = 0;
     candidate_since_ = 0;
     forecast_advisory_.clear(); reset_slow_rally();
+    low_ball_since_ = 0;
     boundary_time_ = last_source_ + kSourceTimeToleranceS;
     ++generation_;
   }
@@ -96,6 +173,7 @@ void LaptopPlayState::input_unavailable(const char* why, std::int64_t now) {
 void LaptopPlayState::reset(const char* why) {
   clear_clock_probe();
   invalidate(why);
+  fault_ = Fault::NONE;
   point_ended_ = false;
   input_missing_ = false;
   reacquiring_ = false;
@@ -108,14 +186,12 @@ void LaptopPlayState::reset(const char* why) {
   last_receipt_ = 0;
 }
 
-void LaptopPlayState::end_point(const char* why) {
-  if (ego_flight()) {
-    reason_ = std::string("ego_visible_") + why;
-    return;
-  }
+void LaptopPlayState::end_point(const char* why, Fault fault) {
+  if (state_ == PlayState::INVALID) return;
   invalidate(why);
-  // A late racket swing after an illegal/missed serve is not a new rally.
-  // Rearm on explicit local button intent or a separately observed held-to-launch edge.
+  fault_ = fault;
+  // Keep a late swing in the same point out. A separate track or a new
+  // launch after sustained non-flight can qualify without a button click.
   point_ended_ = true;
 }
 
@@ -199,16 +275,24 @@ bool LaptopPlayState::observe_rally_speed(const BallSample& s) {
   return true;
 }
 
-bool LaptopPlayState::launch_evidence() const {
+bool LaptopPlayState::launch_evidence(int receiving_direction) const {
   // A translated held ball is not a launch. Use source-time curvature, not a
   // frame count; an apex retains downward acceleration and is admissible.
   if (candidate_.size() < 6) return false;
+  const bool post_net = receiving_direction != 0;
+  const double span = post_net ? config_.direction_window_s : config_.launch_span_s;
   const double end = candidate_.back().source_time_s;
   std::vector<const BallSample*> points;
-  for (const auto& s : candidate_)
-    if (end - s.source_time_s <= config_.launch_span_s * 1.5 &&
-        (!neutral_seen_ || s.source_time_s > neutral_source_time_)) points.push_back(&s);
-  if (points.size() < 6 || end - points.front()->source_time_s < config_.launch_span_s) return false;
+  for (const auto& s : candidate_) {
+    if (end - s.source_time_s > span * 1.5 ||
+        (neutral_seen_ && s.source_time_s <= neutral_source_time_)) continue;
+    // A short arc suffices when all its samples are already over the receiving
+    // half. There is no requirement to have witnessed the hit or net crossing.
+    if (post_net && (!on_table(s.position) || s.position.z() <= kRadius ||
+                     (s.position.x() - kNet) * receiving_direction <= 0)) return false;
+    points.push_back(&s);
+  }
+  if (points.size() < 6 || end - points.front()->source_time_s < span) return false;
   Eigen::MatrixXd a(points.size(), 3);
   Eigen::VectorXd z(points.size());
   for (std::size_t i = 0; i < points.size(); ++i) {
@@ -221,8 +305,20 @@ bool LaptopPlayState::launch_evidence() const {
       (a * fit - z).norm() / std::sqrt(points.size()) < 0.006;
 }
 
-void LaptopPlayState::start(int direction, bool serve) {
+void LaptopPlayState::start(int direction, bool serve, bool continuing_shot) {
+  const int observed_bounces = receiver_bounces_;
+  const int observed_striker_bounces = striker_bounces_;
+  const double observed_bounce_time = last_bounce_;
+  const double observed_bounce_height = last_bounce_height_;
+  const bool reached_receiving_half = reached_receiving_half_;
   clear_shot();
+  if (continuing_shot) {
+    striker_bounces_ = observed_striker_bounces;
+    receiver_bounces_ = observed_bounces;
+    last_bounce_ = observed_bounce_time;
+    last_bounce_height_ = observed_bounce_height;
+    reached_receiving_half_ = reached_receiving_half;
+  }
   point_ended_ = false;
   input_missing_ = reacquiring_ = false;
   direction_ = direction;
@@ -242,39 +338,36 @@ void LaptopPlayState::contact(const BallSample& s) {
   if (s.source_time_s - last_bounce_ < config_.contact_refractory_s) return;
   reset_slow_rally();
   last_bounce_ = s.source_time_s;
+  last_bounce_height_ = s.position.z();
   forecast_advisory_.clear();
-  if (ego_flight()) {
-    // Retain real contact counts even though outgoing legality no longer
-    // decides state validity. An already observed racket return stays RALLY.
-    if (striker_side(s.position.x(), direction_)) {
-      ++striker_bounces_;
-      if (!return_flight_ && !crossed_net_ && striker_bounces_ == 1)
-        state_ = PlayState::SERVE;
-    } else if (std::abs(s.position.x() - kNet) > config_.net_margin_m) {
-      ++receiver_bounces_;
-    }
-    reason_ = "ego_visible_observed_contact";
-    return;
-  }
   if (striker_side(s.position.x(), direction_)) {
-    // Direction reversal plus an earlier ledger does not prove a racket hit:
-    // the opponent may catch/carry the ball and begin a new serve. One observed
-    // striker-side bounce is a serve pattern, not an explicit illegal return.
-    if (return_flight_) { return_flight_ = false; history_known_ = false; }
-    if (crossed_net_ && s.source_time_s >= net_time_) {
-      end_point("striker_contact_after_net"); return;
+    if (return_flight_) {
+      end_point("return_bounced_on_striker_side",
+                reached_receiving_half_ ? Fault::MISSED_BOUNCE : Fault::NET_NOT_CLEARED);
+      return;
     }
-    if (++striker_bounces_ > 1) { end_point("second_striker_bounce"); return; }
+    // An opening shot may be a serve with a bounce on the striker's half.
+    if (crossed_net_ && s.source_time_s >= net_time_) {
+      end_point("striker_contact_after_net", Fault::MISSED_BOUNCE);
+      return;
+    }
+    if (++striker_bounces_ > 1) {
+      end_point("second_striker_bounce",
+                reached_receiving_half_ ? Fault::MISSED_BOUNCE : Fault::NET_NOT_CLEARED);
+      return;
+    }
+    last_bounce_confirmation_ = last_source_;
     state_ = direction_ > 0 ? PlayState::SERVE : PlayState::OPPONENT_SERVE;
     reason_ = "observed_striker_bounce";
   } else if (std::abs(s.position.x() - kNet) <= config_.net_margin_m) {
     forecast_advisory_ = "ambiguous_net_contact";
   } else {
-    // An unobserved crossing is not proof of an illegal contact.
+    // The bounce is direct evidence even when the crossing was outside the capture.
     ++receiver_bounces_;
     if (receiver_bounces_ > 1) {
-      end_point(is_serve(state_) ? "third_serve_bounce" : "second_receiver_bounce");
+      end_point(is_serve(state_) ? "third_serve_bounce" : "second_receiver_bounce", Fault::DOUBLE_BOUNCE);
     } else {
+      last_bounce_confirmation_ = last_source_;
       reason_ = "observed_receiver_bounce";
     }
   }
@@ -285,7 +378,6 @@ bool LaptopPlayState::local_intent(const std::string& action) {
   // PREPARE and READY TO SERVE are separate local button presses for the same
   // pending serve. Do not erase its held-ball evidence while it is still armed.
   if (action == "SERVE" && serve_armed_ && !local_stopped_) return true;
-  held_serve_waiting_for_intent_ = false;
   reset(action == "STOP" ? "local_stop" : action == "READY" ? "local_ready" : "local_serve");
   local_stopped_ = action == "STOP";
   if (action == "READY") {
@@ -397,15 +489,6 @@ bool LaptopPlayState::observe(const BallSample& s) {
   candidate_.push_back(s);
   while (candidate_.size() > kMaxEstimatorSamples ||
          s.source_time_s - candidate_.front().source_time_s > 0.25) candidate_.pop_front();
-  // A caught/held ball needs a newly observed ballistic launch; translating
-  // it by hand must not be mistaken for a flight.
-  if (held_serve_waiting_for_intent_) {
-    // Holding is not perpetual authorization to discard later real flights.
-    // Hand translation still fails the observed free-flight qualification.
-    if (!launch_evidence()) return true;
-    held_serve_waiting_for_intent_ = false;
-    reacquiring_ = true;
-  }
   if (state_ == PlayState::INVALID && point_ended_ && !neutral_seen_) {
     // A caught ball may keep moving in the player's hand. Require sustained
     // non-flight / neutral-X evidence, then a new directional ballistic launch;
@@ -420,7 +503,11 @@ bool LaptopPlayState::observe(const BallSample& s) {
     }
   }
   if (observe_rally_speed(s)) return true;
-  if (s.position.z() < -0.04) { if (!waiting_for_launch()) end_point("under_table"); return true; }
+  if (s.position.z() < -0.04 && receiver_bounces_ == 0) {
+    if (!waiting_for_launch())
+      end_point("under_table", on_table(s.position) ? Fault::MISSED_BOUNCE : Fault::OUT_OF_BOUNDS);
+    return true;
+  }
   // A ball beside the table can still land legally; only an observed miss
   // at table height proves it is out.
   const double vx = slope();
@@ -435,24 +522,27 @@ bool LaptopPlayState::observe(const BallSample& s) {
       neutral_seen_ = true;
       neutral_source_time_ = s.source_time_s;
       sample_usable_ = false;
-      if (state_ == PlayState::SERVE && !serve_armed_) {
-        clear_shot();candidate_.clear();
-        held_serve_waiting_for_intent_ = true;
-        reason_ = "serve_held_waiting_for_launch";
-        return true;
-      }
-      if (state_ != PlayState::INVALID && !waiting_for_launch() && !ego_flight()) {
-        invalidate("held_ball"); neutral_seen_ = true;
+      if (!waiting_for_launch() && (is_serve(state_) || state_ == PlayState::OPPONENT_RALLY)) {
+        // An observed serve ends when the ball comes to rest, even after a tracking gap.
+        invalidate("held_ball");
+        input_missing_ = reacquiring_ = false;
+        neutral_seen_ = true;
       }
       return true;
     }
   }
   if (reacquiring_) {
     sample_usable_ = false;
-    if (!confirmed || !launch_evidence()) return true;
-    const bool same_serve = is_serve(state_) && d == direction_;
-    start(d, same_serve);
-    history_known_ = false;
+    if (!confirmed) return true;
+    const bool post_net = launch_evidence(d);
+    if (!post_net && !launch_evidence()) return true;
+    // If an old shot already reached the receiver, an arc starting back on
+    // the striker's side is a new shot, even when its direction is unchanged.
+    const bool continuing = d == direction_ &&
+        !(reached_receiving_half_ && striker_side(candidate_.front().position.x(), d));
+    const bool same_serve = !post_net && is_serve(state_) && continuing;
+    start(d, same_serve, continuing);
+    if (continuing) history_known_ = false;
     reason_ = "tracking_reacquired";
     sample_usable_ = true;
     record_events(s);
@@ -470,30 +560,21 @@ bool LaptopPlayState::observe(const BallSample& s) {
     record_events(s);
     return true;
   }
-  if (ego_flight() && confirmed && d == -1 && on_table(s.position) &&
-      s.position.z() >= kRadius && ((!serve_armed_ && !neutral_seen_) || launch_evidence())) {
-    // A confirmed observed incoming track is sufficient for this handover.
-    // Do not demand a legal/complete outgoing bounce ledger. Keep only the
-    // samples at/after the actual X turnaround; old fit/spin/retries reset with
-    // the new generation. Unknown pre-net history remains explicitly unknown.
-    const auto turn = *std::max_element(candidate_.begin(), candidate_.end(),
-        [](const BallSample& a, const BallSample& b) { return a.position.x() < b.position.x(); });
-    while (candidate_.size() > 2 && candidate_.front().source_time_s < turn.source_time_s)
-      candidate_.pop_front();
-    const bool witnessed_return = crossed_net_ && receiver_bounces_ == 1;
-    start(-1, false);
-    return_flight_ = witnessed_return;
-    history_known_ = witnessed_return;
-    reason_ = "observed_incoming_return";
-    record_events(s);
-    return true;
-  }
   if (state_ == PlayState::INVALID || waiting_for_launch()) {
+    if (!confirmed || (serve_armed_ && d != 1) || (receive_armed_ && d != -1)) return true;
+    const bool post_net = launch_evidence(d);
+    const bool clear_striker_side = striker_side(s.position.x(), d) &&
+        std::abs(s.position.x() - kNet) > 0.25 && s.position.z() > 0.10;
+    // A reversal after a witnessed crossing or receiving bounce can still be
+    // part of the rejected point. When the old track lacks that history,
+    // a confirmed launch on the striker's side can establish a new shot.
+    const bool separate_reversal = d == -rejected_direction_ &&
+        fault_ != Fault::NET_NOT_CLEARED &&
+        (point_ended_ ? clear_striker_side && !rejected_receiver_history_ :
+                        clear_striker_side || post_net);
     const bool rearm = rejected_direction_ == 0 || neutral_seen_ ||
-        (d == -rejected_direction_ && striker_side(s.position.x(), d) &&
-         std::abs(s.position.x() - kNet) > 0.25 && s.position.z() > 0.10);
-    if (!confirmed || !rearm || (serve_armed_ && d != 1) ||
-        (receive_armed_ && d != -1) || !launch_evidence()) return true;
+        separate_reversal;
+    if (!rearm || (!post_net && !launch_evidence())) return true;
     // Keep only the newly confirmed directional arc, never the previous shot.
     const bool returning_after_rejection = rejected_direction_ != 0 && d == -rejected_direction_;
     const double clean_boundary = std::max(candidate_since_ -
@@ -513,57 +594,108 @@ bool LaptopPlayState::observe(const BallSample& s) {
   // bounce can disappear when an opposite-direction shot resets its ledger.
   record_events(s);
   if (state_ == PlayState::INVALID) return true;
-  if (!ego_flight() && confirmed && d == -direction_) {
-    if (history_known_ && is_serve(state_) && crossed_net_ &&
-        striker_bounces_ == 1 && receiver_bounces_ == 0) {
-      end_point("observed_serve_volley"); return true;
-    }
+  const bool low_ball = low_ball_since_ > 0;
+  if (confirmed && d == -direction_ && reached_receiving_half_ && receiver_bounces_ == 0) {
+    end_point("return_before_receiver_bounce", Fault::MISSED_BOUNCE);
+    return true;
+  }
+  if (confirmed && d == -direction_) {
+    const bool ego = ego_flight();
+    const auto& flight = ego ? candidate_ : history_;
     // Locate the actual X turnaround, not the later direction-confirmation
     // sample: a spin-driven table reversal must not masquerade as a racket hit.
-    const auto turn = *std::max_element(history_.begin(), history_.end(),
+    const auto turn = *std::max_element(flight.begin(), flight.end(),
         [this](const BallSample& a, const BallSample& b) {
           return a.position.x()*direction_ < b.position.x()*direction_;
         });
-    if (!striker_side(turn.position.x(), d) || std::abs(turn.position.x()-kNet) <= .25 ||
-        turn.position.z() <= .10 || turn.source_time_s <= last_bounce_) {
+    // A low reversal at the net without a crossing belongs to the same shot.
+    if (!reached_receiving_half_ && receiver_bounces_ == 0 && on_table(turn.position) &&
+        std::abs(turn.position.x() - kNet) <= config_.net_margin_m + kRadius &&
+        turn.position.z() <= kNetHeight + kRadius) {
+      end_point("net_rebound", Fault::NET_NOT_CLEARED);
+      return true;
+    }
+    const bool receiver_turn = striker_side(turn.position.x(), d) &&
+        std::abs(turn.position.x()-kNet) > .25 && turn.source_time_s > last_bounce_;
+    bool returned = ego ? on_table(s.position) && s.position.z() >= kRadius
+                        : receiver_turn && turn.position.z() > .10;
+    if (low_ball) {
+      // A rescue can start below the playing surface. Require a confirmed
+      // reversal on the receiver's side and a rise back above table height.
+      returned = receiver_turn && s.position.z() >= kRadius &&
+                 s.position.z() - turn.position.z() >= kLowReturnRiseM;
+    }
+    if (returned) {
+      while (candidate_.size() > 2 && candidate_.front().source_time_s < turn.source_time_s)
+        candidate_.pop_front();
+      const bool witnessed_return = receiver_bounces_ == 1;
+      start(d, false);
+      return_flight_ = !ego || witnessed_return;
+      reason_ = ego ? "observed_incoming_return" : "observed_racket_return";
+      if (ego || low_ball) {
+        history_known_ = witnessed_return;
+        record_events(s);
+      }
+      return true;
+    }
+    if (!ego && !low_ball) {
       pause_observations("unconfirmed_racket_reversal");
       return true;
     }
-    while (candidate_.size() > 2 && candidate_.front().source_time_s < turn.source_time_s)
-      candidate_.pop_front();
-    start(d, false);
-    return_flight_ = true;
-    reason_ = "observed_racket_return";
   }
+  if (low_ball && s.source_time_s - low_ball_since_ >= config_.low_return_window_s)
+    end_point("no_return_after_low_ball", Fault::OUT_OF_BOUNDS);
   return true;
 }
 
+bool LaptopPlayState::distinct_repeat_contact(std::size_t left, std::size_t index,
+                                             std::size_t right) const {
+  if (history_[index].source_time_s - last_bounce_ < kRepeatSeparationS - kSourceTimeToleranceS)
+    return false;
+  const double clearance = std::max(last_bounce_height_, history_[index].position.z()) + kRepeatClearanceM;
+  double raised_since = 0;
+  int raised_samples = 0;
+  for (std::size_t i = 0; i < index; ++i) {
+    const auto& sample = history_[i];
+    if (sample.source_time_s <= last_bounce_ || sample.position.z() < clearance) {
+      raised_since = 0;
+      raised_samples = 0;
+    } else {
+      if (raised_since == 0) raised_since = sample.source_time_s;
+      if (++raised_samples >= 3 &&
+          sample.source_time_s - raised_since >= kRepeatClearanceSpanS - kSourceTimeToleranceS)
+        return has_vertical_motion(history_, left, index - 1, -1) &&
+               has_vertical_motion(history_, index + 1, right, 1);
+    }
+  }
+  return false;
+}
+
 void LaptopPlayState::record_events(const BallSample& s) {
-  // Passing the end line at playable height is allowed (the robot's plane can
-  // be outside the table). A downward table-height crossing outside the playing
-  // surface is a miss, not a table bounce or a successful racket return.
-  for (std::size_t i=1; i<history_.size(); ++i) {
+  if ((s.position.x() - kNet) * direction_ > config_.net_margin_m)
+    reached_receiving_half_ = true;
+  // A shot still needs its receiving bounce. After a confirmed bounce, falling
+  // below the table only starts the window for the receiver to return the ball.
+  if (receiver_bounces_ > 0 && low_ball_since_ == 0 && s.position.z() < kRadius &&
+      (!on_table(s.position) || s.position.z() < -0.04))
+    low_ball_since_ = s.source_time_s;
+  for (std::size_t i = 1; receiver_bounces_ == 0 && i < history_.size(); ++i) {
     const auto& a=history_[i-1]; const auto& b=history_[i];
     if (a.position.z()>kRadius && b.position.z()<=kRadius) {
       const double f=(a.position.z()-kRadius)/(a.position.z()-b.position.z());
       if (!on_table(a.position+f*(b.position-a.position))) {
-        end_point("missed_table_or_return"); return;
+        end_point("missed_table_or_return", Fault::OUT_OF_BOUNDS); return;
       }
     }
   }
   if (!crossed_net_ && history_known_ && (s.position.x() - kNet) * direction_ > config_.net_margin_m) {
     crossed_net_ = true; net_time_ = s.source_time_s;
-    // Evaluate height at the actual crossing, not 25 mm beyond the net.
+    // The estimated crossing height alone cannot decide whether the shot lands.
     for (std::size_t i = 1; i < history_.size(); ++i) {
       const auto& a = history_[i-1]; const auto& b = history_[i];
       if ((a.position.x()-kNet)*direction_ <= 0 && (b.position.x()-kNet)*direction_ > 0) {
         const double f = (kNet-a.position.x())/(b.position.x()-a.position.x());
         net_time_ = a.source_time_s + f*(b.source_time_s-a.source_time_s);
-        const Vec3 crossing = a.position + f*(b.position-a.position);
-        if (crossing.y() >= -kWidth-.15 && crossing.y() <= .15 &&
-            crossing.z() < 0.1525 + kRadius) {
-          end_point("net_collision"); return;
-        }
         break;
       }
     }
@@ -582,12 +714,23 @@ void LaptopPlayState::record_events(const BallSample& s) {
         event.position.z() <= config_.contact_height_m && on_table(event.position) &&
         history_[left].position.z()-event.position.z() >= config_.contact_excursion_m &&
         history_[right].position.z()-event.position.z() >= config_.contact_excursion_m) {
+      const bool repeat = striker_side(event.position.x(), direction_) ? striker_bounces_ > 0 :
+          receiver_bounces_ > 0 && std::abs(event.position.x() - kNet) > config_.net_margin_m;
+      if (repeat && !distinct_repeat_contact(left, i, right)) continue;
       contact(event);
       if (state_ == PlayState::INVALID) return;
     }
   }
   if (is_serve(state_) && crossed_net_ && striker_bounces_ == 0 && s.source_time_s - net_time_ > 0.05) {
-    end_point("serve_crossed_net_before_first_bounce"); return;
+    end_point("serve_crossed_net_before_first_bounce", Fault::MISSED_BOUNCE); return;
+  }
+  if (reached_receiving_half_ && receiver_bounces_ == 0 && history_.size() >= 3) {
+    // Allow the two later samples needed to confirm a bounce on the end line.
+    const double x = history_[history_.size() - 3].position.x();
+    if (direction_ > 0 ? x > kLength : x < 0) {
+      end_point("no_receiver_bounce", Fault::MISSED_BOUNCE);
+      return;
+    }
   }
   const double endpoint = direction_ < 0 ? hit_x_ : kLength;
   if (crossed_net_ && receiver_bounces_ >= 1 && (s.position.x() - endpoint) * direction_ >= 0)
@@ -597,7 +740,7 @@ void LaptopPlayState::record_events(const BallSample& s) {
 void LaptopPlayState::forecast(const BallState& fit, const BallPhysics& physics, const SpinEstimate& spin) {
   forecast_advisory_.clear();
   const auto advise = [this](const char* reason) { forecast_advisory_ = reason; };
-  if (state_ == PlayState::INVALID || ego_flight() || waiting_for_launch() || !history_known_ || target_reached_ ||
+  if (!incoming_flight() || !history_known_ || target_reached_ ||
       !fit.valid || !fit.position.allFinite() || !fit.velocity.allFinite() ||
       fit.source_time_s < last_bounce_ + 0.035 || std::abs(fit.source_time_s - last_source_) > 0.02 ||
       !std::isfinite(fit.residual_rms_m) || fit.residual_rms_m > 0.004) return;
@@ -632,7 +775,7 @@ void LaptopPlayState::forecast(const BallState& fit, const BallPhysics& physics,
       return;
     }
     if (net_f <= bounce_f && net_f <= 1) {
-      if ((p + net_f * (next - p)).z() < 0.1525 + kRadius) { advise("predicted_net_collision"); return; }
+      if ((p + net_f * (next - p)).z() < kNetHeight + kRadius) { advise("predicted_net_collision"); return; }
       if (serve && own != 1) { advise("predicted_serve_net_before_bounce"); return; }
       net = true;
     }

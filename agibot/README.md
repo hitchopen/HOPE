@@ -101,11 +101,12 @@ the dimensions, geometry checks and assembly guidance.
 
 ## H3002 right hand
 
-Choose either body and use the same cap. The integrated wrist and hand from
-PR #117 mounts directly to the A3 metal collar and requires soluble support
-filament in its long internal wiring cavity. The hand-only body has a solid
-keyed plug that mounts to the original 45-degree flange with four M4×10 screws
-inserted from outside the hand-side ring. Print that body and its cap
+Choose either body and use the same cap. For either plug, place the flat end
+face up and drop four M4 hex nuts straight into the pockets. The integrated
+wrist and hand mounts directly to the A3 metal collar. Size its four screws
+to the measured collar so the tips clear the wiring. The long internal wiring
+cavity requires soluble support filament. The hand-only body mounts to the
+original 45-degree flange with four M4×12 screws. Print that body and cap
 entirely in PETG or entirely in PLA, including any removable supports.
 [H3002 release files and assembly guide](right_wrist_hand_unified/README.md)
 
