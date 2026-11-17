@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const load = require('./loadSource.cjs');
-const { decodeDockState, dockRepositionReason, formatDockStatus } = load('dockStatus');
+const { decodeDockState, dockRepositionReason, formatDockStatus, serveBlocksReposition } = load('dockStatus');
 const { createTranslator } = load('i18n');
 const t = createTranslator('en');
 const sample = [1, 9, 2, 1, 0.12, -0.04, 0.02, 0.13, 4.5, 1, 0, -0.5, -0.7625, 0, 0.01];
@@ -31,6 +31,19 @@ test('Reposition stays disabled until Auto-dock, Stand, a fresh base pose, and a
   assert.match(dockRepositionReason({ ...ready, mode: 'PASSIVE' }, t), /Stand/);
   assert.match(dockRepositionReason({ ...ready, baseFresh: false }, t), /base pose/);
   assert.match(dockRepositionReason({ ...ready, pending: true }, t), /pending/);
+});
+
+test('inactive serve phases leave Reposition available', () => {
+  for (const phase of ['UNAVAILABLE', 'IDLE', 'WAIT_BALL_LOAD', 'GRIP_CLOSING', 'COMPLETE',
+    'ABORT_WAIT_HUMAN_CLEAR', 'ABORT_RETURN', 'ABORTED', 'FAULT', 'CLEANUP_OPENING', 'WAIT_GRIP_SECURE']) {
+    assert.equal(serveBlocksReposition(phase, false), false, phase);
+  }
+  assert.equal(serveBlocksReposition(undefined, undefined), false);
+  for (const phase of ['PREPARING_STAND', 'TRANSITION_TO_LOAD', 'WAIT_READY_TO_SERVE',
+    'PLAYING_PRE_RELEASE', 'RELEASE_PENDING', 'STRIKE', 'FOLLOW_THROUGH', 'RECOVERY', 'HANDOFF_READY']) {
+    assert.equal(serveBlocksReposition(phase, false), true, phase);
+  }
+  assert.equal(serveBlocksReposition('ABORTED', true), true);
 });
 
 test('status line reports the world-frame error and phase', () => {

@@ -24,7 +24,7 @@ import { mergeConfirmedConfig } from "./lifecycleConfig";
 import { MocapSafety, decodeMocapSafety, mocapSafetyText } from "./mocapSafety";
 import { MOCAP_LABELS, mocapSetupCommand } from "./mocapSetup";
 import { OPERATOR_CHALLENGE, OperatorHeartbeat } from "./operatorHeartbeat";
-import { decodeDockState, dockRepositionReason, formatDockStatus } from "./dockStatus";
+import { decodeDockState, dockRepositionReason, formatDockStatus, serveBlocksReposition } from "./dockStatus";
 import { PLANE_MODE_SERVICE, PlaneMode, PlaneModeState, decodePlaneMode, planeModeRequest } from "./planeMode";
 import { PlayerPosition, decodePlayerPosition, playerSideAvailable } from "./playerPositions";
 import { reconcileRobotTarget, robotConnectionUrl, switchRobot } from "./robotConnection";
@@ -1223,14 +1223,13 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const autoDock = snapshot.lifecycleConfig.auto_dock === "on";
   const dockFresh = isFresh(snapshot, TOPICS.dockState, now, 1000);
   const dockState = dockFresh ? snapshot.dockState : undefined;
-  const serveQuiet = snapshot.serveState == undefined ||
-    ["UNAVAILABLE", "IDLE", "COMPLETE"].includes(snapshot.serveState);
   const dockBlocked = dockRepositionReason({
     autoDock: snapshot.lifecycleConfig.auto_dock,
     runnerFresh: runnerFresh && isFresh(snapshot, TOPICS.runnerMode, now, 1_000) &&
       isFresh(snapshot, TOPICS.runnerFault, now, 1_000),
     runnerFault: snapshot.runnerFault !== false,
-    mode: snapshot.runnerMode, baseFresh, serveActive: snapshot.serving === true || !serveQuiet,
+    mode: snapshot.runnerMode, baseFresh,
+    serveActive: serveBlocksReposition(snapshot.serveState, snapshot.serving),
     pending: busy.dock === true,
   }, t);
   const xboxVelocity = xboxFresh ? snapshot.xboxPreview?.velocity : undefined;

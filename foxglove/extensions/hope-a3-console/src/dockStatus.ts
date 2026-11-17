@@ -2,6 +2,19 @@ import { defaultTranslator, Translator } from "./i18n";
 
 // Foxglove's CDR decoder delivers Float64MultiArray.data as a typed array.
 // JSON data sources deliver an ordinary array; support both representations.
+// Phases where PpServeController::active() is false. The runner accepts
+// ENTER_DOCK from PD_STAND during these, including after abort, fault, and cleanup.
+const SERVE_QUIET = new Set([
+  "UNAVAILABLE", "IDLE", "WAIT_BALL_LOAD", "GRIP_CLOSING", "COMPLETE",
+  "ABORT_WAIT_HUMAN_CLEAR", "ABORT_RETURN", "ABORTED", "FAULT",
+  "CLEANUP_OPENING", "WAIT_GRIP_SECURE",
+]);
+
+export function serveBlocksReposition(serveState: string | undefined, serving: boolean | undefined): boolean {
+  if (serving === true) { return true; }
+  return serveState != undefined && !SERVE_QUIET.has(serveState);
+}
+
 const PHASES = ["IDLE", "ENTRY", "ALIGN", "SETTLE", "VERIFY", "DONE", "FAILED"];
 const RESULTS = ["NONE", "RUNNING", "DONE", "FAILED"];
 const REASONS = [
