@@ -220,6 +220,7 @@ class CommandProxyModule(RosComponent):
                 ("enter_pd_stand", "ENTER_PD_STAND"),
                 ("enter_motion", "ENTER_MOTION"),
                 ("enter_teleop", "ENTER_TELEOP"),
+                ("enter_dock", "ENTER_DOCK"),
                 ("emergency_passive", "EMERGENCY_PASSIVE"),
                 ("prepare_serve", "PREPARE_SERVE"),
                 ("confirm_ball_loaded", "CONFIRM_BALL_LOADED"),
@@ -229,7 +230,7 @@ class CommandProxyModule(RosComponent):
             )
         }
         self.get_logger().info(
-            "Runner command proxy started: ten fixed local-Runner actions plus "
+            "Runner command proxy started: eleven fixed local-Runner actions plus "
             "separate V2/V3 world-to-pelvis calibration and Planner refresh_x_hit"
         )
 

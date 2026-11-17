@@ -28,6 +28,7 @@ enum class RunnerMode : int {
   kReferencePlayback = 4,
   kServe = 5,
   kTeleop = 6,
+  kDock = 7,
 };
 
 inline const char* RunnerModeName(RunnerMode mode) {
@@ -39,6 +40,7 @@ inline const char* RunnerModeName(RunnerMode mode) {
     case RunnerMode::kReferencePlayback: return "REFERENCE_PLAYBACK";
     case RunnerMode::kServe: return "SERVE";
     case RunnerMode::kTeleop: return "TELEOP";
+    case RunnerMode::kDock: return "DOCK";
   }
   return "UNKNOWN";
 }
@@ -74,6 +76,7 @@ enum class RunnerAction : int {
   kConfirmLoadingZoneClear = 11,
   kConfirmGripSecure = 12,
   kEnterTeleop = 13,
+  kEnterDock = 14,
 };
 
 inline const char* RunnerActionName(RunnerAction action) {
@@ -95,6 +98,7 @@ inline const char* RunnerActionName(RunnerAction action) {
     case RunnerAction::kConfirmGripSecure:
       return "CONFIRM_GRIP_SECURE";
     case RunnerAction::kEnterTeleop: return "ENTER_TELEOP";
+    case RunnerAction::kEnterDock: return "ENTER_DOCK";
   }
   return "UNKNOWN";
 }
@@ -116,6 +120,7 @@ enum class RunnerActionResult : int {
   kRejectedCleanupRequired = 13,
   kRejectedGripperState = 14,
   kRejectedTeleop = 15,
+  kRejectedDock = 16,
 };
 
 inline const char* RunnerActionResultName(RunnerActionResult result) {
@@ -145,6 +150,7 @@ inline const char* RunnerActionResultName(RunnerActionResult result) {
     case RunnerActionResult::kRejectedGripperState:
       return "REJECTED_GRIPPER_STATE";
     case RunnerActionResult::kRejectedTeleop: return "REJECTED_TELEOP";
+    case RunnerActionResult::kRejectedDock: return "REJECTED_DOCK";
   }
   return "UNKNOWN";
 }
@@ -188,6 +194,10 @@ enum class RunnerActionReason : int {
   kMocapUnavailable = 35,
   kOperatorUiUnavailable = 36,
   kOperatorComputerUnavailable = 37,
+  kDockUnavailable = 38,
+  kDockMocapUnavailable = 39,
+  kDockStartTooFar = 40,
+  kDockStopRequested = 41,
 };
 
 inline const char* RunnerActionReasonName(RunnerActionReason reason) {
@@ -252,6 +262,10 @@ inline const char* RunnerActionReasonName(RunnerActionReason reason) {
     case RunnerActionReason::kMocapUnavailable: return "MOCAP_UNAVAILABLE";
     case RunnerActionReason::kOperatorUiUnavailable: return "OPERATOR_UI_UNAVAILABLE";
     case RunnerActionReason::kOperatorComputerUnavailable: return "OPERATOR_COMPUTER_UNAVAILABLE";
+    case RunnerActionReason::kDockUnavailable: return "DOCK_UNAVAILABLE";
+    case RunnerActionReason::kDockMocapUnavailable: return "DOCK_MOCAP_UNAVAILABLE";
+    case RunnerActionReason::kDockStartTooFar: return "DOCK_START_TOO_FAR";
+    case RunnerActionReason::kDockStopRequested: return "DOCK_STOP_REQUESTED";
   }
   return "UNKNOWN";
 }
@@ -290,6 +304,7 @@ inline bool IsRemoteRunnerAction(RunnerAction action) noexcept {
     case RunnerAction::kConfirmLoadingZoneClear:
     case RunnerAction::kConfirmGripSecure:
     case RunnerAction::kEnterTeleop:
+    case RunnerAction::kEnterDock:
       return true;
     case RunnerAction::kNone:
     case RunnerAction::kEnterShadow:
@@ -415,6 +430,7 @@ class PpRunnerControl {
     return false;
   }
   bool TeleopStopRequested() const noexcept { return teleop_stop_requested_.load(); }
+  bool DockStopRequested() const noexcept { return dock_stop_requested_.load(); }
   // Consumed by the command thread, after observing SERVE. Keep this separate
   // from mode edges: COMPLETE -> MOTION -> SERVE can occur between callbacks.
   bool ConsumeServePrepare() noexcept { return serve_prepare_pending_.exchange(false); }
@@ -487,6 +503,8 @@ class PpRunnerControl {
     }
     if (next == RunnerMode::kTeleop && mode() != next)
       teleop_stop_requested_.store(false);
+    if (next == RunnerMode::kDock && mode() != next)
+      dock_stop_requested_.store(false);
     if (mode_.exchange(next, std::memory_order_acq_rel) != next) Touch_();
     return true;
   }
@@ -504,7 +522,7 @@ class PpRunnerControl {
         IsExactFloatInteger(
             values[2], 1,
             static_cast<std::uint64_t>(
-                RunnerAction::kEnterTeleop),
+                RunnerAction::kEnterDock),
             &action_code);
     const bool valid =
         values.size() == kRunnerControlRequestSize &&
@@ -536,7 +554,7 @@ class PpRunnerControl {
         request.action == RunnerAction::kNone ||
         static_cast<int>(request.action) >
             static_cast<int>(
-                RunnerAction::kEnterTeleop) ||
+                RunnerAction::kEnterDock) ||
         (request.remote && !IsRemoteRunnerAction(request.action))) {
       RecordResult_(request, RunnerActionResult::kInvalidRequest,
                     RunnerActionReason::kMalformedRequest);
@@ -567,7 +585,9 @@ class PpRunnerControl {
       bool serve_capability = false, int serve_state = -1,
       bool serve_gain_scales_nominal = false,
       int gripper_state = -1, bool cleanup_required = false,
-      bool teleop_capable = false, bool teleop_input_ready = false) {
+      bool teleop_capable = false, bool teleop_input_ready = false,
+      bool dock_capable = false, bool dock_pose_ready = false,
+      bool dock_start_near = false) {
     std::deque<RunnerActionRequest> pending;
     {
       std::lock_guard<std::mutex> lock(queue_mutex_);
@@ -579,7 +599,8 @@ class PpRunnerControl {
       decisions.push_back(Apply_(
           request, command_fault_latched, serve_active,
           serve_capability, serve_state, serve_gain_scales_nominal,
-          gripper_state, cleanup_required, teleop_capable, teleop_input_ready));
+          gripper_state, cleanup_required, teleop_capable, teleop_input_ready,
+          dock_capable, dock_pose_ready, dock_start_near));
     }
     return decisions;
   }
@@ -718,7 +739,8 @@ class PpRunnerControl {
       const RunnerActionRequest& request, bool command_fault_latched,
       bool serve_active, bool serve_capability, int serve_state,
       bool serve_gain_scales_nominal, int gripper_state,
-      bool cleanup_required, bool teleop_capable, bool teleop_input_ready) {
+      bool cleanup_required, bool teleop_capable, bool teleop_input_ready,
+      bool dock_capable, bool dock_pose_ready, bool dock_start_near) {
     (void)gripper_state;
     (void)cleanup_required;
     // Retain the argument and wire result codes for compatibility with older
@@ -818,6 +840,11 @@ class PpRunnerControl {
           decision.result = RunnerActionResult::kAcceptedPending;
           decision.reason = RunnerActionReason::kTeleopStopRequested;
           decision.request_teleop_stop = true;
+        } else if (current_mode == RunnerMode::kDock) {
+          dock_stop_requested_.store(true);
+          decision.result = RunnerActionResult::kAcceptedPending;
+          decision.reason = RunnerActionReason::kDockStopRequested;
+          decision.request_teleop_stop = true;
         } else if (current_mode == RunnerMode::kServe && serve_active) {
           decision.result = RunnerActionResult::kAcceptedPending;
           decision.reason = RunnerActionReason::kServeAbortRequested;
@@ -850,6 +877,31 @@ class PpRunnerControl {
           decision.reason = RunnerActionReason::kTeleopInputNotReady;
         } else {
           SetRuntimeMode(RunnerMode::kTeleop);
+          decision.result = RunnerActionResult::kApplied;
+          decision.reason = RunnerActionReason::kModeChanged;
+        }
+        break;
+
+      case RunnerAction::kEnterDock:
+        if (command_fault_latched) {
+          reject_fault();
+        } else if (!dock_capable) {
+          decision.result = RunnerActionResult::kRejectedDock;
+          decision.reason = RunnerActionReason::kDockUnavailable;
+        } else if (current_mode == RunnerMode::kDock) {
+          decision.result = RunnerActionResult::kAlreadySet;
+          decision.reason = RunnerActionReason::kModeUnchanged;
+        } else if (current_mode != RunnerMode::kPdStand || serve_active) {
+          decision.result = RunnerActionResult::kRejectedWrongMode;
+          decision.reason = RunnerActionReason::kPdStandRequired;
+        } else if (!dock_pose_ready) {
+          decision.result = RunnerActionResult::kRejectedDock;
+          decision.reason = RunnerActionReason::kDockMocapUnavailable;
+        } else if (!dock_start_near) {
+          decision.result = RunnerActionResult::kRejectedDock;
+          decision.reason = RunnerActionReason::kDockStartTooFar;
+        } else {
+          SetRuntimeMode(RunnerMode::kDock);
           decision.result = RunnerActionResult::kApplied;
           decision.reason = RunnerActionReason::kModeChanged;
         }
@@ -892,7 +944,7 @@ class PpRunnerControl {
         break;
 
       case RunnerAction::kEnterShadow:
-        if (current_mode == RunnerMode::kTeleop) {
+        if (current_mode == RunnerMode::kTeleop || current_mode == RunnerMode::kDock) {
           decision.result = RunnerActionResult::kRejectedWrongMode;
           decision.reason = RunnerActionReason::kPdStandRequired;
         } else if (serve_active) {
@@ -1051,6 +1103,7 @@ class PpRunnerControl {
   bool mocap_interrupted_{false};
   std::uint64_t mocap_stop_count_{0};
   std::atomic<bool> teleop_stop_requested_{false};
+  std::atomic<bool> dock_stop_requested_{false};
   std::atomic<bool> serve_prepare_pending_{false};
   const std::uint64_t boot_id_;
   const std::uint64_t session_fingerprint_;
