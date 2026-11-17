@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import random
 from pathlib import Path
 
 import rclpy
@@ -49,6 +50,8 @@ class Gate3SimMocap(Node):
         marker_to_base_xyz: tuple[float, float, float],
         marker_to_base_quaternion_wxyz: tuple[float, float, float, float],
         publish_base_flat: bool = False,
+        base_latency_s: float = 0.0,
+        base_noise_m: float = 0.0,
     ) -> None:
         super().__init__("gate3_sim_mocap")
         self._table_height_m = float(table_height_m)
@@ -75,6 +78,9 @@ class Gate3SimMocap(Node):
         self._frames = 0
         self._frames_without_pelvis = 0
         self._base_sequence = 0
+        self._base_latency_s = max(0.0, float(base_latency_s))
+        self._base_noise_m = max(0.0, float(base_noise_m))
+        self._base_pending: list[tuple[int, Float64MultiArray]] = []
         self._base_pub = (
             self.create_publisher(
                 Float64MultiArray, "/a3/base_pose_flat", reliable_qos
@@ -92,6 +98,8 @@ class Gate3SimMocap(Node):
             reliable_qos,
         )
         self.create_timer(1.0, self._health)
+        if self._base_pub is not None and (self._base_latency_s > 0.0 or self._base_noise_m > 0.0):
+            self.create_timer(0.005, self._flush_base)
 
     def _pelvis_cb(self, msg: PoseStamped) -> None:
         self._pelvis = msg
@@ -127,7 +135,25 @@ class Gate3SimMocap(Node):
             1.0,
             1.0,
         ]
+        if self._base_latency_s > 0.0 or self._base_noise_m > 0.0:
+            due = self.get_clock().now().nanoseconds + int(self._base_latency_s * 1e9)
+            self._base_pending.append((due, packet))
+            return
         self._base_pub.publish(packet)
+
+    def _flush_base(self) -> None:
+        if self._base_pub is None or not self._base_pending:
+            return
+        now = self.get_clock().now().nanoseconds
+        ready = [item for item in self._base_pending if item[0] <= now]
+        self._base_pending = [item for item in self._base_pending if item[0] > now]
+        for _, packet in ready:
+            if self._base_noise_m > 0.0:
+                values = list(packet.data)
+                values[5] += random.gauss(0.0, self._base_noise_m)
+                values[6] += random.gauss(0.0, self._base_noise_m)
+                packet.data = values
+            self._base_pub.publish(packet)
 
     @staticmethod
     def _named(name: str, pose: Pose) -> NamedPose:
@@ -214,6 +240,10 @@ def main() -> int:
     parser.add_argument("--calibration", type=Path)
     parser.add_argument("--allow-uncalibrated-p1-sim", action="store_true",
                         help="MuJoCo only: publish simulator-truth base pose directly")
+    parser.add_argument("--base-latency-ms", type=float, default=0.0,
+                        help="Delay the schema-2 base pose. Used by hardware-in-the-loop.")
+    parser.add_argument("--base-noise-mm", type=float, default=0.0,
+                        help="Gaussian xy noise on the schema-2 base pose.")
     args, ros_args = parser.parse_known_args()
     if args.calibration:
         import sys
@@ -242,6 +272,8 @@ def main() -> int:
         marker_to_base_xyz,
         marker_to_base_quaternion,
         publish_base_flat=args.allow_uncalibrated_p1_sim,
+        base_latency_s=args.base_latency_ms / 1000.0,
+        base_noise_m=args.base_noise_mm / 1000.0,
     )
     try:
         rclpy.spin(node)
