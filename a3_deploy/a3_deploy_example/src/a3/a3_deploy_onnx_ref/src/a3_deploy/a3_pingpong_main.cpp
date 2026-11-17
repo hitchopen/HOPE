@@ -1758,6 +1758,7 @@ int main(int argc, char** argv) {
   std::atomic<double> dock_distance{0}, dock_elapsed{0}, dock_pose_age{1e9};
   a3_pingpong::PpTeleopEntry teleop_entry;
   bool teleop_entered = false;
+  Mode locomotion_session_mode = Mode::kPassive;
   bool dock_frame_latched = false;
   std::uint64_t dock_frame_id = 0;
   std::uint64_t teleop_tick = 0;
@@ -1909,7 +1910,7 @@ int main(int argc, char** argv) {
       cmd.tau_ff = Eigen::VectorXd::Zero(N);
       cmd.kp = Eigen::VectorXd::Zero(N);
       cmd.kd = Eigen::VectorXd::Zero(N);
-    } else if (m == Mode::kPdStand) {  // hold nominal stand pose (== a3_default_angles)
+    } else if (m == Mode::kPdStand) {  // stiff nominal stand. Auto-dock holds HumanLike at 500 Hz instead.
       cmd.q_des = official_stand ? ppp->official_stand_q() : stand_q;
       cmd.dq_des = Eigen::VectorXd::Zero(N);
       cmd.tau_ff = Eigen::VectorXd::Zero(N);
@@ -2287,8 +2288,9 @@ int main(int argc, char** argv) {
     return publish;
   };
 
-  // TELEOP owns every 500 Hz callback. Other modes retain their native
-  // cadence: Serve and the optional legacy hybrid at 100 Hz, receive at 50 Hz.
+  // TELEOP, DOCK, and the Auto-dock PD_STAND hold own every 500 Hz callback.
+  // Other modes retain their native cadence: Serve and the optional legacy
+  // hybrid at 100 Hz, receive at 50 Hz.
   // Serve's clock runs through every mode; operator events never reset its phase.
   std::uint64_t logical_50hz_tick = 0;
   a3_pingpong::PpModeCadence mode_cadence;
@@ -2344,10 +2346,15 @@ int main(int argc, char** argv) {
       serve_hal_selection_missed.store(true, std::memory_order_release);
     if (locomotion) {
       const Mode mode = runner_control.mode();
-      if (mode == Mode::kTeleop || (mode == Mode::kDock && dock_controller)) {
+      // Auto-dock Stand is the same HumanLike policy at zero velocity. Reposition
+      // and Teleop change only the command, and the quiet exit stays on that policy.
+      const bool stand_hold = auto_dock && mode == Mode::kPdStand;
+      if (mode == Mode::kTeleop || (mode == Mode::kDock && dock_controller) || stand_hold) {
         computed_mode = mode;
         prev_mode_for_blend = mode;
         mode_cadence.Reset();
+        const bool entering_dock = mode == Mode::kDock && locomotion_session_mode != Mode::kDock;
+        const bool entering_teleop = mode == Mode::kTeleop && locomotion_session_mode != Mode::kTeleop;
         if (!teleop_entered) {
           robot_io::RobotCommand source = last_delivered_command;
           if (!last_delivered_valid) {
@@ -2370,14 +2377,23 @@ int main(int argc, char** argv) {
           command = teleop_entry.Step(0., state, *locomotion, Eigen::Vector3d::Zero());
           teleop_entered = true;
         } else {
+          // The policy is already live. A new Reposition starts its own dock
+          // attempt without resetting HumanLike or replaying the entry blend.
+          if (entering_dock) {
+            dock_frame_latched = false;
+            dock_controller->Begin(steady_seconds());
+            teleop_quiet_ticks = 0;
+          }
+          if (entering_teleop) teleop_input.Disarm();
           const bool body_quiet = state.dq.cwiseAbs().maxCoeff() < .5 && state.imu_gyro.norm() < .15;
-          bool stopping = mode == Mode::kTeleop ? runner_control.TeleopStopRequested()
-                                                : runner_control.DockStopRequested();
+          bool stopping = false;
           Eigen::Vector3d target = Eigen::Vector3d::Zero();
           if (mode == Mode::kTeleop) {
+            stopping = runner_control.TeleopStopRequested();
             const bool active = !teleop_entry.active() && !stopping;
             target = teleop_input.Sample(active, wall_seconds(), steady_seconds());
-          } else {
+          } else if (mode == Mode::kDock) {
+            stopping = runner_control.DockStopRequested();
             if (stopping) dock_controller->RequestStop();
             std::optional<a3_pingpong::DockPose> pose;
             if (base_in) {
@@ -2424,6 +2440,7 @@ int main(int argc, char** argv) {
           else teleop_quiet_ticks = 0;
           if (teleop_quiet_ticks >= 150) runner_control.SetRuntimeMode(Mode::kPdStand);
         }
+        locomotion_session_mode = mode;
         ppp->observe_imu(state);
         const double gz = -(1.0 - 2.0 * (state.imu_quat_wxyz[1] * state.imu_quat_wxyz[1] +
                                          state.imu_quat_wxyz[2] * state.imu_quat_wxyz[2]));
@@ -2443,6 +2460,7 @@ int main(int argc, char** argv) {
       }
       if (teleop_entered) {
         teleop_entered = false;
+        locomotion_session_mode = Mode::kPassive;
         teleop_input.Disarm();
         dock_frame_latched = false;
       }

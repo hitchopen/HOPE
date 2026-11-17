@@ -1,6 +1,6 @@
 # Auto-dock to the serve pose
 
-Auto-dock walks the A3 to the serve pelvis pose with the Runner's existing HumanLike policy. Motion capture supplies the pelvis pose. The operator presses Reposition. The robot returns to Stand when the dock finishes or aborts. Start to Serve stays a separate button.
+Auto-dock walks the A3 to the serve pelvis pose with the Runner's existing HumanLike policy. Motion capture supplies the pelvis pose. The operator presses Reposition. The robot returns to Stand when the dock finishes or aborts. With Auto-dock on, that Stand keeps stepping HumanLike at zero velocity, so Reposition does not reset the policy. Start to Serve stays a separate button.
 
 The target, gains, and limits live in `a3_deploy/a3_deploy_example/assets/a3_runtime/dock/dock.yaml`. The shipped target is pelvis `(x, y, yaw) = (-0.50, -0.7625, 0)` in the `table_p1_to_p2_v1` frame: 0.50 m behind the near end line, on the table centerline, facing +x toward P2. The command is cut inside the capture band. Done is the wider tolerance in that file, because HumanLike keeps stepping for about a second after the command returns to zero. A larger error reopens the walk.
 
@@ -12,7 +12,7 @@ The walk has 45 s. Mocap older than 150 ms, an invalid sample, or a world-frame 
 
 ## Phases
 
-`ENTRY` is the existing 2 s stand blend. Velocity is ignored while that blend is active. Then `ALIGN`, `SETTLE` (zero command until the gait and the body are quiet), and `VERIFY`. Outside the approach radius, and while the final heading is still outside the yaw-priority band, the walk faces the target point and then turns to the final yaw near the pose. A sample inside the capture band starts the settle. Verify accepts a fresh sample inside the done tolerance and otherwise returns to `ALIGN`, up to `max_attempts` failures. `DONE` and `FAILED` both take the quiet exit back to `PD_STAND`.
+`ENTRY` is the existing 2 s stand blend, used when HumanLike first takes over from another command. A Reposition that starts from the Auto-dock Stand skips that blend and applies velocity immediately. Velocity is ignored while a blend is still active. Then `ALIGN`, `SETTLE` (zero command until the gait and the body are quiet), and `VERIFY`. Outside the approach radius, and while the final heading is still outside the yaw-priority band, the walk faces the target point and then turns to the final yaw near the pose. A sample inside the capture band starts the settle. Verify accepts a fresh sample inside the done tolerance and otherwise returns to `ALIGN`, up to `max_attempts` failures. `DONE` and `FAILED` both take the quiet exit back to `PD_STAND`, still on HumanLike at zero velocity.
 
 The same header-only `PpDockController` runs in the Runner and in `scripts/sim_auto_dock_mujoco.py`. The simulator does not reimplement the control law.
 
