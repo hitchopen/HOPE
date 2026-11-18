@@ -105,9 +105,9 @@ hope_world:
       path: agibot/URDF/A3T2.5-URDF-std-pingpang/meshes/pelvis_link.STL
       sha256: 162899b2ba775cbdff24a7ded7908b057aae559326715eae7d6aee220578907f
     cad_shell_to_urdf_pelvis_candidate:
-      # Published CAD-mm to pelvis_link-m registration used by the v3 table.
-      # Already applied to the CSV; never apply it again during calibration.
+      # Shape-only registration; useful for axis diagnosis, forbidden at runtime.
       runtime_usable: false
       quaternion_wxyz: [0.5, 0.5, 0.5, 0.5]
-      translation_m: [0.0, 0.0, -0.145800095037096]
+      translation_m_approx: [0.0, 0.0, -0.1455]
+      trimmed_rms_m_approx: 0.0023
       limitation: Does not determine the Motive rigid-body pivot or axes.

@@ -1,0 +1,19 @@
+# OFFLINE CANDIDATE ONLY; not deployed or selected by launchers.
+hope_planner:
+  ros__parameters: &id001
+    drag_k: 0.12653076845090697
+    magnus_k: 0.0038966961902198944
+    restitution_v: 0.9553260875108633
+    table_tangential_gain: 0.4199471746089734
+    table_friction_cap_mu: 0.2251094938171372
+    restitution_h: 0.5800528253910266
+    post_net_future_bounce_tangential_gain: 0.4199471746089734
+    post_net_future_bounce_restitution_v: 0.9553260875108633
+    future_contact_spin_enabled: true
+    future_contact_magnus_enabled: true
+    future_contact_spin_tangential_gain: 0.4199471746089734
+    future_contact_spin_omega_scale: 1.0
+    future_contact_spin_min_coherence: 0.4
+    spin_window_s: 0.18
+hope_ball_flight_packetizer:
+  ros__parameters: *id001

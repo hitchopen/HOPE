@@ -26,15 +26,17 @@ class TransportGateway final : public rclcpp::Node {
     operations_node_ = declare_parameter("operations_node", std::string("/hope_operations"));
     if (operations_node_.empty() || operations_node_[0] != '/' || operations_node_.back() == '/')
       throw std::invalid_argument("operations_node must be a fully qualified ROS node name");
-    const std::array<std::string, 16> names = {
+    const std::array<std::string, 20> names = {
         "remote_state_topic", "local_state_topic", "local_control_topic",
         "remote_control_topic", "local_teleop_input_topic", "remote_teleop_input_topic",
         "remote_teleop_state_topic", "local_teleop_state_topic",
         "remote_session_home_topic", "local_session_home_topic",
         "remote_mocap_safety_topic", "local_mocap_safety_topic",
         "remote_operator_challenge_topic", "local_operator_challenge_topic",
-        "local_operator_echo_topic", "remote_operator_echo_topic"};
-    const std::array<std::string, 16> defaults = {
+        "local_operator_echo_topic", "remote_operator_echo_topic",
+        "remote_dock_state_topic", "local_dock_state_topic",
+        "local_dock_config_topic", "remote_dock_config_topic"};
+    const std::array<std::string, 20> defaults = {
         "/hope/runner/state_flat", "/hope/runner/state_hdu_flat",
         "/hope/runner/control_request_hdu_flat", "/hope/runner/control_request_flat",
         "/hope/runner/teleop_input_hdu_flat", "/hope/runner/teleop_input_flat",
@@ -42,12 +44,14 @@ class TransportGateway final : public rclcpp::Node {
         "/hope/runner/session_home_flat", "/hope/runner/session_home_hdu_flat",
         "/hope/runner/mocap_safety_flat", "/hope/runner/mocap_safety_hdu_flat",
         "/hope/runner/operator_challenge_flat", "/hope/runner/operator_challenge_hdu_flat",
-        "/hope/runner/operator_echo_hdu_flat", "/hope/runner/operator_echo_flat"};
+        "/hope/runner/operator_echo_hdu_flat", "/hope/runner/operator_echo_flat",
+        "/hope/runner/dock_state_flat", "/hope/runner/dock_state_hdu_flat",
+        "/hope/runner/dock_config_hdu_flat", "/hope/runner/dock_config_flat"};
     std::set<std::string> unique;
     for (size_t i = 0; i < names.size(); ++i) {
       topics_[i] = declare_parameter(names[i], defaults[i]);
       if (topics_[i].empty() || topics_[i][0] != '/' || !unique.insert(topics_[i]).second)
-        throw std::invalid_argument("Gateway requires sixteen distinct absolute topics");
+        throw std::invalid_argument("Gateway requires twenty distinct absolute topics");
     }
     unique.clear();
     for (const auto& topic : topics_) {
@@ -164,10 +168,10 @@ class TransportGateway final : public rclcpp::Node {
     }
   }
   std::string operations_node_;
-  std::array<std::string, 16> topics_;
-  std::array<rclcpp::Publisher<Array>::SharedPtr, 8> publishers_;
-  std::array<rclcpp::Subscription<Array>::SharedPtr, 8> subscriptions_;
-  std::array<uint64_t, 8> counts_{};
+  std::array<std::string, 20> topics_;
+  std::array<rclcpp::Publisher<Array>::SharedPtr, 10> publishers_;
+  std::array<rclcpp::Subscription<Array>::SharedPtr, 10> subscriptions_;
+  std::array<uint64_t, 10> counts_{};
   GraphSnapshot graph_;
   uint64_t report_ticks_ = 0, candidate_state_count_ = 0;
   unsigned consecutive_healthy_ = 0;

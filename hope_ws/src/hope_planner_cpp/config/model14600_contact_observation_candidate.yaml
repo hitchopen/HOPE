@@ -9,13 +9,18 @@ optitrack_mct_relay:
 hope_ball_flight_packetizer:
   ros__parameters:
     input_pose_topic: "/poses/planner_full"
-    incoming_direction_fit_samples: 16
+    incoming_direction_fit_samples: 8
     incoming_direction_confirmations: 3
     incoming_pre_roll_samples: 60
+    batch_estimator_min_samples: 12
+    # Both sides fit the same clean segment; no pre-contact history is sent.
+    batch_estimator_min_span_s: 0.04
     batch_post_bounce_min_span_s: 0.04
     batch_post_bounce_exclusion_s: 0.008
 
 hope_planner:
   ros__parameters:
+    batch_estimator_min_samples: 12
+    batch_estimator_min_span_s: 0.04
     batch_post_bounce_min_span_s: 0.04
     batch_post_bounce_exclusion_s: 0.008

@@ -52,7 +52,7 @@ export function teleopEntryReason({ runnerFresh, runnerFault, mode, telemetryFre
     if (state[3] === 2) { return t("teleopStatus.teleopIsActiveCenterTheSticksReleaseLt"); }
     return t("teleopStatus.teleopSelectedWaitingForItsCurrentPhase");
   }
-  if (mode !== "PD_STAND") { return t("teleopStatus.selectStandBeforeEnteringTeleop"); }
+  if (mode !== "PD_STAND" && mode !== "WALK_STAND") { return t("teleopStatus.selectStandBeforeEnteringTeleop"); }
   if (!xboxFresh || xbox?.connected !== true) {
     return t("teleopStatus.connectXboxAndWaitForFreshControllerInput");
   }

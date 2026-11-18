@@ -28,6 +28,11 @@ avatar_pro_vrpn_relay:
     # /UCB_P1/pose read x=-315.9 "m" = -0.316 m real) -> 0.001. Set back to 1.0 if the mocap
     # export is switched to metres.
     position_scale: 0.001
+    # Atomically follow the confirmed Foxglove pants/side selection.
+    # Standalone use can disable this in avatar_pro_hope_bridge.launch.py.
+    pants_profile: "v2"
+    table_side: "P1"
+    follow_lifecycle_config: true
 
     world_frame: "world"
 
@@ -42,9 +47,9 @@ avatar_pro_vrpn_relay:
     p1_pose_topic: "/UCB_P1/pose"
     p2_pose_topic: "/UCB_P2/pose"
     ball_point_topic: "/ball/point"
-    planner_poses_topic: /poses/planner_full
-    input_qos_depth: 64
     poses_topic: "/poses"
+    planner_poses_topic: "/poses/planner_full"
+    input_qos_depth: 64
 
     # Keep ball first so hope_planner's default ball_pose_index=0 works.
     pose_array_order: ["ball", "PPT", "UCB_P1", "UCB_P2"]

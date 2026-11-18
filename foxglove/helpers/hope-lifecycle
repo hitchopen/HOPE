@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# HOPE_RUNNER_MODE=model21800
+# HOPE_RUNNER_MODE=pure_model5580
 # HOPE_HARDWARE_PROFILE=A3_T3D0_ELINK_HAND_V2
 # Fixed, role-specific process helper for the Runner Laptop/HDU/MDU lifecycle.
 # The HDU ROS supervisors are the only intended callers. No command, path,
@@ -35,7 +35,7 @@ readonly HDU_TRANSPORT_GATEWAY_SESSION=hope-transport-gateway
 readonly MDU_ELINK_SESSION=hope-elink
 readonly MDU_HAL_SESSION=hope-hal
 readonly MDU_RUNNER_SESSION=hope-runner
-MDU_DEPLOY="${HOPE_MDU_DEPLOY:-/agibot/a3_deploy_model21800}"
+MDU_DEPLOY="${HOPE_MDU_DEPLOY:-/agibot/a3_deploy_build4_serve025}"
 readonly MDU_ROS_PREFIX=/opt/ros/jazzy
 readonly MDU_ROS_PYTHON_SITE="${MDU_ROS_PREFIX}/lib/python3.11/site-packages"
 readonly MDU_VENDOR_ROS_PREFIX=/opt/agibot/share/ros2_package/aimrt_protocol_ros2_package
@@ -84,19 +84,8 @@ valid_ipv4() {
 }
 
 network_static_peers() {
-  local env_file=/etc/hope-foxglove/network.env
-  local line value="" count=0
-  [[ -r "$env_file" ]] || return 1
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    case "$line" in
-      ROS_STATIC_PEERS=*)
-        value="${line#ROS_STATIC_PEERS=}"
-        ((count += 1))
-        ;;
-    esac
-  done < "$env_file"
-  (( count == 1 )) || return 1
-  printf '%s\n' "$value"
+  # Derived from the same canonical document as every HDU service.
+  python3 /usr/local/lib/hope-foxglove/hope_config_runtime.py peers
 }
 
 static_peer_list_contains() {
@@ -109,41 +98,9 @@ static_peer_list_contains() {
   return 1
 }
 
-parse_common() {
-  [[ "$#" == 6 || "$#" == 8 || "$#" == 9 || "$#" == 14 ]] || return 1
-  SESSION_ID="$1"
-  LAPTOP_WIFI_IP="$2"
-  HDU_WIFI_IP="$3"
-  MDU_INTERNAL_IP="$4"
-  MOTIVE_IP="$5"
-  TABLE_SIDE="$6"
-  FIELD_MODE="${7:-OPTITRACK}"
-  SERVE_CSV_SHA="${8:-DEFAULT}"
-  GRIPPER_PROFILE="${9:-legacy}"
-  MOCAP_SOURCE="${10:-motive}"
-  VRPN_IP="${11:-NONE}"
-  VRPN_PORT="${12:-3883}"
-  VRPN_UNITS="${13:-mm}"
-  PANTS_PROFILE="${14:-v2}"
-  [[ "$MOCAP_SOURCE" == none || "$MOCAP_SOURCE" == motive || "$MOCAP_SOURCE" == vrpn ]] || return 1
-  [[ "$VRPN_IP" == NONE ]] || valid_ipv4 "$VRPN_IP" motive || return 1
-  [[ "$VRPN_PORT" =~ ^[1-9][0-9]{0,4}$ ]] && (( VRPN_PORT <= 65535 )) || return 1
-  [[ "$VRPN_UNITS" == mm || "$VRPN_UNITS" == m ]] || return 1
-  [[ "$PANTS_PROFILE" == v2 || "$PANTS_PROFILE" == v4 ]] || return 1
-  [[ "$GRIPPER_PROFILE" == legacy || "$GRIPPER_PROFILE" == new_20261015 ]] || return 1
-  [[ "$FIELD_MODE" != PURE_SERVE ]] || FIELD_MODE=KERNEL
-  [[ "$FIELD_MODE" == OPTITRACK || "$FIELD_MODE" == KERNEL ]] || return 1
-  [[ "$SERVE_CSV_SHA" == DEFAULT || "$SERVE_CSV_SHA" =~ ^[0-9a-f]{64}$ ]] || return 1
-  [[ "$SESSION_ID" =~ ^model21800_[0-9]{8}T[0-9]{6}Z$ ]] || return 1
-  valid_ipv4 "$LAPTOP_WIFI_IP" || return 1
-  valid_ipv4 "$HDU_WIFI_IP" || return 1
-  valid_ipv4 "$MDU_INTERNAL_IP" || return 1
-  [[ "$MOTIVE_IP" == NONE ]] || valid_ipv4 "$MOTIVE_IP" motive || return 1
-  [[ "$TABLE_SIDE" == P1 || "$TABLE_SIDE" == P2 ]] || return 1
-}
-
-# Only startup depends on the selected bundle. STOP uses existing process/session
-# identities and reports bundle damage separately after shutdown has completed.
+# Only startup and asset verification depend on the selected bundle (including its
+# validator and libraries). STOP uses existing process/session identities and
+# reports bundle damage separately after shutdown has completed.
 resolve_mdu_deployment() {
   if [[ -e /agibot/hope-policy-models || -L /agibot/hope-policy-models ]]; then
     local deployment
@@ -159,6 +116,44 @@ audit_stopped_policy() {
     printf '%s\n' 'Selected policy integrity check failed; managed shutdown completed independently.' >&2
     emit POLICY WARNING POLICY_BUNDLE_INVALID
   fi
+}
+
+parse_common() {
+  [[ "$#" == 6 || "$#" == 8 || "$#" == 9 || "$#" == 14 || "$#" == 15 ]] || return 1
+  SESSION_ID="$1"
+  LAPTOP_WIFI_IP="$2"
+  HDU_WIFI_IP="$3"
+  MDU_INTERNAL_IP="$4"
+  MOTIVE_IP="$5"
+  TABLE_SIDE="$6"
+  FIELD_MODE="${7:-OPTITRACK}"
+  SERVE_CSV_SHA="${8:-DEFAULT}"
+  GRIPPER_PROFILE="${9:-legacy}"
+  MOCAP_SOURCE="${10:-motive}"
+  VRPN_IP="${11:-NONE}"
+  VRPN_PORT="${12:-3883}"
+  VRPN_UNITS="${13:-mm}"
+  PANTS_PROFILE="${14:-v2}"
+  # Authoritative arguments from HDU config. Legacy env-file values never win.
+  export HOPE_VRPN_WORLD_FRAME_CONFIRMED="${15:-false}"
+  for confirmed in "$HOPE_VRPN_WORLD_FRAME_CONFIRMED"; do
+    [[ "$confirmed" == true || "$confirmed" == false ]] || return 1
+  done
+  [[ "$MOCAP_SOURCE" == none || "$MOCAP_SOURCE" == motive || "$MOCAP_SOURCE" == vrpn ]] || return 1
+  [[ "$VRPN_IP" == NONE ]] || valid_ipv4 "$VRPN_IP" motive || return 1
+  [[ "$VRPN_PORT" =~ ^[1-9][0-9]{0,4}$ ]] && (( VRPN_PORT <= 65535 )) || return 1
+  [[ "$VRPN_UNITS" == mm || "$VRPN_UNITS" == m ]] || return 1
+  [[ "$PANTS_PROFILE" == v2 || "$PANTS_PROFILE" == v4 ]] || return 1
+  [[ "$GRIPPER_PROFILE" == legacy || "$GRIPPER_PROFILE" == new_20261015 ]] || return 1
+  [[ "$FIELD_MODE" != PURE_SERVE ]] || FIELD_MODE=KERNEL
+  [[ "$FIELD_MODE" == OPTITRACK || "$FIELD_MODE" == KERNEL ]] || return 1
+  [[ "$SERVE_CSV_SHA" == DEFAULT || "$SERVE_CSV_SHA" =~ ^[0-9a-f]{64}$ ]] || return 1
+  [[ "$SESSION_ID" =~ ^model21800_[0-9]{8}T[0-9]{6}Z$ ]] || return 1
+  valid_ipv4 "$LAPTOP_WIFI_IP" || return 1
+  valid_ipv4 "$HDU_WIFI_IP" || return 1
+  valid_ipv4 "$MDU_INTERNAL_IP" || return 1
+  [[ "$MOTIVE_IP" == NONE ]] || valid_ipv4 "$MOTIVE_IP" motive || return 1
+  [[ "$TABLE_SIDE" == P1 || "$TABLE_SIDE" == P2 ]] || return 1
 }
 
 require_user() {
@@ -504,9 +499,33 @@ time_calibration_restore_mdu() {
   emit TIME_CALIBRATION COMPLETE MDU_PTP_AND_VENDOR_RESTORED
 }
 
+# After a network change the HDU answers at a new address while this laptop knows its
+# host key only under the old one, so every laptop->HDU SSH (log collection, the live
+# joint stream, START clock evidence) fails "Host key verification failed" (2026-11-18:
+# KILL_FAILED: COLLECT: helper failed: HDU_UNREACHABLE). Add the new address only when
+# the key it presents is one of the HDU keys pinned in hdu_host_keys; anything else is
+# left untrusted, so a different machine at that address is never accepted.
+ensure_hdu_host_key() {
+  local pinned="$HOME/.config/hope-foxglove/hdu_host_keys" known="$HOME/.ssh/known_hosts" scanned
+  [[ -r "$pinned" ]] || return 0
+  ssh-keygen -F "$HDU_WIFI_IP" -f "$known" >/dev/null 2>&1 && return 0
+  scanned="$(ssh-keyscan -T 3 -t ed25519 "$HDU_WIFI_IP" 2>/dev/null | awk '$2 == "ssh-ed25519" {print $2 " " $3}' | head -n 1)" || true
+  if [[ -z "$scanned" ]]; then
+    printf '[hdu host key] no ed25519 key from %s; unchanged\n' "$HDU_WIFI_IP" >&2
+  elif grep -qxF -- "$scanned" "$pinned"; then
+    mkdir -p "$(dirname "$known")"
+    printf '%s %s\n' "$HDU_WIFI_IP" "$scanned" >> "$known"
+    printf '[hdu host key] pinned HDU key accepted for %s\n' "$HDU_WIFI_IP" >&2
+  else
+    printf '[hdu host key] %s presents an unpinned key; not trusted\n' "$HDU_WIFI_IP" >&2
+  fi
+  return 0
+}
+
 prepare_laptop() {
   local tracked_marker_frame world_transform=identity
   require_user "$LAPTOP_USER" SESSION
+  ensure_hdu_host_key
   case "$TABLE_SIDE" in
     P1) tracked_marker_frame=UCB_P1 ;;
     P2) tracked_marker_frame=UCB_P2 ;;
@@ -515,7 +534,7 @@ prepare_laptop() {
   cd "$HOPE_ROOT"
   mkdir -p "real_logs/$SESSION_ID/laptop"
   mkdir -p calibration
-  [[ "$TABLE_SIDE" == P1 ]] || world_transform=rotate_z_pi_about_table_center
+  # TABLE_SIDE is the legacy field name for pants identity; world stays canonical.
   printf '%s\n' "$SESSION_ID" > real_logs/.active_session_id
   {
     printf 'session_id=%s\n' "$SESSION_ID"
@@ -523,6 +542,9 @@ prepare_laptop() {
     printf 'tracked_marker_frame=%s\n' "$tracked_marker_frame"
     printf 'world_transform=%s\n' "$world_transform"
   } > "real_logs/$SESSION_ID/laptop/runtime_frame_config.txt"
+  cp /tmp/build4_full31_pure_model5580_candidate_sha256.txt \
+    "real_logs/$SESSION_ID/laptop/rockchip_candidate_sha256.txt" \
+    2>/dev/null || true
   {
     echo 'laptop UTC source for camera exposure and absolute strike deadline:'
     date -u --iso-8601=ns
@@ -942,12 +964,6 @@ preflight_mdu() {
       die PREFLIGHT KERNEL_RUNNER_UPDATE_REQUIRED
     grep -Fq -- '--kernel-mode' "$MDU_DEPLOY/run_a3_pingpong.sh" || \
       die PREFLIGHT KERNEL_WRAPPER_UPDATE_REQUIRED
-  else
-    grep -aFq -- '--operator-watchdog' "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" || \
-      die PREFLIGHT OPERATOR_WATCHDOG_RUNNER_UPDATE_REQUIRED
-    grep -Fq -- '/hope/runner/operator_echo_flat' \
-      "$MDU_DEPLOY/config/a3_aimrt_config.pingpong_ros2body.yaml" || \
-      die PREFLIGHT OPERATOR_WATCHDOG_CONFIG_UPDATE_REQUIRED
   fi
   [[ -s "$MDU_DEPLOY/policy/exported/policy.onnx" ]] || \
     die PREFLIGHT POLICY_FILE_MISSING
@@ -985,6 +1001,7 @@ preflight_mdu() {
     export LD_LIBRARY_PATH="$MDU_DEPLOY:$MDU_DEPLOY/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     timeout 20 "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" "${validation_args[@]}" 2>&1
   )" || {
+    # emit accepts only a reason token; keep the validator's diagnostics on stderr.
     printf '%s\n' "$validation_output" >&2
     die PREFLIGHT SERVE_TIMELINE_INVALID
   }
@@ -1003,27 +1020,62 @@ preflight_mdu() {
   emit PREFLIGHT COMPLETE MDU_READY
 }
 
-run_laptop() {
-  require_user "$LAPTOP_USER" OPTITRACK
-  validate_laptop_mocap
+refresh_laptop_display() {
+  # These optional Host services read the same runtime receipt at startup.
+  # Refresh them when reconnect writes a new robot/session; do not gate mocap
+  # on visualization being installed or on a Linux user service manager.
+  command -v systemctl >/dev/null || return 0
+  local runtime_env="$HOME/.config/hope-foxglove/laptop-runtime.env"
+  local peer_stamp="$HOME/.config/hope-foxglove/host-bridge.peer"
+  local peer
+  peer="$(grep -E '^HOPE_LIFECYCLE_(HDU_IP|LAPTOP_IP|ROOT)=' "$runtime_env" 2>/dev/null | sort)"
+  local -a units=(hope-live-scene.service hope-xbox-input.service)
+  # Foxglove is connected to the Host bridge: restarting it on every START
+  # drops the Console connection (flicker, stale state, lost clicks). It only
+  # depends on the robot peer and code root, so restart it only when they change.
+  if [[ "$peer" != "$(cat "$peer_stamp" 2>/dev/null)" ]]; then
+    units=(hope-host-bridge.service "${units[@]}")
+  fi
+  systemctl --user try-restart --no-block "${units[@]}" || \
+    printf '[display] optional Host display refresh unavailable\n' >&2
+  printf '%s\n' "$peer" > "$peer_stamp" || true
+}
+
+write_laptop_runtime() {
+  local canonical_motive="$MOTIVE_IP" canonical_vrpn="$VRPN_IP"
+  if [[ "$canonical_motive" == NONE ]]; then canonical_motive=""; fi
+  if [[ "$canonical_vrpn" == NONE ]]; then canonical_vrpn=""; fi
   local runtime_env="$HOME/.config/hope-foxglove/laptop-runtime.env"
   mkdir -p "$(dirname "$runtime_env")"
+  local runtime_env_tmp
+  runtime_env_tmp="$(mktemp "${runtime_env}.tmp.XXXXXX")"
   {
+    printf '# Generated from HDU lifecycle config; edit through Foxglove only.\n'
+    printf 'HOPE_LIFECYCLE_LAPTOP_IP=%q\n' "$LAPTOP_WIFI_IP"
+    printf 'HOPE_LIFECYCLE_MDU_IP=%q\n' "$MDU_INTERNAL_IP"
     printf 'HOPE_LIFECYCLE_SESSION_ID=%q\n' "$SESSION_ID"
     printf 'HOPE_LIFECYCLE_HDU_IP=%q\n' "$HDU_WIFI_IP"
-    printf 'HOPE_LIFECYCLE_MOTIVE_IP=%q\n' "$MOTIVE_IP"
+    printf 'HOPE_LIFECYCLE_MACHINE_ID=%q\n' "${HOPE_LIFECYCLE_MACHINE_ID:-}"
+    printf 'HOPE_LIFECYCLE_MOTIVE_IP=%q\n' "$canonical_motive"
     printf 'HOPE_LIFECYCLE_MOTIVE_INTERFACE_IP=%q\n' "${HOPE_MOTIVE_INTERFACE_IP:-}"
     printf 'HOPE_LIFECYCLE_ROOT=%q\n' "$HOPE_ROOT"
     printf 'HOPE_LIFECYCLE_MARKER_ROOT=%q\n' "$LAPTOP_SHARE"
     printf 'HOPE_LIFECYCLE_TABLE_SIDE=%q\n' "$TABLE_SIDE"
     printf 'HOPE_LIFECYCLE_MOCAP_SOURCE=%q\n' "$MOCAP_SOURCE"
-    printf 'HOPE_LIFECYCLE_VRPN_IP=%q\n' "$VRPN_IP"
+    printf 'HOPE_LIFECYCLE_VRPN_IP=%q\n' "$canonical_vrpn"
     printf 'HOPE_LIFECYCLE_VRPN_PORT=%q\n' "$VRPN_PORT"
     printf 'HOPE_LIFECYCLE_VRPN_UNITS=%q\n' "$VRPN_UNITS"
     printf 'HOPE_LIFECYCLE_PANTS_PROFILE=%q\n' "$PANTS_PROFILE"
-    printf 'HOPE_VRPN_PELVIS_ASSET_CONFIRMED=%q\n' "${HOPE_VRPN_PELVIS_ASSET_CONFIRMED:-false}"
     printf 'HOPE_VRPN_WORLD_FRAME_CONFIRMED=%q\n' "${HOPE_VRPN_WORLD_FRAME_CONFIRMED:-false}"
-  } > "$runtime_env"
+  } > "$runtime_env_tmp"
+  mv -f -- "$runtime_env_tmp" "$runtime_env"
+}
+
+run_laptop() {
+  require_user "$LAPTOP_USER" OPTITRACK
+  validate_laptop_mocap
+  write_laptop_runtime
+  refresh_laptop_display
   case "${HOPE_LAPTOP_RUNTIME:-distrobox}" in
     direct) exec "$HOPE_ROOT/foxglove/helpers/hope-laptop-container-runtime" ;;
     distrobox) exec /usr/bin/distrobox enter hope -- \
@@ -1038,35 +1090,115 @@ validate_laptop_mocap() {
     vrpn) valid_ipv4 "$VRPN_IP" motive || die MOCAP VRPN_IP_REQUIRED ;;
     *) die MOCAP NO_SOURCE_SELECTED ;;
   esac
-  for confirmed in "${HOPE_VRPN_PELVIS_ASSET_CONFIRMED:-false}" "${HOPE_VRPN_WORLD_FRAME_CONFIRMED:-false}"; do
+  for confirmed in "${HOPE_VRPN_WORLD_FRAME_CONFIRMED:-false}"; do
     [[ "$confirmed" == true || "$confirmed" == false ]] || die MOCAP INVALID_SETUP_CONFIRMATION
   done
 }
 
 reconnect_laptop() {
   require_user "$LAPTOP_USER" OPTITRACK
+  ensure_hdu_host_key
   local runtime_env="$HOME/.config/hope-foxglove/laptop-runtime.env"
   mkdir -p "$(dirname "$runtime_env")"
   local connection_lock
   exec {connection_lock}>"${runtime_env}.connection.lock"
   flock -n "$connection_lock" || die MOCAP CONNECTION_BUSY
-  local preserved_pelvis=false preserved_world=false
-  read -r preserved_pelvis preserved_world < <(
-    python3 "$HOPE_ROOT/foxglove/a3/hope_mocap_connection.py" --confirmations "$runtime_env" \
-      "$HDU_WIFI_IP" "$MOCAP_SOURCE" "$MOTIVE_IP" "$VRPN_IP" "$VRPN_PORT" "$VRPN_UNITS" "$PANTS_PROFILE" "$TABLE_SIDE"
-  )
-  export HOPE_VRPN_PELVIS_ASSET_CONFIRMED="$preserved_pelvis"
-  export HOPE_VRPN_WORLD_FRAME_CONFIRMED="$preserved_world"
-  if tmux_exists "$LAPTOP_SESSION"; then
+  # The receiver this helper last started (receipt). Also retire leftovers of that receiver whose tmux
+  # session is already gone; an untagged (manually started) bridge is left to start_laptop's refusal.
+  local stopped_session
+  stopped_session="$(sed -n "s/^HOPE_LIFECYCLE_SESSION_ID=//p" "$runtime_env" 2>/dev/null | tail -n 1)"
+  stopped_session="${stopped_session//\'/}"
+  if tmux_exists "$LAPTOP_SESSION" || [[ -n "$(laptop_session_pids "$stopped_session")" ]]; then
     python3 "$HOPE_ROOT/foxglove/a3/hope_mocap_connection.py" \
-      "$runtime_env" "$HDU_WIFI_IP" || die MOCAP OTHER_ROBOT_RECEIVER_UNTOUCHED
+      "$runtime_env" "$HDU_WIFI_IP" "${HOPE_LIFECYCLE_MACHINE_ID:-}" || die MOCAP OTHER_ROBOT_RECEIVER_UNTOUCHED
     stop_laptop
+    retire_laptop_receiver "$stopped_session"
   fi
   if [[ "$MOCAP_SOURCE" == none ]]; then
+    write_laptop_runtime
+    refresh_laptop_display
     emit MOCAP COMPLETE DISABLED
   else
-    start_laptop
+    # A newly spawned tmux server survives this helper. Keep the lock in this
+    # waiting parent, but close its descriptor before starting detached children.
+    ( exec {connection_lock}>&-; start_laptop )
   fi
+  exec {connection_lock}>&-
+}
+
+laptop_bridge_pids() {
+  # Same process pattern as start_laptop's UNMANAGED_BRIDGE_PRESENT check.
+  pgrep -u "$LAPTOP_USER" -f '[o]ptitrack_hope_bridge.launch.py|[a]vatar_pro_hope_bridge.launch.py|[o]ptitrack_mct_relay|[a]vatar_pro_vrpn_relay|[v]rpn_mocap/.*/client_node|[v]rpn_mocap/client_node' || true
+}
+
+laptop_process_in_session() {
+  local pid="$1" session="$2"
+  [[ -n "$session" && -r "/proc/$pid/environ" ]] || return 1
+  grep -qxF "HOPE_LIFECYCLE_SESSION_ID=$session" < <(tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null)
+}
+
+laptop_session_pids() {
+  # Receiver processes of one managed session: the bridge launch/relays plus the receiver's own nodes,
+  # tagged with that session. Only receiver program names: the Xbox input service carries the same
+  # session tag but runs none of them.
+  local session="$1" pid
+  [[ -n "$session" ]] || return 0
+  for pid in $(pgrep -u "$LAPTOP_USER" -f '[o]ptitrack_hope_bridge.launch.py|[a]vatar_pro_hope_bridge.launch.py|[o]ptitrack_mct_relay|[a]vatar_pro_vrpn_relay|[v]rpn_mocap/.*/client_node|[v]rpn_mocap/client_node|[m]otion_capture_tracking_node|[h]ope_base_pose_flat_relay|[h]ope_ball_flight_packetizer|[h]ope_marker_monitor|[s]tatic_transform_publisher' || true); do
+    if laptop_process_in_session "$pid" "$session"; then printf '%s\n' "$pid"; fi
+  done
+}
+
+# The managed receiver runs inside the container, so closing its tmux session does not end it. A
+# receiver stopped while ros2 launch is still starting ignores Ctrl-C and outlived its session by
+# more than 19 s (2026-11-18); starting the next one then failed with UNMANAGED_BRIDGE_PRESENT and
+# left no receiver at all. Retire only the stopped session's own receiver: tagged bridge processes,
+# tagged receiver nodes (also ones orphaned by an earlier launch death) and their tagged descendants.
+# The Xbox input service carries the same tag but is neither. Wait 4 s, then SIGINT the launch,
+# SIGTERM, SIGKILL - each stage only while something of this session is still running (stages sum
+# to 13 s plus polling overhead, inside the supervisor's 40 s reconnect timeout). Untagged bridges are
+# never signalled and are still refused by start_laptop.
+retire_laptop_receiver() {
+  local session="$1" stage limit attempt pid parent changed alive
+  local -A tree=()
+  local -a roots=() members=()
+  [[ -n "$session" ]] || return 0
+  for stage in WAIT INT TERM KILL; do
+    roots=()
+    for pid in $(laptop_bridge_pids); do
+      if laptop_process_in_session "$pid" "$session"; then roots+=("$pid"); tree[$pid]=1; fi
+    done
+    for pid in $(laptop_session_pids "$session"); do tree[$pid]=1; done
+    changed=1
+    while (( changed )); do
+      changed=0
+      while read -r pid parent; do
+        if [[ -n "${tree[$parent]:-}" && -z "${tree[$pid]:-}" ]] && laptop_process_in_session "$pid" "$session"; then
+          tree[$pid]=1; changed=1
+        fi
+      done < <(ps -u "$LAPTOP_USER" -o pid=,ppid= 2>/dev/null || true)
+    done
+    members=()
+    for pid in "${!tree[@]}"; do
+      if laptop_process_in_session "$pid" "$session"; then members+=("$pid"); fi
+    done
+    case "$stage" in
+      INT) if (( ${#roots[@]} )); then kill -s INT "${roots[@]}" 2>/dev/null || true; fi ;;
+      TERM|KILL) if (( ${#members[@]} )); then kill -s "$stage" "${members[@]}" 2>/dev/null || true; fi ;;
+    esac
+    limit=15
+    [[ "$stage" != WAIT ]] || limit=20
+    for ((attempt = 0; attempt < limit; attempt++)); do
+      # Done when nothing of this session remains: no tagged receiver process and no member of the
+      # retired tree. A recycled pid lacks the session tag.
+      alive=0
+      for pid in "${!tree[@]}"; do
+        if laptop_process_in_session "$pid" "$session"; then alive=1; break; fi
+      done
+      if (( ! alive )) && [[ -z "$(laptop_session_pids "$session")" ]]; then return 0; fi
+      sleep 0.2
+    done
+  done
+  return 0
 }
 
 start_laptop() {
@@ -1076,12 +1208,13 @@ start_laptop() {
     die MOCAP UNMANAGED_BRIDGE_PRESENT
   fi
   start_tmux "$LAPTOP_SESSION" /usr/bin/env \
-    "HOPE_VRPN_PELVIS_ASSET_CONFIRMED=${HOPE_VRPN_PELVIS_ASSET_CONFIRMED:-false}" \
+    "HOPE_LIFECYCLE_MACHINE_ID=${HOPE_LIFECYCLE_MACHINE_ID:-}" \
     "HOPE_VRPN_WORLD_FRAME_CONFIRMED=${HOPE_VRPN_WORLD_FRAME_CONFIRMED:-false}" \
     "$SELF" _run-laptop \
     "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
     "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" "$FIELD_MODE" "$SERVE_CSV_SHA" "$GRIPPER_PROFILE" \
-    "$MOCAP_SOURCE" "$VRPN_IP" "$VRPN_PORT" "$VRPN_UNITS" "$PANTS_PROFILE" || \
+    "$MOCAP_SOURCE" "$VRPN_IP" "$VRPN_PORT" "$VRPN_UNITS" "$PANTS_PROFILE" \
+    "$HOPE_VRPN_WORLD_FRAME_CONFIRMED" || \
     die OPTITRACK ALREADY_RUNNING
   sleep 2
   tmux_exists "$LAPTOP_SESSION" || die OPTITRACK START_FAILED
@@ -1103,7 +1236,7 @@ run_base() {
       /usr/local/libexec/hope-base-pose-transport-relay
   } > "$hdu_dir/artifact_sha256.txt"
   local dds_wrap="$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh"
-  "$dds_wrap" --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
+  "$dds_wrap" --route-source-addresses --filter-direct-routes --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
     /usr/local/libexec/hope-base-pose-transport-relay \
     > >(tee -a "$hdu_dir/base_relay.log") 2>&1
 }
@@ -1152,7 +1285,7 @@ run_transport_gateway() {
   local dds_wrap="$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh"
   # One dual-homed participant retains the existing Fast DDS peer/interface
   # selection. Lifecycle starts it only after the field Runner exists.
-  "$dds_wrap" --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
+  "$dds_wrap" --route-source-addresses --filter-direct-routes --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
     /usr/local/libexec/hope-transport-gateway \
     > >(tee -a "$hdu_dir/transport_gateway.log") 2>&1
 }
@@ -1241,17 +1374,20 @@ run_planner() {
     policy_profile_args=(--params-file "$attempt_dir/policy_profile.json")
     sha256sum "$attempt_dir/policy_profile.json" >> "$attempt_dir/artifact_sha256.txt"
   fi
-  local -a ball_physics_args=()
+  cp "$HDU_WS/src/hope_planner_cpp/config/return_physics.yaml" "$attempt_dir/return_physics.yaml"
+  sha256sum "$attempt_dir/return_physics.yaml" >> "$attempt_dir/artifact_sha256.txt"
+  local -a ball_physics_args=(--params-file "$attempt_dir/return_physics.yaml")
   if [[ -f /var/lib/hope-lifecycle/ball_physics.json ]]; then
     cp /var/lib/hope-lifecycle/ball_physics.json "$attempt_dir/ball_physics.json"
-    ball_physics_args=(--params-file "$attempt_dir/ball_physics.json")
+    ball_physics_args+=(--params-file "$attempt_dir/ball_physics.json")
     sha256sum "$attempt_dir/ball_physics.json" >> "$attempt_dir/artifact_sha256.txt"
   fi
   dds_wrap="$HDU_WS/src/hope_bringup/scripts/with_fastdds_unicast.sh"
   set +e
   # Ctrl-C reaches tee too. Keep its pipe open until the Planner has finished
   # shutdown logging and flushed the asynchronous audit CSV.
-  "$dds_wrap" --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" -- \
+  "$dds_wrap" --route-source-addresses --filter-direct-routes --domain-id 232 --peer "$LAPTOP_WIFI_IP" --peer "$MDU_INTERNAL_IP" \
+    --flight-packet-qos-topic /ball/flight_packet -- \
     python3 "$CAPTURE_HELPER" --controlled --role hdu --root "$HDU_WS" \
       --session-id "$SESSION_ID" --output "$attempt_dir/sim2real" -- \
     bash -c 'printf "%s\n" "$$" > "$1"; shift; exec "$@"' \
@@ -1412,7 +1548,7 @@ run_runner() {
     serve_runner_args=()
     printf 'receive_only=true\n' > "$session_dir/receive_only.txt"
   fi
-  local -a field_runner_args=(--planner --shared-session-home --operator-watchdog)
+  local -a field_runner_args=(--planner --shared-session-home)
   if [[ "$FIELD_MODE" == KERNEL ]]; then
     field_runner_args=(--kernel-mode)
   fi
@@ -1437,6 +1573,15 @@ run_runner() {
     done
     field_runner_args+=(--teleop-policy-dir "$PWD/teleop_humanlike")
   fi
+  # Field operators own the fall response (EMERGENCY_PASSIVE). No automatic
+  # fall guard in any mode: stand, receive policy or HumanLike (2026-11-17).
+  field_runner_args+=(--no-fall-guard)
+  # Reposition (auto-dock) is enabled by the slot's dock/dock.yaml. It needs
+  # HumanLike and, at use time, a fresh /a3/base_pose_flat (OptiTrack mode).
+  if [[ -s "$PWD/dock/dock.yaml" && -d "$PWD/teleop_humanlike" ]]; then
+    sha256sum "$PWD/dock/dock.yaml" >> "$session_dir/artifact_sha256.txt"
+    field_runner_args+=(--auto-dock --dock-config "$PWD/dock/dock.yaml")
+  fi
   printf 'mode=%s\ncsv_sha256=%s\ngripper_profile=%s\n' "$FIELD_MODE" "$SERVE_CSV_SHA" "$GRIPPER_PROFILE" > "$session_dir/field_selection.txt"
   if [[ "${#serve_runner_args[@]}" -gt 0 ]]; then
     local effective_csv="$MDU_DEPLOY/motions/a3p_op3_serve025_v23_branch110_model14600.csv"
@@ -1455,7 +1600,6 @@ run_runner() {
     taskset -c 4-7 ./run_a3_pingpong.sh \
     --policy-dir "$PWD/policy" "${field_runner_args[@]}" --policy-native "${serve_runner_args[@]}" \
     --gripper-profile "$GRIPPER_PROFILE" \
-    --no-fall-guard \
     --trace-csv "$session_dir/sim2real/runner_trace.csv" \
     --obs-csv "$session_dir/sim2real/policy_obs_actions.csv" \
     --start passive --official-stand \
@@ -1625,6 +1769,119 @@ if __name__ == "__main__":
 PY
 }
 
+# Automatic vendor repair, run by the supervisor's STOP only after verify-vendor-mdu
+# failed with VENDOR_SM_NOT_READY / VENDOR_SM_FAILED. Seen 2026-11-18: after STOP
+# restarted the MDU vendor stack, the HDU vendor module setting1 (alive since boot)
+# never reported to the new MDU state machine; Startup rolled back three times to
+# Failed, mc was never started, and only a paired reboot recovered. Restarting the
+# silent HDU module plus the MDU vendor stack recovered it. Fixed allowlist of the
+# HDU modules the MDU state machine waits for; nothing else is restarted.
+# Not readonly: it is passed to python3 as a per-command environment assignment.
+VENDOR_HDU_MODULES="setting1 health_monitor1 recordbag1"
+
+vendor_silent_modules_mdu() {
+  require_user "$ROBOT_USER" VENDOR_REPAIR
+  # Read-only: which allowlisted HDU modules the MDU state machine does not hear.
+  VENDOR_HDU_MODULES="$VENDOR_HDU_MODULES" python3 - <<'PY'
+import json
+import os
+import sys
+import urllib.request
+
+request = urllib.request.Request(
+    "http://127.0.0.1:51011/rpc/aimdk.protocol.SystemService/GetSmModuleStatus",
+    data=b"{}", headers={"Content-Type": "application/json"})
+try:
+    with urllib.request.urlopen(request, timeout=3) as response:
+        value = json.load(response)
+    if str(value.get("header", {}).get("code")) != "0":
+        raise ValueError("unsuccessful response")
+    reporting = {item.get("node_name") for item in value["states"] if item.get("module_states")}
+except (OSError, ValueError, KeyError, TypeError) as exc:
+    print(f"vendor module status: {exc}", file=sys.stderr)
+    print("HOPE_LIFECYCLE_V1 step=VENDOR_REPAIR state=FAILED reason=VENDOR_MODULE_STATUS_UNAVAILABLE")
+    sys.exit(1)
+silent = [name for name in os.environ["VENDOR_HDU_MODULES"].split() if name not in reporting]
+print("HOPE_VENDOR_SILENT=" + ",".join(silent))
+PY
+}
+
+repair_vendor_hdu() {
+  require_user "$ROBOT_USER" VENDOR_REPAIR
+  local status silent
+  status="$(ssh -T -o BatchMode=yes -o ConnectTimeout=3 "$ROBOT_USER@$MDU_INTERNAL_IP" \
+    "$SELF" vendor-silent-modules-mdu "$SESSION_ID" "$LAPTOP_WIFI_IP" "$HDU_WIFI_IP" \
+    "$MDU_INTERNAL_IP" "$MOTIVE_IP" "$TABLE_SIDE" </dev/null)" || \
+    die VENDOR_REPAIR VENDOR_MODULE_STATUS_UNAVAILABLE
+  silent="$(sed -n 's/^HOPE_VENDOR_SILENT=//p' <<<"$status" | tail -n 1)"
+  if [[ -z "$silent" ]]; then
+    emit VENDOR_REPAIR COMPLETE NO_SILENT_HDU_MODULE
+    return
+  fi
+  # Restart through the HDU vendor process manager (same API as the START background
+  # cleanup). Names are re-checked against the allowlist; the MDU only reports them.
+  VENDOR_HDU_MODULES="$VENDOR_HDU_MODULES" SILENT="$silent" python3 - <<'PY' || die VENDOR_REPAIR HDU_MODULE_RESTART_FAILED
+import json
+import os
+import sys
+import time
+import urllib.request
+
+
+def rpc(method, body):
+    request = urllib.request.Request(
+        "http://127.0.0.1:50081/rpc/aimdk.protocol.EmAppService/" + method,
+        data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(request, timeout=3 if method == "GetAllAppInfos" else 35) as response:
+        value = json.load(response)
+    if str(value.get("header", {}).get("code", "0")) != "0":
+        raise RuntimeError(f"{method}: {value}")
+    return value
+
+
+def running(app):
+    infos = rpc("GetAllAppInfos", {})["infos"]
+    match = [info for info in infos if info.get("app") == app]
+    return len(match) == 1 and match[0].get("state") == "State_RUNNING" and int(match[0].get("pid", -1)) > 0
+
+
+allowed = set(os.environ["VENDOR_HDU_MODULES"].split())
+for app in os.environ["SILENT"].split(","):
+    if app not in allowed:
+        print(f"refusing to restart unexpected module {app!r}", file=sys.stderr)
+        sys.exit(1)
+    for method in ("StopApp", "StartApp"):
+        result = rpc(method, {"app": app}).get("result", {})
+        if result.get("type") != "Type_SUCCESS":
+            print(f"{method} {app}: {result}", file=sys.stderr)
+            sys.exit(1)
+        time.sleep(1)
+    deadline = time.monotonic() + 15
+    while not running(app):
+        if time.monotonic() > deadline:
+            print(f"{app} did not return to State_RUNNING", file=sys.stderr)
+            sys.exit(1)
+        time.sleep(0.5)
+    print(f"[vendor repair] restarted HDU module {app}", file=sys.stderr)
+PY
+  emit VENDOR_REPAIR COMPLETE HDU_MODULES_RESTARTED
+}
+
+restart_vendor_mdu() {
+  require_user "$ROBOT_USER" VENDOR_REPAIR
+  # Never while a HOPE-managed Runner/HAL could still own the hardware.
+  tmux_exists "$MDU_RUNNER_SESSION" && die VENDOR_REPAIR MANAGED_RUNNER_PRESENT
+  tmux_exists "$MDU_HAL_SESSION" && die VENDOR_REPAIR MANAGED_HAL_PRESENT
+  pidof a3_deploy_onnx_ref_pingpong >/dev/null && die VENDOR_REPAIR RUNNER_PRESENT
+  # The same two commands START (stop) and STOP (start) already use: a fresh vendor
+  # state machine runs Startup again against the restarted HDU modules.
+  sudo -n systemctl stop agibot_pm.service || die VENDOR_REPAIR AGIBOT_PM_STOP_FAILED
+  sudo -n systemctl start agibot_pm.service || die VENDOR_REPAIR AGIBOT_PM_RESTORE_FAILED
+  systemctl is-active --quiet agibot_pm.service || die VENDOR_REPAIR AGIBOT_PM_NOT_ACTIVE
+  check_elink_process_presence VENDOR_REPAIR 8
+  emit VENDOR_REPAIR COMPLETE AGIBOT_PM_RESTARTED
+}
+
 stop_hdu() {
   require_user "$ROBOT_USER" PLANNER_BASE
   stop_tmux "$HDU_TRANSPORT_GATEWAY_SESSION"
@@ -1649,6 +1906,7 @@ stop_laptop() {
 
 collect_logs() {
   require_user "$LAPTOP_USER" COLLECT
+  ensure_hdu_host_key
   cd "$HOPE_ROOT"
   local root="$HOPE_ROOT/real_logs/$SESSION_ID"
   local hdu_remote="/tmp/hope_real/$SESSION_ID/hdu"
@@ -1730,6 +1988,10 @@ main() {
   local action="$1"
   shift
   case "$action" in
+    config-status-laptop)
+      require_user "$LAPTOP_USER" CONFIG
+      exec python3 "$HOPE_ROOT/foxglove/laptop/hope_config_probe.py"
+      ;;
     ball-model-hdu)
       require_user "$ROBOT_USER" BALL_MODEL
       set +u
@@ -1823,6 +2085,9 @@ main() {
     start-runner) start_runner ;;
     stop-mdu) stop_mdu; audit_stopped_policy ;;
     verify-vendor-mdu) verify_vendor_mdu ;;
+    vendor-silent-modules-mdu) vendor_silent_modules_mdu ;;
+    repair-vendor-hdu) repair_vendor_hdu ;;
+    restart-vendor-mdu) restart_vendor_mdu ;;
     stop-hdu) stop_hdu ;;
     stop-laptop) stop_laptop ;;
     stop-capture-laptop) stop_laptop_capture ;;

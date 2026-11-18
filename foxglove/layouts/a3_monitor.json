@@ -21,10 +21,12 @@
           "showLabel": true,
           "axisScale": 0.25,
           "lineWidth": 2
-        }
+        },
+        "meshUpAxis": "z_up"
       },
       "transforms": {},
       "topics": {
+        "/hope/planner/y_filter_markers": { "visible": true },
         "/agivslam/localization/odometry": {
           "visible": true,
           "type": "arrow",

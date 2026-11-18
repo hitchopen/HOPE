@@ -16,9 +16,6 @@ Options:
   --mocap-backend NAME       avatar_pro (default, ChingMu/VRPN) or optitrack
                              (Motive/NatNet via the vendored
                              motion_capture_tracking driver).
-  --mocap-interface-ip IP    Local NatNet NIC IPv4 (optitrack only). Overrides
-                             HOPE_MOTIVE_INTERFACE_IP; empty or 0.0.0.0 selects
-                             the NIC using the route to the Motive server.
   --x-hit METRES             Already-confirmed fixed world plane; bypasses the runtime freeze.
   --x-hit-offset METRES      Settled base-X to fixed-plane offset (default 0.58).
   --side MODE                backhand (default), forehand, or both.
@@ -76,7 +73,6 @@ print_shell_command() {
 
 MOCAP_BACKEND="avatar_pro"
 MOCAP_IP=""
-MOCAP_INTERFACE_IP="${HOPE_MOTIVE_INTERFACE_IP:-}"
 X_HIT=""
 X_HIT_OFFSET="0.58"
 SIDE="backhand"
@@ -106,11 +102,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --mocap-ip|--vrpn-ip)
       MOCAP_IP="${2:-}"
-      shift 2
-      ;;
-    --mocap-interface-ip)
-      [[ $# -ge 2 ]] || die "--mocap-interface-ip requires an IPv4 address"
-      MOCAP_INTERFACE_IP="$2"
       shift 2
       ;;
     --x-hit)
@@ -200,19 +191,6 @@ case "${MOCAP_BACKEND}" in
     [[ -n "${UPDATE_FREQ}" ]] || UPDATE_FREQ="300.0"
     ;;
   optitrack)
-    python3 - "${MOCAP_INTERFACE_IP}" <<'PY' || die "invalid --mocap-interface-ip / HOPE_MOTIVE_INTERFACE_IP"
-import ipaddress
-import sys
-
-value = sys.argv[1]
-if value:
-    try:
-        address = ipaddress.IPv4Address(value)
-        if address.is_multicast or int(address) == 0xffffffff:
-            raise ValueError("expected a local unicast IPv4 address")
-    except ValueError as exc:
-        sys.exit(f"interface_ip: {exc}")
-PY
     [[ -n "${POSITION_SCALE}" ]] || POSITION_SCALE="1.0"
     [[ -z "${PORT}" ]] ||
       die "--port is a VRPN (avatar_pro) flag; the NatNet command port is fixed in optitrack_mct.yaml"
@@ -306,7 +284,6 @@ if [[ "${MOCAP_BACKEND}" == "optitrack" ]]; then
   BRIDGE_CMD=(
     ros2 launch hope_bringup optitrack_hope_bridge.launch.py
     "hostname:=${MOCAP_IP}"
-    "interface_ip:=${MOCAP_INTERFACE_IP}"
     "position_scale:=${POSITION_SCALE}"
     "debug_csv_path:=${SESSION_DIR}/mocap_raw.csv"
     "debug_session_id:=${SESSION_ID}"
@@ -323,9 +300,13 @@ else
     "position_scale:=${POSITION_SCALE}"
   )
 fi
+BALL_PROFILE="${HOPE_BALL_PROFILE:-${PLANNER_CONFIG_DIR}/ball_physics_ppq004_20261020.yaml}"
+RETURN_PHYSICS="${PLANNER_CONFIG_DIR}/return_physics.yaml"
+
 PACKETIZER_CMD=(
   ros2 run hope_planner_cpp hope_ball_flight_packetizer --ros-args
   --params-file "${PACKETIZER_CONFIG}"
+  --params-file "${BALL_PROFILE}"
   -p "flight_window_s:=${FLIGHT_WINDOW_S}"
   -p "session_id:=${SESSION_ID}"
   -p "debug_csv_path:=${SESSION_DIR}/flight_packetizer.csv"
@@ -333,6 +314,8 @@ PACKETIZER_CMD=(
 PLANNER_CMD=(
   ros2 run hope_planner_cpp hope_planner_cpp_node --ros-args
   --params-file "${PLANNER_CPP_CONFIG}"
+  --params-file "${RETURN_PHYSICS}"
+  --params-file "${BALL_PROFILE}"
   -p flight_packet_input_enabled:=true
   -p flight_packet_topic:=/ball/flight_packet
   -p base_pose_flat_input_topic:=/a3/base_pose_flat
@@ -368,6 +351,8 @@ machine="$(uname -m)"
 [[ -f /opt/ros/jazzy/setup.bash ]] || die "/opt/ros/jazzy/setup.bash is missing"
 [[ -f "${WORKSPACE}/install/local_setup.bash" ]] ||
   die "${WORKSPACE}/install/local_setup.bash is missing; deploy/build the HDU workspace first"
+[[ -f "${BALL_PROFILE}" ]] || die "Ball profile is missing: ${BALL_PROFILE}"
+[[ -f "${RETURN_PHYSICS}" ]] || die "Return physics is missing: ${RETURN_PHYSICS}"
 [[ -f "${PLANNER_CPP_CONFIG}" ]] || die "C++ Planner config is missing: ${PLANNER_CPP_CONFIG}"
 [[ -f "${PACKETIZER_CONFIG}" ]] || die "C++ packetizer config is missing: ${PACKETIZER_CONFIG}"
 
@@ -450,7 +435,7 @@ mkdir -p -- "${SESSION_DIR}"
 python3 - "${SESSION_DIR}/session.json" "${SESSION_ID}" "$$" "${MOCAP_BACKEND}" \
     "${MOCAP_IP}" "${POSITION_SCALE}" "${UPDATE_FREQ}" "${FLIGHT_WINDOW_S}" \
     "${SOLVE_PERIOD}" "${MARKER_TO_BASE}" "${PLANNER_X_HIT}" "${X_HIT_OFFSET}" \
-    "${WORKSPACE}" <<'PY'
+    "${WORKSPACE}" "${BALL_PROFILE}" "${RETURN_PHYSICS}" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -459,9 +444,11 @@ import sys
 import time
 
 (output, session_id, launcher_pid, backend, mocap_ip, scale, rate, flight_window_s, solve_period,
- marker_to_base, x_hit, x_hit_offset, workspace) = sys.argv[1:]
+ marker_to_base, x_hit, x_hit_offset, workspace, ball_profile, return_physics) = sys.argv[1:]
 workspace_path = pathlib.Path(workspace)
 sources = {
+    "ball_profile_yaml": pathlib.Path(ball_profile),
+    "return_physics_yaml": pathlib.Path(return_physics),
     "planner_node": workspace_path / "src/hope_planner_cpp/src/planner_node.cpp",
     "planner_yaml": workspace_path / "src/hope_planner_cpp/config/model21800_hardware.yaml",
     "flight_packetizer": workspace_path / "src/hope_planner_cpp/src/flight_packetizer_node.cpp",

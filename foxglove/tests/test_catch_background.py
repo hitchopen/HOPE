@@ -10,14 +10,15 @@ guard = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(guard)
 
 
-def test_only_explicit_camera_matches_and_startup_dependencies_are_preserved():
+def test_only_agent_and_camera_match_and_startup_dependencies_are_preserved():
     assert guard.unwanted(["./aimrt_main", "--cfg_file_path=../config/hdu_camera/hdu_camera_cfg.yaml"])
+    assert guard.unwanted(["./agent", "--cfg_file_path=../config/agent/agent.yaml"])
     assert not guard.unwanted([])
     for argv in (["./hal_ethercat"], ["./agent", "other.yaml"],
-                 ["./agent", "--cfg_file_path=../config/agent/agent.yaml"],
                  ["./hal_audio", "--cfg_file_path=../config/hal_audio/hal_audio.yaml"],
                  ["/bin/bash", "../scripts/agent/process_monitor.sh"],
                  ["/bin/bash", "../scripts/hal_audio/hal_audio_monitor.sh"],
+                 ["/bin/bash", "/agibot/software/v0/scripts/agent/start_agent.sh"],
                  ["./aimrt_main", "--cfg_file_path=../config/body_drive/record.yaml"],
                  ["python3", "hope_monitor.py"], ["./recordbag1"], ["./hal_remote"],
                  ["./hal_remote", "--cfg_file_path=../config/hal_remote/hal_remote_config.yaml"],
@@ -27,10 +28,12 @@ def test_only_explicit_camera_matches_and_startup_dependencies_are_preserved():
         assert not guard.unwanted(argv)
 
 
-def fake_environment(monkeypatch, respawn=False):
+def fake_environment(monkeypatch, respawn=False, ui_respawn=False):
     states = {"agent": 12, "hal_audio": 13, "hal_hdu_camera": 14, "recordbag1": 15,
               "hal_remote": 16}
     calls = []
+    units = {guard.UI: True, guard.CELLULAR: True}
+    commands = []
     def rpc(method, body):
         if method == "GetAllAppInfos":
             return {"infos": [{"app": name, "pid": pid} for name, pid in states.items()]}
@@ -38,35 +41,115 @@ def fake_environment(monkeypatch, respawn=False):
         if not respawn:
             states[body["app"]] = -1
         return {"result": {"type": "Type_SUCCESS"}}
+    def service_active(unit):
+        assert unit in units
+        return units[unit]
+    def run(argv, **kwargs):
+        commands.append(argv)
+        if argv == ["sudo", "-n", "systemctl", "stop", guard.UI]:
+            units[guard.UI] = ui_respawn
+        elif argv == ["sudo", "-n", "systemctl", "stop", guard.CELLULAR]:
+            units[guard.CELLULAR] = False
+        else:
+            raise AssertionError(f"unexpected command {argv}")
     ticks = iter(i * .5 for i in range(1000))
     monkeypatch.setattr(guard.time, "monotonic", lambda: next(ticks))
     monkeypatch.setattr(guard.time, "sleep", lambda _: None)
     monkeypatch.setattr(guard, "rpc", rpc)
     monkeypatch.setattr(guard, "unwanted_processes", lambda: {})
-    monkeypatch.setattr(guard, "wifi_only", lambda: False)
+    monkeypatch.setattr(guard, "service_active", service_active)
+    monkeypatch.setattr(guard.subprocess, "run", run)
     receipt = dict(stop_results=[], terminated_watchdogs=[], terminated_leftovers=[])
-    return receipt, calls, states
+    env = dict(units=units, commands=commands)
+    return receipt, calls, states, env
 
 
-def test_cleanup_preserves_recording_and_other_apps(monkeypatch):
-    receipt, calls, states = fake_environment(monkeypatch)
+def test_cleanup_stops_agent_camera_face_display_and_cellular_only(monkeypatch):
+    receipt, calls, states, env = fake_environment(monkeypatch)
     guard.clean(receipt)
-    assert set(calls) == set(guard.APPS)
+    assert set(calls) == {"agent", "hal_hdu_camera"} == set(guard.APPS)
+    assert states["agent"] == -1 and states["hal_hdu_camera"] == -1
     assert states["recordbag1"] == 15
     assert states["hal_remote"] == 16
-    assert states["agent"] == 12
     assert states["hal_audio"] == 13
+    assert env["commands"] == [["sudo", "-n", "systemctl", "stop", guard.CELLULAR], ["sudo", "-n", "systemctl", "stop", guard.UI]]
+    assert receipt["ui"] == {"unit": guard.UI, "was_active": True, "active_after": False}
+    assert receipt["cellular"] == {"unit": guard.CELLULAR, "was_active": True, "active_after": False}
     assert "after" in receipt
 
 
+def test_already_stopped_face_display_and_cellular_are_not_stopped_again(monkeypatch):
+    # Also covers robots without zy_cellular.service: systemctl reports it inactive.
+    receipt, _, _, env = fake_environment(monkeypatch)
+    env["units"][guard.UI] = False
+    env["units"][guard.CELLULAR] = False
+    guard.clean(receipt)
+    assert env["commands"] == []
+    assert receipt["ui"] == {"unit": guard.UI, "was_active": False, "active_after": False}
+    assert receipt["cellular"] == {"unit": guard.CELLULAR, "was_active": False, "active_after": False}
+
+
+@pytest.mark.parametrize("cellular_running", [False, True])
+def test_four_start_cleanups_restop_targets_and_preserve_handheld_stack(monkeypatch, cellular_running):
+    _, calls, states, env = fake_environment(monkeypatch)
+    protected = {name: pid for name, pid in states.items() if name not in guard.APPS}
+    processes = {
+        13: ["./hal_audio", "--cfg_file_path=../config/hal_audio/hal_audio.yaml"],
+        16: ["./hal_remote", "--cfg_file_path=../config/hal_remote/hal_remote_config.yaml"],
+        17: ["bash", "../scripts/agent/process_monitor.sh"],
+        18: ["bash", "../scripts/hal_audio/hal_audio_monitor.sh"],
+        19: ["./flutter-pi", "--release"],
+    }
+    protected_processes = dict(processes)
+    monkeypatch.setattr(guard, "unwanted_processes", lambda: {
+        pid: argv for pid, argv in processes.items() if guard.unwanted(argv)})
+
+    def terminate(pid, argv):
+        assert pid in (98, 99) and guard.unwanted(argv)
+        del processes[pid]
+
+    monkeypatch.setattr(guard, "terminate", terminate)
+    for attempt in range(4):
+        # Model vendor restoration (agibot_pm restore / reboot) between STARTs.
+        states["agent"] = 200 + attempt
+        states["hal_hdu_camera"] = 100 + attempt
+        env["units"][guard.UI] = True
+        env["units"][guard.CELLULAR] = cellular_running
+        processes[98] = ["./agent", "--cfg_file_path=../config/agent/agent.yaml"]
+        processes[99] = ["./aimrt_main", "--cfg_file_path=../config/hdu_camera/hdu_camera_cfg.yaml"]
+        receipt = dict(stop_results=[], terminated_watchdogs=[], terminated_leftovers=[])
+        guard.clean(receipt)
+        assert {name: states[name] for name in protected} == protected
+        assert processes == protected_processes
+        assert not env["units"][guard.UI] and not env["units"][guard.CELLULAR]
+        assert receipt["terminated_watchdogs"] == []
+        assert receipt["terminated_leftovers"] == [98, 99]
+    assert sorted(calls) == sorted(["agent", "hal_hdu_camera"] * 4)
+
+
 def test_respawning_background_rejects_start(monkeypatch):
-    receipt, _, _ = fake_environment(monkeypatch, respawn=True)
+    receipt, _, _, _ = fake_environment(monkeypatch, respawn=True)
     with pytest.raises(RuntimeError, match="respawning"):
         guard.clean(receipt)
 
 
+def test_respawning_face_display_rejects_start(monkeypatch):
+    receipt, _, _, _ = fake_environment(monkeypatch, ui_respawn=True)
+    with pytest.raises(RuntimeError, match="ui_active=True"):
+        guard.clean(receipt)
+
+
+def test_face_display_stop_denied_rejects_start(monkeypatch):
+    import subprocess
+    receipt, calls, _, _ = fake_environment(monkeypatch)
+    monkeypatch.setattr(guard.subprocess, "run", Mock(side_effect=subprocess.CalledProcessError(1, "sudo")))
+    with pytest.raises(subprocess.CalledProcessError):
+        guard.clean(receipt)
+    assert calls == []
+
+
 def test_manager_failure_is_not_silently_accepted(monkeypatch):
-    receipt, _, _ = fake_environment(monkeypatch)
+    receipt, _, _, _ = fake_environment(monkeypatch)
     monkeypatch.setattr(guard, "rpc", Mock(side_effect=TimeoutError("manager unavailable")))
     with pytest.raises(TimeoutError):
         guard.clean(receipt)
@@ -136,22 +219,21 @@ def test_service_probe_failure_does_not_count_as_stopped(monkeypatch):
         guard.service_active(guard.CELLULAR)
 
 
-def test_normal_cleanup_never_probes_or_stops_vendor_ui_or_remote(monkeypatch):
-    receipt, _, _ = fake_environment(monkeypatch)
-    command = Mock(side_effect=AssertionError("normal cleanup must not control UI/remote services"))
-    monkeypatch.setattr(guard.subprocess, "run", command)
+def test_cleanup_controls_only_the_cellular_and_face_display_units(monkeypatch):
+    receipt, _, _, env = fake_environment(monkeypatch)
     guard.clean(receipt)
-    command.assert_not_called()
-    assert guard.APPS == ("hal_hdu_camera",)
+    assert env["commands"] == [["sudo", "-n", "systemctl", "stop", "zy_cellular.service"],
+                               ["sudo", "-n", "systemctl", "stop", "agibot_ui.service"]]
+    assert guard.APPS == ("agent", "hal_hdu_camera")
 
 
 def test_cleanup_never_signals_live_startup_dependency_processes(monkeypatch):
-    receipt, calls, _ = fake_environment(monkeypatch)
+    receipt, calls, _, _ = fake_environment(monkeypatch)
     processes = {
-        12: ["./agent", "--cfg_file_path=../config/agent/agent.yaml"],
         13: ["./hal_audio", "--cfg_file_path=../config/hal_audio/hal_audio.yaml"],
         17: ["/bin/bash", "../scripts/agent/process_monitor.sh"],
         18: ["/bin/bash", "../scripts/hal_audio/hal_audio_monitor.sh"],
+        19: ["./flutter-pi", "--release", "-r", "90", "./"],
     }
     monkeypatch.setattr(guard, "unwanted_processes",
                         lambda: {pid: argv for pid, argv in processes.items() if guard.unwanted(argv)})
@@ -159,11 +241,11 @@ def test_cleanup_never_signals_live_startup_dependency_processes(monkeypatch):
     monkeypatch.setattr(guard, "terminate", terminate)
     guard.clean(receipt)
     terminate.assert_not_called()
-    assert calls == ["hal_hdu_camera"]
+    assert sorted(calls) == ["agent", "hal_hdu_camera"]
 
 
 def test_camera_leftovers_are_still_stopped_without_touching_other_apps(monkeypatch):
-    receipt, calls, states = fake_environment(monkeypatch)
+    receipt, calls, states, _ = fake_environment(monkeypatch)
     argv = ["./aimrt_main", "--cfg_file_path=../config/hdu_camera/hdu_camera_cfg.yaml"]
     remaining = {99: argv}
     monkeypatch.setattr(guard, "unwanted_processes", lambda: dict(remaining))
@@ -174,10 +256,10 @@ def test_camera_leftovers_are_still_stopped_without_touching_other_apps(monkeypa
 
     monkeypatch.setattr(guard, "terminate", terminate)
     guard.clean(receipt)
-    assert calls == ["hal_hdu_camera"]
+    assert sorted(calls) == ["agent", "hal_hdu_camera"]
     assert receipt["terminated_leftovers"] == [99]
     assert not remaining
-    assert states["agent"] == 12 and states["hal_audio"] == 13
+    assert states["hal_audio"] == 13
     assert states["recordbag1"] == 15 and states["hal_remote"] == 16
 
 
@@ -220,7 +302,6 @@ def test_matching_camera_process_still_receives_sigterm(monkeypatch):
 
 
 @pytest.mark.parametrize("argv", [
-    ["./agent", "--cfg_file_path=../config/agent/agent.yaml"],
     ["./hal_audio", "--cfg_file_path=../config/hal_audio/hal_audio.yaml"],
     ["bash", "../scripts/agent/process_monitor.sh"],
     ["bash", "../scripts/hal_audio/hal_audio_monitor.sh"],
@@ -252,52 +333,36 @@ def test_failure_writes_receipt_and_returns_nonzero(monkeypatch, tmp_path):
     assert "manager unavailable" in result["error"]
 
 
-def test_success_receipt_keeps_watchdog_key_and_preserves_startup_apps(monkeypatch, tmp_path):
+def test_success_receipt_records_targets_and_preserves_startup_apps(monkeypatch, tmp_path):
     import json
     import sys
-    _, calls, states = fake_environment(monkeypatch)
+    _, calls, states, _ = fake_environment(monkeypatch)
     receipt = tmp_path / "attempt.json"
     monkeypatch.setattr(sys, "argv", ["guard", "--receipt", str(receipt)])
-    monkeypatch.setattr(guard.subprocess, "run", Mock(
-        side_effect=AssertionError("normal cleanup must not control units")))
     assert guard.main() == 0
     result = json.loads(receipt.read_text())
     assert result["result"] == "PASS"
-    assert result["allowed_apps"] == ["hal_hdu_camera"]
+    assert result["allowed_apps"] == ["agent", "hal_hdu_camera"]
+    assert result["ui"] == {"unit": "agibot_ui.service", "was_active": True, "active_after": False}
+    assert result["cellular"] == {"unit": "zy_cellular.service", "was_active": True, "active_after": False}
     assert result["terminated_watchdogs"] == []
-    assert calls == ["hal_hdu_camera"]
-    assert states["agent"] == 12 and states["hal_audio"] == 13
+    assert sorted(calls) == ["agent", "hal_hdu_camera"]
+    assert states["hal_audio"] == 13
     assert states["recordbag1"] == 15 and states["hal_remote"] == 16
 
 
-def test_cellular_is_opt_in_and_invalid_profile_fails(monkeypatch, tmp_path):
-    marker = tmp_path / "profile"
-    monkeypatch.setattr(guard, "WIFI_ONLY", marker)
-    assert not guard.wifi_only()
-    marker.write_text("wifi-only-v1\n")
-    assert guard.wifi_only()
-    marker.write_text("unexpected")
-    with pytest.raises(RuntimeError, match="invalid"):
-        guard.wifi_only()
-
-
-def test_wifi_only_stops_cellular_and_records_readback(monkeypatch):
-    receipt, calls, states = fake_environment(monkeypatch)
-    monkeypatch.setattr(guard, "wifi_only", lambda: True)
-    active = {"value": True}
-    monkeypatch.setattr(guard, "service_active", lambda unit: active["value"])
-    def stop(argv, **kwargs):
-        assert argv == ["systemctl", "--no-ask-password", "stop", guard.CELLULAR]
-        active["value"] = False
-    monkeypatch.setattr(guard.subprocess, "run", stop)
-    guard.clean(receipt)
-    assert receipt["cellular"] == dict(profile="wifi-only-v1", was_active=True, active_after=False)
-    assert states["recordbag1"] == 15
+def test_cellular_watchdog_is_stopped_every_start_without_any_profile(monkeypatch):
+    assert not hasattr(guard, "wifi_only") and not hasattr(guard, "WIFI_ONLY")
+    for attempt in range(3):
+        receipt, _, states, env = fake_environment(monkeypatch)
+        guard.clean(receipt)
+        assert ["sudo", "-n", "systemctl", "stop", guard.CELLULAR] in env["commands"]
+        assert receipt["cellular"]["active_after"] is False
+        assert states["recordbag1"] == 15
 
 
 def test_cellular_respawn_rejects_start(monkeypatch):
-    receipt, _, _ = fake_environment(monkeypatch)
-    monkeypatch.setattr(guard, "wifi_only", lambda: True)
+    receipt, _, _, _ = fake_environment(monkeypatch)
     monkeypatch.setattr(guard, "service_active", lambda _: True)
     monkeypatch.setattr(guard.subprocess, "run", Mock())
     with pytest.raises(RuntimeError, match="respawning"):
@@ -306,9 +371,8 @@ def test_cellular_respawn_rejects_start(monkeypatch):
 
 def test_cellular_stop_denied_rejects_start(monkeypatch):
     import subprocess
-    receipt, _, _ = fake_environment(monkeypatch)
-    monkeypatch.setattr(guard, "wifi_only", lambda: True)
+    receipt, _, _, _ = fake_environment(monkeypatch)
     monkeypatch.setattr(guard, "service_active", lambda _: True)
-    monkeypatch.setattr(guard.subprocess, "run", Mock(side_effect=subprocess.CalledProcessError(1, "systemctl")))
+    monkeypatch.setattr(guard.subprocess, "run", Mock(side_effect=subprocess.CalledProcessError(1, "sudo")))
     with pytest.raises(subprocess.CalledProcessError):
         guard.clean(receipt)

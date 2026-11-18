@@ -58,3 +58,13 @@ test('Foxglove nsec and ROS 2 nanosec timestamps both admit live poses without r
     }
   }
 });
+
+test('pants identity follows its body at either table end or inside the table bounds', () => {
+  for (const x of [-.5, 1.37, 3.2]) {
+    const p = api.decodePlayerPosition(pose(x), 100);
+    assert.equal(api.selectedPlayerAvailable('P2', [undefined, p], 100), true);
+    assert.equal(api.selectedPlayerAvailable('P1', [undefined, p], 100), false);
+    assert.equal(api.selectedPlayerAvailable('P2', [p, undefined], 100), false);
+    assert.equal(api.selectedPlayerAvailable('P2', [undefined, p], 351), false);
+  }
+});

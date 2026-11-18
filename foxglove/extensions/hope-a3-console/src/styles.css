@@ -1,1046 +1,1062 @@
-:root {
-  color-scheme: dark;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-button {
-  font: inherit;
-}
-
+/*
+ * HOPE A3 Console 2.0. Everything is scoped under .hope-console: Foxglove injects
+ * extension CSS globally, so no rule may style other panels.
+ * Single dark theme (Foxglove dark operator setup); Kernel debug is marked in violet.
+ */
 .hope-console {
+  --bg: #0d1014;
+  --chrome: #13171c;
+  --panel: #171b21;
+  --raised: #1e242c;
+  --raised2: #252c36;
+  --line: #2b333e;
+  --fg: #e7ebf0;
+  --muted: #8c97a6;
+  --dim: #5d6876;
+  --accent: #4ea1ff;
+  --accent-ink: #06121f;
+  --ok: #38c98a;
+  --warn: #f0b544;
+  --bad: #f2555a;
+  --idle: #5d6876;
+  --kern: #b48cff;
+  --ok-bg: rgb(56 201 138 / 12%);
+  --warn-bg: rgb(240 181 68 / 13%);
+  --bad-bg: rgb(242 85 90 / 14%);
+  --acc-bg: rgb(78 161 255 / 13%);
+  --kern-bg: rgb(180 140 255 / 14%);
+  --font: "IBM Plex Sans", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
   container: hope-console / inline-size;
+  color-scheme: dark;
+  position: relative;
+  box-sizing: border-box;
   width: 100%;
   height: 100%;
   min-width: 0;
-  overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 16px;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-  color: #ffffff;
-  background: #0e1a2b;
-  font-family: "IBM Plex Sans", system-ui, sans-serif;
-}
-
-/* Cards keep their content height inside Foxglove's fixed-height panel. */
-.hope-console > * {
-  flex: none;
-  min-width: 0;
-}
-
-.hope-console button {
-  white-space: normal;
-  overflow-wrap: anywhere;
-  min-width: 0;
-}
-
-.language-switch {
-  align-self: flex-end;
-  display: inline-flex;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid #426078;
-  border-radius: 8px;
-  background: #112237;
-}
-
-.language-switch button {
-  border: 0;
-  border-radius: 5px;
-  padding: 6px 12px;
-  min-height: 34px;
-  color: #cad6e2;
-  background: transparent;
-  cursor: pointer;
-}
-
-.language-switch button[aria-pressed="true"] {
-  color: #071823;
-  background: #57d6ce;
-  font-weight: 600;
-}
-
-.language-switch button:focus-visible {
-  outline: 2px solid #ffffff;
-  outline-offset: 2px;
-}
-
-.eyebrow,
-.topic-path,
-.helper,
-.gate,
-.process-state,
-.sequence-status,
-.role-controls,
-.action-button small,
-.estop-button small,
-.sequence-footer {
-  font-family: "IBM Plex Mono", monospace;
-}
-
-.eyebrow {
-  color: #13a8b8;
+  overflow: hidden;
+  color: var(--fg);
+  background: var(--panel);
+  font-family: var(--font);
   font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.16em;
-}
-
-.source-row,
-.source-value,
-.gate-row,
-.cpu-header,
-.sequence-header,
-.sequence-header > div,
-.role-controls,
-.sequence-footer {
-  display: flex;
-  align-items: center;
-}
-
-.source-row {
-  gap: 18px;
-}
-
-.source-block {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-}
-
-.source-value {
-  gap: 10px;
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 24px;
-  flex-wrap: wrap;
-}
-
-.source-value > span:first-child {
-  min-width: 0;
-}
-
-.source-dot,
-.gate-dot,
-.process-dot {
-  display: inline-block;
-  flex: none;
-  border-radius: 999px;
-  background: #7c8aa0;
-}
-
-.source-dot {
-  width: 11px;
-  height: 11px;
-}
-
-.source-live {
-  background: #3fbf6a;
-  box-shadow: 0 0 10px rgba(63, 191, 106, 0.7);
-}
-
-.helper,
-.topic-path,
-.sequence-status {
-  color: #7c8aa0;
-  font-size: 13px;
-}
-
-.estop-button {
-  width: 250px;
-  min-width: 220px;
-  min-height: 96px;
-  height: auto;
-  flex: 0 0 250px;
-  padding: 12px;
-  margin-left: auto;
-  border: 2px solid #ff6b6b;
-  border-radius: 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  color: #ffffff;
-  background: #d1202a;
-  box-shadow: 0 0 0 6px rgba(209, 32, 42, 0.18);
-  cursor: pointer;
-  font-family: "Space Grotesk", sans-serif;
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-
-.estop-button small {
-  font-size: 13px;
-  font-weight: 400;
-  letter-spacing: 0.1em;
-  opacity: 0.85;
-}
-
-.estop-button.estop-asserted {
-  border-color: #ff8b82;
-  background: #d1202a;
-  box-shadow: 0 0 0 6px rgba(209, 32, 42, 0.24);
-}
-
-.estop-button:disabled {
-  opacity: 0.82;
-  background: #d1202a;
-}
-
-.operator-notice {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  min-height: 34px;
-  padding: 7px 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: rgb(255 255 255 / 3%);
-  color: var(--text);
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 12px;
-  flex-wrap: wrap;
-}
-
-.operator-notice-danger {
-  border-color: #ff5b52;
-  background: rgb(126 24 24 / 35%);
-}
-
-button:not(:disabled):hover {
-  filter: brightness(1.08);
-}
-
-button:not(:disabled):active {
-  transform: translateY(1px);
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.gate-row {
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.gate {
-  border: 1px solid rgba(174, 187, 202, 0.16);
-  border-radius: 999px;
-  padding: 9px 14px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #7c8aa0;
-  background: rgba(255, 255, 255, 0.035);
-  font-size: 15px;
-}
-
-.gate-dot {
-  width: 9px;
-  height: 9px;
-}
-
-.gate-ok {
-  border-color: rgba(63, 191, 106, 0.45);
-  color: #8fe3ac;
-  background: rgba(63, 191, 106, 0.14);
-}
-
-.gate-ok .gate-dot {
-  background: #3fbf6a;
-}
-
-.gate-attention {
-  border-color: rgba(232, 163, 61, 0.5);
-  color: #f3c888;
-  background: rgba(232, 163, 61, 0.14);
-}
-
-.gate-attention .gate-dot {
-  background: #e8a33d;
-}
-
-.lifecycle-card {
-  border: 1px solid rgba(19, 168, 184, 0.48);
-  border-radius: 12px;
-  padding: 18px 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  background: rgba(19, 168, 184, 0.07);
-}
-
-.lifecycle-header,
-.lifecycle-actions {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.lifecycle-actions {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: stretch;
-}
-
-.lifecycle-header {
-  justify-content: space-between;
-  flex-wrap: wrap;
-  align-items: flex-start;
-}
-
-.lifecycle-header > div:first-child {
-  min-width: 0;
-  flex: 1 1 300px;
-}
-
-.lifecycle-state {
-  margin-top: 5px;
-  font-family: "Space Grotesk", sans-serif;
-  font-size: 28px;
-  font-weight: 600;
-}
-
-.lifecycle-result,
-.config-field,
-.config-helper,
-.lifecycle-actions button {
-  font-family: "IBM Plex Mono", monospace;
-}
-
-.lifecycle-result {
-  min-width: 0;
-  flex: 0 1 320px;
-  color: #aebbca;
-  font-size: 13px;
-  text-align: right;
-}
-
-.config-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
-  gap: 10px;
-}
-
-.config-field {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  color: #8fa0b4;
-  font-size: 12px;
-  letter-spacing: 0.05em;
-}
-
-.config-field > span {
-  flex: 1;
-}
-
-.config-field input {
-  width: 100%;
-  min-width: 0;
-  border: 1px solid rgba(174, 187, 202, 0.28);
-  border-radius: 8px;
-  outline: none;
-  padding: 10px 11px;
-  color: #ffffff;
-  background: #111f32;
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 14px;
-}
-
-.config-field input:focus {
-  border-color: #13a8b8;
-  box-shadow: 0 0 0 3px rgba(19, 168, 184, 0.16);
-}
-
-.table-side-selector {
-  border: 1px solid rgba(19, 168, 184, 0.32);
-  border-radius: 9px;
-  padding: 10px 12px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: center;
-  gap: 10px;
-  background: rgba(14, 26, 43, 0.46);
-}
-
-.table-side-selector > div {
-  min-width: 0;
-  grid-column: 1 / -1;
-}
-
-.table-side-selector button {
-  border: 1px solid rgba(174, 187, 202, 0.34);
-  border-radius: 999px;
-  padding: 9px 12px;
-  color: #aebbca;
-  background: transparent;
-  cursor: pointer;
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 12px;
-}
-
-.table-side-selector .side-selected {
-  border-color: #13a8b8;
-  color: #ffffff;
-  background: rgba(19, 168, 184, 0.22);
-  box-shadow: 0 0 0 3px rgba(19, 168, 184, 0.12);
-}
-
-.lifecycle-actions button {
-  border: 1px solid rgba(174, 187, 202, 0.34);
-  border-radius: 8px;
-  padding: 11px 14px;
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.06);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-}
-
-.lifecycle-actions .config-confirm {
-  border-color: rgba(19, 168, 184, 0.68);
-  background: rgba(19, 168, 184, 0.16);
-}
-
-.lifecycle-actions .system-start {
-  border-color: #3fbf6a;
-  background: #218a45;
-}
-
-.lifecycle-actions .system-stop {
-  border-color: rgba(232, 163, 61, 0.65);
-  color: #f3c888;
-  background: rgba(232, 163, 61, 0.12);
-}
-
-.config-helper {
-  grid-column: 1 / -1;
-  min-width: 0;
-  color: #7c8aa0;
-  font-size: 11px;
   line-height: 1.4;
 }
 
-.time-calibration-row {
-  border: 1px solid rgba(232, 163, 61, 0.42);
-  border-radius: 10px;
-  padding: 13px 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  background: rgba(232, 163, 61, 0.08);
+.hope-console *,
+.hope-console *::before,
+.hope-console *::after {
+  box-sizing: border-box;
 }
 
-.time-calibration-copy {
-  min-width: 0;
-  flex: 1 1 300px;
+.hope-console [hidden] {
+  display: none !important;
 }
 
-.time-calibration-state {
-  margin: 4px 0;
-  color: #f3c888;
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 14px;
-  font-weight: 600;
+.hope-console:focus {
+  outline: none;
 }
 
-.time-calibration-button {
-  min-width: 190px;
-  border: 1px solid rgba(232, 163, 61, 0.72);
-  border-radius: 8px;
-  padding: 12px 15px;
-  color: #f7d49f;
-  background: rgba(232, 163, 61, 0.16);
+.hope-console button {
+  font: inherit;
+  color: inherit;
   cursor: pointer;
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
 }
 
-.time-calibration-complete {
-  border-color: rgba(63, 191, 106, 0.52);
-  background: rgba(63, 191, 106, 0.08);
+.hope-console button:disabled {
+  cursor: not-allowed;
 }
 
-.time-calibration-complete .time-calibration-state {
-  color: #77db98;
+.hope-console :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
-.time-calibration-failed-safe-stop,
-.time-calibration-interrupted {
-  border-color: rgba(209, 32, 42, 0.58);
-  background: rgba(209, 32, 42, 0.1);
-}
-
-.time-calibration-failed-safe-stop .time-calibration-state,
-.time-calibration-interrupted .time-calibration-state {
-  color: #ff858c;
-}
-
-.metric-grid,
-.process-grid,
-.action-grid {
-  display: grid;
-  gap: 16px;
-}
-
-.metric-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.metric-card,
-.cpu-card,
-.sequence-card {
-  border: 1px solid rgba(174, 187, 202, 0.16);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.035);
-}
-
-.metric-card,
-.cpu-card {
-  border-top: 3px solid #13a8b8;
-  padding: 18px 22px;
-}
-
-.metric-value {
-  margin-top: 10px;
-  display: flex;
-  align-items: baseline;
-  gap: 9px;
-  font-family: "Space Grotesk", sans-serif;
-  font-size: 68px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.03em;
-  line-height: 1;
-}
-
-.metric-value small {
-  color: #aebbca;
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 24px;
-}
-
-.metric-card .topic-path {
-  margin-top: 8px;
-  font-size: 14px;
-}
-
-.stale {
-  color: #7c8aa0 !important;
-}
-
-.process-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.process-tile {
+.hope-console fieldset.robot-controls {
+  display: contents;
+  border: 0;
+  margin: 0;
+  padding: 0;
   min-width: 0;
-  border: 1px solid rgba(174, 187, 202, 0.16);
-  border-radius: 12px;
-  padding: 16px 18px;
+}
+
+/* ---------- utilities ---------- */
+.hope-console .c-mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.hope-console .c-dim { color: var(--dim); }
+.hope-console .c-hint { font-size: 11.5px; color: var(--muted); }
+.hope-console .c-trunc { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hope-console .c-sp { flex: 1; }
+.hope-console .c-grow { flex: 1; min-width: 0; }
+.hope-console .c-gap-top { margin-top: 8px; }
+.hope-console .c-accent { color: var(--accent); }
+.hope-console .c-ok-text { color: var(--ok); }
+.hope-console .c-warn-text { color: var(--warn); }
+.hope-console .c-bad-text { color: var(--bad); }
+
+.hope-console .c-dot {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--idle);
+}
+.hope-console .c-dot.c-ok { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-bg); }
+.hope-console .c-dot.c-warn { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-bg); }
+.hope-console .c-dot.c-bad { background: var(--bad); box-shadow: 0 0 0 3px var(--bad-bg); }
+.hope-console .c-dot.c-kern { background: var(--kern); box-shadow: 0 0 0 3px var(--kern-bg); }
+.hope-console .c-dot.c-acc { background: var(--accent); box-shadow: 0 0 0 3px var(--acc-bg); }
+.hope-console .c-dot.c-busy { background: var(--accent); animation: hope-c2-blink 0.8s steps(2) infinite; }
+
+@keyframes hope-c2-blink { 50% { opacity: 0.25; } }
+@keyframes hope-c2-dash { to { stroke-dashoffset: -10; } }
+
+/* ---------- layout ---------- */
+.hope-console .c-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.hope-console .c-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: rgba(255, 255, 255, 0.035);
+  padding: 9px 12px 8px;
+  background: var(--panel);
+  border-top: 3px solid transparent;
+  border-bottom: 1px solid var(--line);
 }
+.hope-console .c-head-kernel { border-top-color: var(--kern); }
 
-.process-state {
+.hope-console .c-row1 { display: flex; align-items: stretch; gap: 8px; }
+.hope-console .c-statusblock { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.hope-console .c-conn { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; }
+.hope-console .c-ip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--raised);
+  font-size: 12px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.hope-console .c-ip .c-mono:first-of-type { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+.hope-console .c-ghost {
+  padding: 3px 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+}
+.hope-console .c-ghost:hover:not(:disabled) { border-color: var(--line); color: var(--fg); }
+
+.hope-console .language-switch {
+  display: flex;
+  margin-left: auto;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.hope-console .language-switch button {
+  padding: 2px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+}
+.hope-console .language-switch button[aria-pressed="true"] { background: var(--raised2); color: var(--fg); }
+
+.hope-console .c-connedit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 8px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 12px;
+}
+.hope-console .c-connedit label { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.hope-console .c-connedit [role="status"] { flex-basis: 100%; }
+
+/* pills */
+.hope-console .c-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.hope-console .c-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--raised);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.hope-console .c-pill small { color: var(--muted); font-size: 11px; font-weight: 500; }
+.hope-console .c-pill.c-ok { border-color: transparent; background: var(--ok-bg); color: var(--ok); }
+.hope-console .c-pill.c-warn { border-color: transparent; background: var(--warn-bg); color: var(--warn); }
+.hope-console .c-pill.c-bad { border-color: transparent; background: var(--bad-bg); color: var(--bad); }
+.hope-console .c-pill.c-acc { border-color: transparent; background: var(--acc-bg); color: var(--accent); }
+.hope-console .c-pill.c-kern { border-color: transparent; background: var(--kern-bg); color: var(--kern); }
+.hope-console .c-rec .c-dot { width: 7px; height: 7px; }
+.hope-console .c-rec:disabled { opacity: 0.45; }
+.hope-console .c-rec.c-rec-on { border-color: transparent; background: var(--bad-bg); color: var(--bad); }
+.hope-console .c-rec.c-rec-on .c-dot { background: var(--bad); animation: hope-c2-blink 1s steps(2) infinite; }
+
+/* E-stop */
+.hope-console .c-estop {
+  flex: none;
+  width: 112px;
+  height: 100%;
+  min-height: 58px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--bad);
+  box-shadow: inset 0 -3px 0 rgb(0 0 0 / 25%);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.hope-console .c-estop small { font-size: 10px; font-weight: 600; letter-spacing: 0; opacity: 0.85; text-align: center; line-height: 1.2; }
+.hope-console .c-estop:hover:not(:disabled) { filter: brightness(1.08); }
+.hope-console .c-estop:active:not(:disabled) { transform: translateY(1px); }
+.hope-console .c-estop:disabled { opacity: 0.8; }
+.hope-console .c-estop.c-estop-latched { background: repeating-linear-gradient(45deg, #c23a3f 0 8px, #a52f34 8px 16px); }
+
+/* health chips */
+.hope-console .c-health { display: flex; flex-wrap: wrap; gap: 4px; }
+.hope-console .c-hchip {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 11px;
+  text-align: left;
+}
+.hope-console .c-hchip-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hope-console .c-hchip:hover { border-color: var(--line); color: var(--fg); }
+.hope-console .c-hchip.c-bad { background: var(--bad-bg); color: var(--bad); }
+
+.hope-console .c-banner {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #7c8aa0;
-  font-size: 14px;
-  letter-spacing: 0.14em;
-}
-
-.process-dot {
-  width: 14px;
-  height: 14px;
-}
-
-.process-name {
-  overflow: hidden;
-  font-family: "Space Grotesk", sans-serif;
-  font-size: 30px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: -0.02em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-
-.process-running {
-  border-color: rgba(63, 191, 106, 0.5);
-  background: rgba(63, 191, 106, 0.12);
-}
-
-.process-running .process-state {
-  color: #8fe3ac;
-}
-
-.process-running .process-dot {
-  background: #3fbf6a;
-  box-shadow: 0 0 12px rgba(63, 191, 106, 0.8);
-}
-
-.process-stopped {
-  border-color: rgba(255, 107, 107, 0.55);
-  background: rgba(209, 32, 42, 0.16);
-}
-
-.process-stopped .process-state {
-  color: #ffb3b3;
-}
-
-.process-stopped .process-dot {
-  background: #ff5a5a;
-  box-shadow: 0 0 12px rgba(255, 90, 90, 0.8);
-}
-
-.cpu-card {
-  padding-bottom: 12px;
-}
-
-.cpu-header {
-  gap: 14px;
-}
-
-.cpu-value {
-  font-family: "Space Grotesk", sans-serif;
-  font-size: 40px;
+.hope-console .c-banner.c-bad { background: var(--bad-bg); color: var(--bad); }
+.hope-console .c-banner button {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--raised2);
+  color: var(--fg);
+  font-size: 12px;
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-  line-height: 1;
 }
 
-.cpu-value small {
-  color: #aebbca;
-  font-size: 20px;
-}
-
-.cpu-diagnostics {
-  margin-left: auto;
-  min-width: 0;
+/* tabs */
+.hope-console .c-tabs { display: flex; gap: 2px; padding: 3px; border-radius: 8px; background: var(--raised); }
+.hope-console .c-tab {
+  flex: 1;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
 }
+.hope-console .c-tab[aria-selected="true"] { background: var(--raised2); color: var(--fg); box-shadow: 0 1px 0 rgb(0 0 0 / 30%); }
+.hope-console .c-tab.c-tab-k { color: var(--kern); }
+.hope-console .c-tab.c-tab-k[aria-selected="true"] { background: var(--kern-bg); color: var(--kern); }
+.hope-console .c-badge { width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
+.hope-console .c-badge.c-bad { background: var(--bad); }
 
-.cpu-diagnostics .topic-path {
-  max-width: 360px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cpu-plot {
-  width: 100%;
-  height: 150px;
-  margin-top: 12px;
-}
-
-.cpu-plot line {
-  stroke: rgba(174, 187, 202, 0.14);
-}
-
-.cpu-line {
-  fill: none;
-  stroke: #13a8b8;
-  stroke-width: 3;
-  vector-effect: non-scaling-stroke;
-}
-
-.sequence-card {
-  padding: 18px 22px;
+/* body */
+.hope-console .c-body { flex: 1; display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+.hope-console .c-sec { display: flex; flex-direction: column; gap: 8px; }
+.hope-console .c-card { min-width: 0; padding: 12px; border-radius: 10px; background: var(--raised); }
+.hope-console .c-kcard { box-shadow: inset 0 0 0 1px var(--kern-bg); }
+.hope-console .c-lbl {
   display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.sequence-header {
-  justify-content: space-between;
-  gap: 16px;
-  min-width: 0;
-  border: 1px solid rgba(19, 168, 184, 0.32);
-  border-radius: 10px;
-  padding: 12px 14px;
-  background: rgba(19, 168, 184, 0.06);
-  flex-wrap: wrap;
-}
-
-.sequence-summary {
-  min-width: 0;
-  flex: 1 1 280px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start !important;
-  gap: 4px;
-}
-
-.role-controls {
-  min-width: 0;
-  flex: 0 1 auto;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  align-items: center;
   gap: 8px;
-  color: #aebbca;
-  font-size: 13px;
+  min-width: 0;
+  color: var(--dim);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
+.hope-console .c-card > .c-lbl { margin-bottom: 10px; }
+.hope-console .c-lbl .c-r { margin-left: auto; color: var(--muted); font-weight: 500; letter-spacing: 0; text-transform: none; }
 
-.role-label {
-  white-space: normal;
+/* segmented */
+.hope-console .c-seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  min-width: 0;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
 }
+.hope-console .c-seg button {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.hope-console .c-seg button small { color: var(--dim); font-size: 10.5px; font-weight: 500; }
+.hope-console .c-seg button[aria-pressed="true"] { background: var(--raised2); color: var(--fg); box-shadow: inset 0 0 0 1px var(--accent); }
+.hope-console .c-seg button[aria-pressed="true"] small { color: var(--muted); }
+.hope-console .c-seg button.c-kopt[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--kern); color: var(--kern); }
+.hope-console .c-seg button:disabled { opacity: 0.45; }
+.hope-console .c-seg button[aria-pressed="true"]:disabled { opacity: 0.8; }
+.hope-console .c-seg button:hover:not(:disabled):not([aria-pressed="true"]) { color: var(--fg); }
+.hope-console .c-seg.c-seg-sm button { padding: 5px 8px; font-size: 12px; }
+.hope-console .c-seg .c-verify-ok { color: var(--ok); font-weight: 700; }
+.hope-console .c-seg .c-verify-no { color: var(--warn); font-weight: 700; }
 
-.role-controls button {
-  border: 1px solid rgba(19, 168, 184, 0.55);
+/* lifecycle card */
+.hope-console .c-life { display: flex; flex-direction: column; gap: 10px; }
+.hope-console .c-life-run { box-shadow: inset 0 0 0 1px var(--ok-bg); }
+.hope-console .c-life-run.c-life-k { box-shadow: inset 0 0 0 1px var(--kern-bg); }
+.hope-console .c-life-failed { box-shadow: inset 0 0 0 1px var(--bad-bg); }
+.hope-console .c-lrow { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.hope-console .c-lrow b { font-size: 14px; white-space: nowrap; }
+.hope-console .c-checks { display: flex; flex-wrap: wrap; gap: 6px; }
+.hope-console .c-chk {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 0;
   border-radius: 999px;
+  background: var(--ok-bg);
+  color: var(--ok);
+  font-size: 12px;
+  font-weight: 600;
+}
+.hope-console .c-chk:disabled { cursor: default; }
+.hope-console .c-chk.c-chk-bad { background: var(--bad-bg); color: var(--bad); }
+.hope-console .c-chk.c-chk-warn { background: var(--warn-bg); color: var(--warn); }
+.hope-console .c-chk.c-chk-bad:not(:disabled):hover,
+.hope-console .c-chk.c-chk-warn:hover { filter: brightness(1.15); }
+
+/* buttons */
+.hope-console .c-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--raised2);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.hope-console .c-btn:hover:not(:disabled) { border-color: var(--muted); }
+.hope-console .c-btn:disabled { opacity: 0.4; }
+.hope-console .c-btn.c-sm { padding: 5px 10px; border-radius: 6px; font-size: 12px; }
+.hope-console .c-btn.c-big { width: 100%; padding: 12px; border-radius: 10px; font-size: 15px; }
+.hope-console .c-btn.c-primary { border-color: transparent; background: var(--accent); color: var(--accent-ink); }
+.hope-console .c-btn.c-go { border-color: transparent; background: var(--ok); color: #04150d; }
+.hope-console .c-btn.c-gok { border-color: transparent; background: var(--kern); color: #170b2c; }
+.hope-console .c-btn.c-warnb { border-color: transparent; background: var(--warn); color: #1c1300; }
+.hope-console .c-btn.c-danger { border-color: var(--bad); background: transparent; color: var(--bad); }
+.hope-console .c-btn.c-stopbig { border-color: transparent; background: var(--bad); color: #fff; }
+.hope-console .c-btn.c-offbig,
+.hope-console .c-btn.c-offbig:disabled {
+  border-color: var(--line);
+  background: var(--raised);
+  color: var(--dim);
+  opacity: 1;
+  cursor: not-allowed;
+}
+.hope-console .c-btn.c-busybig,
+.hope-console .c-btn.c-busybig:disabled {
+  border-color: transparent;
+  background: repeating-linear-gradient(45deg, var(--raised2) 0 8px, var(--raised) 8px 16px);
+  color: var(--muted);
+  opacity: 1;
+}
+.hope-console .c-bigrow { display: flex; gap: 8px; }
+.hope-console .c-bigrow .c-btn.c-big { flex: 1 1 0; width: auto; min-width: 0; }
+
+.hope-console .c-why {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
   padding: 7px 10px;
-  color: #ffffff;
-  background: rgba(19, 168, 184, 0.14);
-  cursor: pointer;
+  border-radius: 8px;
+  background: var(--warn-bg);
+  color: var(--warn);
   font-size: 12px;
 }
-
-.action-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+.hope-console .c-why.c-bad { background: var(--bad-bg); color: var(--bad); }
+.hope-console .c-why > button {
+  padding: 2px 8px;
+  border: 1px solid currentcolor;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
 }
 
-.action-button {
-  min-height: 80px;
-  border: 1px dashed rgba(174, 187, 202, 0.34);
-  border-radius: 11px;
-  padding: 14px 18px;
+/* setup grid */
+.hope-console .c-setgrid { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 10px 12px; align-items: center; }
+.hope-console .c-k { display: flex; flex-direction: column; color: var(--muted); font-size: 12px; font-weight: 500; }
+.hope-console .c-k i { color: var(--dim); font-size: 10.5px; font-style: normal; }
+.hope-console .c-inrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.hope-console .c-inp {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.hope-console .c-inp:focus { border-color: var(--accent); outline: none; }
+.hope-console .c-inp.c-inp-short { flex: 0 0 76px; }
+.hope-console .c-inp.c-dirty { border-color: var(--warn); }
+.hope-console .c-inp:disabled { opacity: 0.5; }
+.hope-console .c-status {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 3px;
-  color: #aebbca;
-  background: transparent;
-  cursor: pointer;
-  font-family: "Space Grotesk", sans-serif;
-  font-size: 26px;
-  font-weight: 600;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 12px;
+}
+.hope-console .c-status b { color: var(--fg); font-weight: 600; white-space: nowrap; }
+.hope-console .c-status.c-ok b { color: var(--ok); }
+.hope-console .c-status.c-bad b { color: var(--bad); }
+.hope-console .c-status.c-warn b { color: var(--warn); }
+.hope-console .c-status.c-kern b { color: var(--kern); }
+.hope-console .c-status.c-busy b { color: var(--accent); }
+.hope-console .c-status > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hope-console .c-attest { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.hope-console .c-attest label { display: flex; align-items: flex-start; gap: 6px; }
+.hope-console .c-filebox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 6px 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.hope-console .c-filebox.c-filebox-flat { padding: 0; border: 0; background: none; }
+.hope-console .c-filebox .c-n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 11.5px; }
+.hope-console .c-filebox .c-m { color: var(--dim); font-size: 11px; white-space: nowrap; }
+.hope-console .c-more summary { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; cursor: pointer; list-style: none; }
+.hope-console .c-more summary::-webkit-details-marker { display: none; }
+.hope-console .c-more summary::before { content: "\25B8"; font-size: 10px; transition: transform 0.15s; }
+.hope-console .c-more[open] summary::before { transform: rotate(90deg); }
+.hope-console .c-more textarea {
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.hope-console .c-card > .c-more { margin-top: 10px; }
+
+/* CSV timeline */
+.hope-console .c-tl { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.hope-console .c-tlbar { position: relative; display: flex; height: 22px; overflow: hidden; border-radius: 6px; background: var(--bg); }
+.hope-console .c-tlseg {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0 6px;
+  overflow: hidden;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.hope-console .c-tl-s { background: rgb(242 85 90 / 16%); color: #ff8a8e; }
+.hope-console .c-tl-b { background: var(--kern-bg); color: var(--kern); }
+.hope-console .c-tl-c { background: var(--ok-bg); color: var(--ok); }
+.hope-console .c-tlev { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--fg); opacity: 0.55; }
+.hope-console .c-tlev.c-tlev-ready { background: var(--ok); }
+.hope-console .c-tlaxis { position: relative; height: 26px; color: var(--dim); font-family: var(--mono); font-size: 10px; }
+.hope-console .c-tlaxis span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.hope-console .c-tlaxis span:first-child { left: 0; transform: none; }
+.hope-console .c-tlaxis span:last-child { transform: translateX(-100%); }
+.hope-console .c-tlaxis span.c-tlaxis-low { top: 13px; }
+
+/* policy list */
+.hope-console .c-pols { display: flex; flex-direction: column; gap: 4px; }
+.hope-console .c-pol {
+  display: grid;
+  grid-template-columns: 14px 92px 96px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
   text-align: left;
 }
-
-.action-button small {
-  color: #7c8aa0;
-  font-size: 13px;
-  font-weight: 400;
-  letter-spacing: 0.08em;
+.hope-console .c-pol:hover:not(:disabled) { border-color: var(--muted); }
+.hope-console .c-pol:disabled { opacity: 0.45; }
+.hope-console .c-pol[aria-pressed="true"] { border-color: var(--accent); background: var(--acc-bg); }
+.hope-console .c-pol[aria-pressed="true"]:disabled { opacity: 1; }
+.hope-console .c-radio { width: 14px; height: 14px; border: 2px solid var(--dim); border-radius: 50%; }
+.hope-console .c-pol[aria-pressed="true"] .c-radio {
+  border-color: var(--accent);
+  background: radial-gradient(circle, var(--accent) 0 3px, transparent 3.5px);
 }
+.hope-console .c-pn { font-family: var(--mono); font-size: 13.5px; font-weight: 600; white-space: nowrap; }
+.hope-console .c-caps { display: inline-flex; gap: 4px; }
+.hope-console .c-cap { padding: 1px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+.hope-console .c-cap-s { background: var(--warn-bg); color: var(--warn); }
+.hope-console .c-cap-r { background: var(--ok-bg); color: var(--ok); }
+.hope-console .c-cap-no { border: 1px dashed var(--line); color: var(--dim); text-decoration: line-through; }
+.hope-console .c-pnote { min-width: 0; overflow: hidden; color: var(--muted); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+.hope-console .c-pstate { color: var(--dim); font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+.hope-console .c-pstate.c-live { color: var(--ok); }
 
-.action-completed {
-  border-style: solid;
-  border-color: rgba(19, 168, 184, 0.55);
-  color: #ffffff;
-  background: rgba(19, 168, 184, 0.14);
+/* state graph */
+.hope-console .c-diagram { position: relative; width: 100%; max-width: 100%; }
+.hope-console .c-diagram svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.hope-console .c-edge { fill: none; stroke: var(--line); stroke-width: 1.4; }
+.hope-console .c-edge.live { stroke: var(--accent); stroke-dasharray: 3 2; animation: hope-c2-dash 1s linear infinite; }
+.hope-console .c-edge.livew { stroke: var(--warn); stroke-dasharray: 3 2; animation: hope-c2-dash 1s linear infinite; }
+.hope-console .c-arrow { fill: var(--line); }
+.hope-console .c-arrow.live { fill: var(--accent); }
+.hope-console .c-arrow.livew { fill: var(--warn); }
+.hope-console .c-elbl { fill: var(--dim); font-family: var(--font); font-size: 6.4px; font-weight: 600; }
+.hope-console .c-elbl.live { fill: var(--accent); }
+.hope-console .c-elbl.livew { fill: var(--warn); }
+.hope-console .c-node {
+  position: absolute;
+  width: 24%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 2px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--dim);
+  line-height: 1.2;
 }
-
-.action-completed small {
-  color: #8fe3ac;
+.hope-console .c-node b { max-width: 100%; overflow: hidden; font-size: 13.5px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.hope-console .c-node small {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0 4px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  opacity: 0.85;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-
-.action-next {
-  border: none;
-  color: #0e1a2b;
-  background: #e8a33d;
-  box-shadow: 0 0 0 5px rgba(232, 163, 61, 0.18);
+.hope-console .c-kbd {
+  padding: 0 4px;
+  border: 1px solid currentcolor;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.65;
+}
+.hope-console .c-node .c-kbd { position: absolute; top: 4px; right: 5px; font-size: 9px; }
+.hope-console .c-node-now {
+  position: absolute;
+  top: -9px;
+  left: 8px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--ok);
+  color: #04150d;
+  font-size: 9.5px;
   font-weight: 700;
 }
+.hope-console .c-node.c-node-cur { border-color: var(--ok); background: var(--ok-bg); color: var(--ok); box-shadow: 0 0 0 4px var(--ok-bg); }
+.hope-console .c-node.c-node-avail { border-color: var(--accent); background: var(--raised2); color: var(--fg); }
+.hope-console .c-node.c-node-avail:hover { background: var(--acc-bg); }
+.hope-console .c-node.c-node-avail.c-node-serve { border-color: var(--warn); }
+.hope-console .c-node.c-node-avail.c-node-serve:hover { background: var(--warn-bg); }
+.hope-console .c-node.c-node-avail.c-node-danger { border-color: var(--bad); background: transparent; color: var(--bad); }
+.hope-console .c-node.c-node-avail.c-node-danger:hover { background: var(--bad-bg); }
+.hope-console .c-node.c-node-off { opacity: 0.6; }
+.hope-console .c-node:disabled { cursor: not-allowed; }
+.hope-console .c-under { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.hope-console .c-card > .c-why { margin-top: 10px; }
+.hope-console .c-card > .c-mono.c-dim { margin-top: 4px; font-size: 11px; }
 
-.action-next small {
-  color: #0e1a2b;
-  opacity: 0.8;
-}
-
-.action-wide {
-  grid-column: 1 / -1;
-}
-
-.sequence-footer {
-  min-width: 0;
-  gap: 16px;
-  color: #7c8aa0;
-  font-size: 13px;
-}
-
-.sequence-footer > span {
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sequence-footer .action-button {
-  width: 260px;
-  min-height: 60px;
+/* teleop bar (read-only: Teleop is entered from the controller) */
+.hope-console .c-tele { display: flex; align-items: center; gap: 10px; }
+.hope-console .c-tele.c-tele-on { box-shadow: inset 0 0 0 1px var(--accent); }
+.hope-console .c-tele-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.hope-console .c-tele-text b { font-size: 13px; }
+.hope-console .c-tele-text b .c-tele-dev { color: var(--muted); font-weight: 500; }
+.hope-console .c-tele-text > small { margin-top: 1px; }
+.hope-console .c-tele-text > span { overflow: hidden; color: var(--muted); font-family: var(--mono); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+.hope-console .c-ybtn {
   flex: none;
-  border-color: rgba(255, 107, 107, 0.55);
-  color: #ffb3b3;
-  font-size: 20px;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #d9a520;
+  color: #1c1300;
+  font-size: 11px;
+  font-weight: 800;
 }
+.hope-console .c-ybtn.c-ybtn-off { background: var(--raised2); color: var(--dim); }
 
-.action-danger {
-  background: rgba(209, 32, 42, 0.12);
-}
-
-/* Foxglove can show a narrow panel inside a wide desktop window. */
-@container hope-console (max-width: 760px) {
-  .metric-grid,
-  .process-grid,
-  .action-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .action-wide {
-    grid-column: 1;
-  }
-
-  .source-row,
-  .lifecycle-header,
-  .time-calibration-row,
-  .sequence-header,
-  .sequence-footer {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .estop-button,
-  .time-calibration-button,
-  .sequence-footer .action-button {
-    width: 100%;
-    margin-left: 0;
-  }
-
-  .estop-button,
-  .lifecycle-header > div,
-  .lifecycle-header > div:first-child,
-  .time-calibration-copy,
-  .sequence-summary,
-  .role-controls,
-  .sequence-footer > span {
-    flex: none;
-  }
-
-  .role-controls {
-    flex-wrap: wrap;
-    justify-content: flex-start;
-  }
-
-  .lifecycle-result {
-    text-align: left;
-  }
-
-  .cpu-header {
-    flex-wrap: wrap;
-  }
-
-  .cpu-diagnostics {
-    flex-basis: 100%;
-    margin-left: 0;
-    align-items: flex-start;
-  }
-
-  .cpu-diagnostics .topic-path {
-    max-width: 100%;
-    white-space: normal;
-  }
-
-  .sequence-footer > span {
-    white-space: normal;
-  }
-}
-
-@container hope-console (max-width: 420px) {
-  .lifecycle-card,
-  .sequence-card,
-  .metric-card,
-  .cpu-card {
-    padding: 14px;
-  }
-
-  .table-side-selector,
-  .lifecycle-actions {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .cpu-plot {
-    display: none;
-  }
-
-  .metric-value {
-    font-size: 52px;
-  }
-}
-
-
-/* Field controls remain visible independently of the Runner action sequence. */
-.field-toolbar, .field-assets {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 14px;
-}
-.field-toolbar > div { min-width: 0; }
-.field-toolbar, .field-card {
-  background: #151e27;
-  border: 1px solid #324454;
-  border-radius: 10px;
-  padding: 16px;
-}
-.field-card, .record-control { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.field-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.field-buttons button, .record-control button {
-  border: 1px solid #536777;
-  background: #233342;
-  color: #e6eef5;
-  border-radius: 6px;
-  padding: 10px 12px;
-  font: inherit;
-  cursor: pointer;
-}
-.field-buttons button[aria-pressed="true"] { border-color: #6bd4be; background: #204b45; }
-.field-buttons button:disabled, .record-control button:disabled { opacity: .45; cursor: default; }
-.field-buttons button:focus-visible, .record-control button:focus-visible { outline: 2px solid #6bd4be; outline-offset: 3px; }
-.record-control { border-left: 1px solid #324454; padding-left: 16px; }
-.record-active > .eyebrow { color: #ff8b85; }
-.record-active button { background: #682f35; border-color: #e87676; }
-.asset-path { overflow-wrap: anywhere; font-size: 12px; }
-.recalibration-actions { display: grid; gap: 8px; border-top: 1px solid #536777; padding-top: 8px; }
-.field-card p, .field-toolbar p { margin: 0; }
-@container hope-console (max-width: 760px) {
-  .field-toolbar, .field-assets { grid-template-columns: minmax(0, 1fr); }
-  .record-control { border-left: 0; border-top: 1px solid #324454; padding-left: 0; padding-top: 12px; }
-}
-
-.diagnostics-content { display: flex; flex-direction: column; gap: 14px; }
-
-/* Status changes must not move the controls or the cards below them. */
-.teleop-details {
-  display: grid;
-  grid-template-columns: 82px minmax(0, 1fr);
-  grid-auto-rows: 24px;
-  column-gap: 12px;
-  align-items: center;
-  color: #aebbca;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-
-.teleop-details > span,
-.teleop-entry-status {
+/* hit tuning: wraps the unchanged 1.9 controls */
+.hope-console .c-tune summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; }
+.hope-console .c-tune summary b { white-space: nowrap; }
+.hope-console .c-tune summary::-webkit-details-marker { display: none; }
+.hope-console .c-tune summary::before { content: "\25B8"; color: var(--muted); font-size: 10px; transition: transform 0.15s; }
+.hope-console .c-tune[open] summary::before { transform: rotate(90deg); }
+.hope-console .c-tune-vals { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-left: auto; min-width: 0; }
+.hope-console .c-tune-vals span { padding: 1px 6px; border-radius: 4px; background: var(--bg); color: var(--muted); font-family: var(--mono); font-size: 11px; }
+.hope-console .c-tune-body { display: flex; flex-direction: column; gap: 14px; margin-top: 12px; }
+.hope-console .plane-mode-controls,
+.hope-console .ball-y-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11.5px;
 }
-
-.teleop-entry-status {
-  height: 20px;
-  line-height: 20px;
-  font-size: 13px;
-  color: #aebbca;
+.hope-console .c-tune-body > :first-child { padding-top: 0; border-top: 0; }
+.hope-console .plane-mode-controls label,
+.hope-console .ball-y-filter-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--fg);
+  font-size: 12.5px;
+  font-weight: 600;
 }
-
-.table-side-selector select {
-  grid-column: 1 / -1;
-  width: 100%;
-  color: #ffffff;
-  background: #0e1a2b;
-  border: 1px solid rgba(174, 187, 202, 0.34);
+.hope-console .plane-mode-controls input,
+.hope-console .plane-mode-controls select,
+.hope-console .ball-y-filter-inputs input {
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 8px 12px;
-  font: inherit;
-  max-width: 100%;
-}
-/* Copyable, confirmed Laptop setup; long commands wrap within narrow panels. */
-.mocap-setup {
-  padding: 0.5rem 0;
-}
-.mocap-setup textarea {
-  box-sizing: border-box;
-  width: 100%;
-  resize: vertical;
-  color: inherit;
-  background: transparent;
-  border: 1px solid #536377;
-  border-radius: 4px;
-  padding: 0.5rem;
-  font: 0.75rem "IBM Plex Mono", monospace;
-}
-
-.hit-speed-scale-controls input { width: 100%; min-width: 0; box-sizing: border-box; border: 1px solid #71819688; border-radius: 5px; padding: 7px; color: #e7edf3; background: #0d1725; font-family: "IBM Plex Mono", monospace; }
-.hit-speed-scale-controls button { border: 1px solid #f1b44d88; border-radius: 5px; padding: 6px 10px; color: #f5d395; background: #efad391a; cursor: pointer; }
-.hit-speed-scale-controls button:disabled, .hit-speed-scale-controls input:disabled { opacity: 0.45; cursor: not-allowed; }
-
-.hope-console .robot-controls { border: 0; padding: 0; margin: 0; min-width: 0; }
-.hope-console .robot-connection { padding: 12px; border-bottom: 1px solid #516173; }
-.hope-console .robot-connection input { margin: 0 8px; }
-
-.plane-mode-controls {
-  display: grid;
-  gap: 6px;
-  padding: 10px;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--mono);
   font-size: 12px;
-  border: 1px solid var(--border, #59616d);
+}
+.hope-console .hit-speed-scale-controls input { width: 96px; }
+.hope-console .plane-mode-controls select { flex: 1; font-family: var(--font); }
+.hope-console .plane-mode-controls button,
+.hope-console .ball-y-filter-actions button {
+  align-self: flex-start;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
   border-radius: 6px;
+  background: var(--raised2);
+  font-size: 12px;
+  font-weight: 600;
 }
-.plane-mode-controls label { display: grid; gap: 6px; }
-.plane-mode-controls select { width: 100%; min-width: 0; padding: 6px; }
-.plane-mode-controls [role="alert"] { color: #ff968d; }
-.ready-controls { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.ready-controls > .action-button { width: 100%; }
-.ball-y-filter { padding: 12px; border: 1px solid #f1b44d66; border-radius: 10px; background: #efad3910; display: flex; flex-direction: column; gap: 9px; font-size: 12px; min-width: 0; }
-.ball-y-filter-toggle { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; font-weight: 600; }
-.ball-y-filter-toggle input { accent-color: #f1b44d; }
-.ball-y-filter-toggle span { margin-left: auto; }
-.filter-on { color: #f1b44d; } .filter-off { color: #9ca9b7; }
-.ball-y-filter-inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.ball-y-filter-inputs label { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.ball-y-filter-inputs input { width: 100%; min-width: 0; box-sizing: border-box; border: 1px solid #71819688; border-radius: 5px; padding: 7px; color: #e7edf3; background: #0d1725; font-family: "IBM Plex Mono", monospace; }
-.ball-y-filter-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.ball-y-filter-actions button { border: 1px solid #f1b44d88; border-radius: 5px; padding: 6px 10px; color: #f5d395; background: #efad391a; cursor: pointer; }
-.ball-y-filter button:disabled, .ball-y-filter input:disabled { opacity: 0.45; cursor: not-allowed; }
-.ball-y-filter small { color: #aebbca; line-height: 1.5; overflow-wrap: anywhere; }
-/* In-panel confirmation keeps rendering and challenge echoes running. It does
-   not make the remaining controls (including emergency actions) inert. */
-.action-confirmation {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  max-height: 60vh;
+.hope-console .hit-speed-scale-controls button,
+.hope-console .ball-y-filter-actions button:first-child { border-color: transparent; background: var(--accent); color: var(--accent-ink); }
+.hope-console .plane-mode-controls button:disabled,
+.hope-console .ball-y-filter button:disabled,
+.hope-console .plane-mode-controls input:disabled,
+.hope-console .plane-mode-controls select:disabled,
+.hope-console .ball-y-filter input:disabled { opacity: 0.45; }
+.hope-console .plane-mode-controls [role="alert"],
+.hope-console .ball-y-filter [role="alert"] { color: var(--bad); }
+.hope-console .plane-mode-controls [role="status"] { color: var(--warn); }
+.hope-console .ball-y-filter-toggle input { accent-color: var(--accent); }
+.hope-console .ball-y-filter-toggle span { margin-left: auto; padding: 1px 6px; border-radius: 4px; background: var(--raised2); font-size: 10.5px; font-weight: 700; }
+.hope-console .ball-y-filter-toggle .filter-on { background: var(--ok-bg); color: var(--ok); }
+.hope-console .ball-y-filter-toggle .filter-off { color: var(--muted); }
+.hope-console .ball-y-filter-inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.hope-console .ball-y-filter-inputs label { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 11px; }
+.hope-console .ball-y-filter-inputs input { width: 100%; }
+.hope-console .ball-y-filter-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.hope-console .ball-y-filter small { color: var(--muted); font-size: 11.5px; line-height: 1.5; }
+
+/* diagnostics */
+.hope-console .c-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.hope-console .c-tile { min-width: 0; display: flex; flex-direction: column; gap: 4px; padding: 10px; border-radius: 10px; background: var(--raised); }
+.hope-console .c-tile .c-k { font-size: 11px; }
+.hope-console .c-v { font-family: var(--mono); font-size: 20px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.hope-console .c-v small { margin-left: 2px; color: var(--muted); font-size: 11px; font-weight: 400; }
+.hope-console .c-v.c-stale { color: var(--dim); }
+.hope-console .c-spark { display: block; width: 100%; height: 56px; }
+.hope-console .c-spark line { stroke: var(--line); stroke-dasharray: 2 3; vector-effect: non-scaling-stroke; }
+.hope-console .c-spark-line { fill: none; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.hope-console .c-proc { display: flex; flex-wrap: wrap; gap: 6px; }
+.hope-console .c-rowcard { display: flex; align-items: center; gap: 10px; }
+.hope-console .c-diag-lines { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.hope-console .c-file { display: flex; flex-direction: column; gap: 4px; margin: 8px 0 4px; color: var(--muted); font-size: 12px; }
+.hope-console .c-log {
+  display: flex;
+  flex-direction: column;
+  max-height: 200px;
   overflow: auto;
+  padding: 6px 0;
+  border-radius: 8px;
+  background: var(--bg);
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.hope-console .c-log div { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 6px; padding: 2px 10px; }
+.hope-console .c-log time { color: var(--dim); }
+.hope-console .c-log span { overflow-wrap: anywhere; }
+
+/* footer: last notice (class kept for the 1.9 notice tests) */
+.hope-console .operator-notice {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 7px 12px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 12px;
+}
+.hope-console .operator-notice time { flex: none; color: var(--dim); font-family: var(--mono); }
+.hope-console .operator-notice span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hope-console .operator-notice.operator-notice-danger { background: var(--bad-bg); color: var(--bad); }
+
+/* confirmation dialog */
+.hope-console .c-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
   padding: 16px;
-  border: 2px solid #57d6ce;
+  background: rgb(5 8 12 / 60%);
+}
+.hope-console .c-dlg {
+  width: 100%;
+  max-width: 400px;
+  max-height: 100%;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--raised);
+  box-shadow: 0 20px 50px rgb(0 0 0 / 50%);
+}
+.hope-console .c-dlg h3 { margin: 0; font-size: 15px; }
+.hope-console .c-dlg p { margin: 0; color: var(--muted); font-size: 12.5px; }
+.hope-console .c-dlg-acts { display: flex; justify-content: flex-end; gap: 8px; }
+.hope-console .c-key-esc::after,
+.hope-console .c-key-enter::after {
+  padding: 0 4px;
+  border: 1px solid currentcolor;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  opacity: 0.65;
+}
+.hope-console .c-key-esc::after { content: "Esc"; }
+.hope-console .c-key-enter::after { content: "\21B5"; }
+
+/* narrow panels */
+@container hope-console (max-width: 520px) {
+  .hope-console .c-estop { width: 88px; font-size: 14px; }
+  .hope-console .c-pol { grid-template-columns: 14px 88px minmax(0, 1fr) auto; }
+  .hope-console .c-pnote { display: none; }
+  .hope-console .c-node b { font-size: 11.5px; }
+  .hope-console .c-node small { font-size: 8px; }
+  .hope-console .c-node .c-kbd { top: 2px; right: 3px; padding: 0 2px; font-size: 8px; }
+}
+
+@container hope-console (max-width: 440px) {
+  .hope-console .c-setgrid { grid-template-columns: minmax(0, 1fr); }
+  .hope-console .c-k { flex-direction: row; gap: 6px; }
+  .hope-console .c-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hope-console *,
+  .hope-console *::before,
+  .hope-console *::after { animation: none !important; transition: none !important; }
+}
+
+/* Reposition limits built into the Walk stand card. */
+.hope-console .dock-tuning-inline { display: flex; flex-direction: column; gap: 6px; }
+.hope-console .c-tune summary .c-btn { flex: none; }
+.hope-console .dock-tuning-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 10px; }
+.hope-console .dock-tuning-grid label { display: flex; flex-direction: column; gap: 2px; font-size: 11px; }
+.hope-console .dock-tuning-grid input { width: 100%; min-width: 0; }
+
+/* 2.1: System health card at the bottom of Play (replaces the Health tab). */
+.hope-console .c-diag.c-diag-bad { box-shadow: inset 0 0 0 1px var(--bad); }
+.hope-console .c-diag > .c-lbl .c-dot { width: 7px; height: 7px; }
+.hope-console .c-dtiles { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2fr); gap: 8px; }
+.hope-console .c-diag .c-tile { background: var(--bg); }
+.hope-console .c-tile-cpu { position: relative; overflow: hidden; }
+.hope-console .c-tile-cpu .c-spark { position: absolute; right: 0; bottom: 0; left: 0; height: 60%; opacity: 0.9; }
+.hope-console .c-tile-cpu .c-k,
+.hope-console .c-tile-cpu .c-v { position: relative; z-index: 1; }
+.hope-console .c-diag-more { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.hope-console .c-diag-body { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.hope-console .c-dsec { min-width: 0; padding-top: 12px; border-top: 1px solid var(--line); }
+.hope-console .c-diag-body > :first-child { padding-top: 0; border-top: 0; }
+.hope-console .c-dsec > .c-lbl { margin-bottom: 8px; }
+/* Nested folds keep their own arrow (the parent [open] rule otherwise rotates every descendant). */
+.hope-console .c-more:not([open]) > summary::before { transform: none; }
+@container hope-console (max-width: 440px) {
+  .hope-console .c-dtiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hope-console .c-tile-cpu { grid-column: 1 / -1; }
+}
+
+
+/* 2.1 Setup redesign: one "This session" card, folded "Mocap & hardware", one-line time calibration. */
+.hope-console .c-slim { padding: 8px 12px; }
+.hope-console .c-slim > b { flex: none; font-size: 12.5px; }
+.hope-console .c-session .c-setgrid { gap: 8px 12px; }
+.hope-console .c-filebox-row { padding: 4px 4px 4px 10px; }
+.hope-console .c-filebox-row .c-m { flex: 0 1 auto; max-width: 45%; }
+.hope-console .c-seg-pol button { gap: 3px; padding: 6px 4px; }
+.hope-console .c-seg-pol .c-pn { font-size: 12.5px; }
+.hope-console .c-seg-pol button small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.hope-console .c-seg-pol button small.c-live { color: var(--ok); }
+.hope-console .c-seg .c-caps { transform: scale(0.92); }
+.hope-console .c-rig .c-tune-vals span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hope-console .c-rig .c-tune-body > .c-setgrid.c-dsec { padding-top: 12px; }
+
+/* 2.1 policy picker: one line closed; the list scrolls instead of growing with the catalog. */
+.hope-console .c-pick { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.hope-console .c-pick-cur {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto 12px;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--acc-bg);
+  color: var(--fg);
+  text-align: left;
+}
+.hope-console .c-pick-cur[aria-expanded="true"] .c-caret { transform: rotate(180deg); }
+.hope-console .c-caret { color: var(--muted); font-size: 11px; transition: transform 0.15s; }
+.hope-console .c-pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 236px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.hope-console .c-pick-list .c-pol { grid-template-columns: 14px 92px auto minmax(0, 1fr) auto; padding: 6px 10px; }
+.hope-console .c-pick-filter { width: 100%; margin-bottom: 2px; }
+.hope-console .c-session .c-k[data-card="policy"] { align-self: start; padding-top: 9px; }
+
+/* 2.1 Setup: time calibration is a row of the System card; Mocap & hardware pairs fields on one row. */
+.hope-console .c-lsub { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: var(--bg); }
+.hope-console .c-lsub-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.hope-console .c-lsub-head b { font-size: 13px; }
+.hope-console .c-lsub .c-mono.c-dim { font-size: 11px; }
+.hope-console .c-grid4 {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 10px 12px;
+  align-items: center;
+}
+.hope-console .c-grid4 > .c-k { white-space: nowrap; }
+.hope-console .c-grid4 .c-span3 { grid-column: span 3; }
+@container hope-console (max-width: 560px) {
+  .hope-console .c-grid4 { grid-template-columns: 84px minmax(0, 1fr); }
+  .hope-console .c-grid4 .c-span3 { grid-column: auto; }
+}
+
+/* 2.1: permanent configuration row under time calibration. */
+.hope-console .c-cfgtext { margin-top: 1px; color: var(--muted); font-size: 12px; }
+.hope-console .c-cfg-warn .c-cfgtext { color: var(--warn); }
+.hope-console .c-cfg-ok .c-cfgtext { color: var(--ok); }
+.hope-console .c-hchip.c-warn { background: var(--warn-bg); color: var(--warn); }
+/* 2.1: configuration bar pinned to the bottom of Setup (Confirm reachable from any scroll position). */
+.hope-console .c-cfgbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  margin: 0 -12px -12px;
+  padding: 10px 12px 12px;
+  background: linear-gradient(180deg, rgb(23 27 33 / 0%), var(--panel) 28%);
+}
+.hope-console .c-cfgbar .c-lsub { border: 1px solid var(--line); background: var(--raised); box-shadow: 0 -8px 20px rgb(0 0 0 / 35%); }
+.hope-console .c-cfgbar { display: flex; flex-direction: column; gap: 8px; }
+.hope-console .c-pairing summary { font-size: 12.5px; }
+/* 2.1: reset software E-stop next to the E-stop */
+.hope-console .c-estop-reset {
+  flex: none;
+  width: 76px;
+  min-height: 58px;
+  margin-right: 6px;
+  padding: 6px;
+  border: 1px solid var(--line);
   border-radius: 10px;
-  background: #112237;
-  box-shadow: 0 8px 24px #0008;
+  background: var(--raised);
+  color: var(--fg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+.hope-console .c-estop-reset small { color: var(--muted); font-size: 10px; font-weight: 600; white-space: nowrap; }
+.hope-console .c-estop-reset.c-estop-reset-hot small { color: inherit; }
+.hope-console .c-estop-reset:hover:not(:disabled) { border-color: var(--muted); }
+.hope-console .c-estop-reset:disabled { opacity: 0.5; }
+.hope-console .c-estop-reset.c-estop-reset-hot { border-color: var(--warn); background: var(--warn-bg); color: var(--warn); }
+.hope-console .c-recrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 6px; }
+.hope-console .c-recrow .c-seg { flex: 0 0 160px; }
+
+/* 2.1: Teleop panel (only after Y): phase steps, instruction, live LT / sticks, key map. */
+.hope-console .c-tele-panel { display: flex; flex-direction: column; gap: 10px; box-shadow: inset 0 0 0 1px var(--accent); }
+.hope-console .c-tele-panel.c-tele-risky { box-shadow: inset 0 0 0 2px var(--warn); }
+.hope-console .c-tele-head { display: flex; align-items: center; gap: 8px; }
+.hope-console .c-tele-head b { font-size: 14px; }
+.hope-console .c-tele-head .c-tele-dev { color: var(--muted); font-size: 12px; }
+.hope-console .c-tele-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.hope-console .c-tstep { padding: 4px 0; border-radius: 6px; background: var(--bg); color: var(--dim); font-size: 11.5px; font-weight: 600; text-align: center; }
+.hope-console .c-tstep.c-tstep-done { color: var(--ok); }
+.hope-console .c-tstep.c-tstep-on { background: var(--acc-bg); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.hope-console .c-tele-guide { padding: 10px 12px; border-radius: 8px; background: var(--bg); color: var(--fg); font-size: 14px; font-weight: 700; }
+.hope-console .c-tele-guide.c-tele-guide-ok { background: var(--ok-bg); color: var(--ok); }
+.hope-console .c-tele-guide.c-tele-guide-bad { background: var(--warn-bg); color: var(--warn); }
+.hope-console .c-tele-live { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; align-items: stretch; }
+.hope-console .c-ltbox { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 8px; background: var(--bg); color: var(--muted); font-size: 11px; text-align: center; }
+.hope-console .c-ltbox b { color: var(--fg); font-size: 18px; }
+.hope-console .c-ltbox.c-ltbox-on { background: var(--ok-bg); color: var(--ok); box-shadow: inset 0 0 0 1px var(--ok); }
+.hope-console .c-ltbox.c-ltbox-on b { color: var(--ok); }
+.hope-console .c-axes { display: flex; flex-direction: column; gap: 6px; }
+.hope-console .c-axis { display: grid; grid-template-columns: 56px minmax(0, 1fr) 92px; align-items: center; gap: 8px; font-size: 12px; }
+.hope-console .c-axis-k { color: var(--muted); }
+.hope-console .c-axis-bar { position: relative; height: 8px; border-radius: 4px; background: var(--bg); }
+.hope-console .c-axis-bar::before { content: ""; position: absolute; top: -2px; bottom: -2px; left: 50%; width: 1px; background: var(--line); }
+.hope-console .c-axis-bar i { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: var(--accent); }
+.hope-console .c-axis-v { text-align: right; }
+.hope-console .c-axis-v small { color: var(--dim); }
+.hope-console .c-tele-keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 10px; }
+.hope-console .c-tkey { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 3px 6px; border-radius: 6px; color: var(--muted); font-size: 11.5px; }
+.hope-console .c-tkey kbd { flex: none; min-width: 26px; padding: 1px 5px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); font-family: var(--mono); font-size: 10.5px; text-align: center; }
+.hope-console .c-tkey.c-tkey-warn { color: var(--warn); }
+.hope-console .c-tkey.c-tkey-warn kbd { border-color: var(--warn); }
+.hope-console .c-tkey.c-tkey-bad { color: var(--bad); }
+.hope-console .c-tkey.c-tkey-bad kbd { border-color: var(--bad); }
+.hope-console .c-tkey.c-tkey-pressed { background: var(--acc-bg); color: var(--fg); }
+.hope-console .c-tkey.c-tkey-pressed kbd { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+.hope-console .c-tele-foot { font-size: 11px; }
+/* 2.2: Mocap & hardware card in three aligned groups (mocap / network / devices). */
+.hope-console .c-grid4 > .c-gsub {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  color: var(--dim);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.hope-console .c-grid4 > .c-gsub:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.hope-console .c-grid4 .c-span2 { grid-column: span 2; }
+.hope-console .c-migrate .c-btn { flex: 1; }
+.hope-console .c-grid4 > .c-hint.c-span3 { margin-top: -4px; }
+@container hope-console (max-width: 560px) {
+  .hope-console .c-grid4 .c-span2 { grid-column: 2; }
 }
 
-.action-confirmation p {
-  margin: 10px 0;
-}
+/* 2.2: recording row in the Start card (moved from the diagnostics fold). */
+.hope-console .c-recsub { align-items: flex-start; }
+.hope-console .c-recsub > .c-dot { margin-top: 5px; }
+.hope-console .c-recsub > .c-seg { flex: 0 0 140px; align-self: center; }
 
-.action-confirmation [role="status"] {
-  color: #ffd28c;
-}
+/* 2.2: shortcut labels always visible (dimmed while the action is blocked) plus a one-line legend. */
+.hope-console .c-kbd.c-kbd-off { opacity: 0.3; }
+.hope-console .c-keys { margin-top: 6px; }

@@ -2,10 +2,16 @@
 <launch>
   <arg name="params_file"
        default="$(find-pkg-share hope_planner_cpp)/config/model21800_hardware.yaml"/>
+  <arg name="ball_profile"
+       default="$(find-pkg-share hope_planner_cpp)/config/ball_physics_ppq004_20261020.yaml"/>
+  <arg name="return_physics"
+       default="$(find-pkg-share hope_planner_cpp)/config/return_physics.yaml"/>
   <node pkg="hope_planner_cpp"
         exec="hope_planner_cpp_node"
         name="hope_planner"
         output="screen">
     <param from="$(var params_file)"/>
+    <param from="$(var return_physics)"/>
+    <param from="$(var ball_profile)"/>
   </node>
 </launch>

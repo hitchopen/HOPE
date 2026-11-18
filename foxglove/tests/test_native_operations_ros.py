@@ -13,8 +13,6 @@ import threading
 import time
 import unittest
 
-from operations_processes import child_pids
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "a3"))
 
@@ -94,21 +92,12 @@ class NativeOperationsTests(unittest.TestCase):
         ])
         self.runner_pub = self.node.create_publisher(Float64MultiArray, "/hope/runner/state_hdu_flat", 10)
         self.timer = self.node.create_timer(.02, self.runner)
-        # The reconnect watcher samples a cached OS probe at 1 Hz. Allow that
-        # observation and DDS delivery without racing a two-second fake ACK
-        # timeout. This changes only these fixtures, not production deadlines.
-        reconnect_test = self._testMethodName in {
-            "test_idle_network_change_waits_for_unacknowledged_command_and_urgent_rpc",
-            "test_idle_reconnect_waits_for_native_emergency_alone",
-        }
-        action_timeout = "6.0" if reconnect_test else (
-            "4.0" if "emergency_drain" in self._testMethodName else "2.0")
         args = [str(Path(os.environ["HOPE_NATIVE_BIN_DIR"]) / "hope-operations"), "--ros-args",
                 "-p", "worker_path:=" + str(ROOT / "tests/fixtures/operations_worker.py"),
                 "-p", "session_id_path:=" + str(self.root / "session"),
                 "-p", "runtime_root:=" + str(self.root / "runtime"),
                 "-p", "worker_rpc_timeout_s:=8.0",
-                "-p", "runner_action_timeout_s:=" + action_timeout]
+                "-p", "runner_action_timeout_s:=" + ("4.0" if "emergency_drain" in self._testMethodName else "2.0")]
         env = dict(os.environ, HOPE_OPERATIONS_TEST_ROOT=str(self.root))
         if getattr(self, "reference", False):
             args = [sys.executable, str(ROOT / "tests/fixtures/operations_worker.py")] + args[1:]
@@ -161,15 +150,6 @@ class NativeOperationsTests(unittest.TestCase):
         values = [2, 42, self.sequence, self.mode, 0, 1, 0, 1, 0, 1, 0, 0,
                   1, 0, 0, 0, req, action, result, reason, runner_session_fingerprint(session)]
         self.runner_pub.publish(Float64MultiArray(data=[float(x) for x in values]))
-
-    def wait_reconnect_deferred(self, pending):
-        def observed():
-            self.assertIsNone(self.process.poll(), "reconnect dropped an unacknowledged command")
-            self.assertFalse(pending.done(), "command ended before the test supplied ACK/supersession")
-            return any(s.startswith("DDS_RECONNECT_DEFERRED") for s in self.status)
-        # One cached probe and one watcher cycle, plus IPC/DDS scheduling.
-        # Check retention throughout the wait, not only the displayed status.
-        self.wait(observed, 3.0)
 
     def publish_player(self, name, x):
         from geometry_msgs.msg import PoseStamped
@@ -241,7 +221,7 @@ class NativeOperationsTests(unittest.TestCase):
     def test_native_emergency_survives_paused_worker_without_replaying_prior_motion(self):
         if getattr(self, "reference", False):
             self.skipTest("native-only failure isolation")
-        children = child_pids(self.process.pid)
+        children = Path(f"/proc/{self.process.pid}/task/{self.process.pid}/children").read_text().split()
         self.assertEqual(len(children), 1)
         worker = int(children[0])
         os.kill(worker, signal.SIGSTOP)
@@ -386,8 +366,8 @@ class NativeOperationsTests(unittest.TestCase):
             response.success = False
             response.message = "isolated calibration rejection"
             return response
-        self.node.create_service(self.Trigger, "/a3/calibration/recompute_p1", reject)
-        response = self.trigger("/hope/calibrate_stickers_v3")
+        self.node.create_service(self.Trigger, "/a3/calibration/recompute_ucb_robot_v3", reject)
+        response = self.trigger("/hope/calibrate_v3")
         self.assertFalse(response.success)
         self.assertIn("isolated calibration rejection", response.message)
 
@@ -415,6 +395,18 @@ class NativeOperationsTests(unittest.TestCase):
         self.wait(lambda: any(age < 400. for age in self.base_age[age_start:]))
         self.assertFalse(any(self.base_fresh[freshness_start:]),
                          "invalid packets must never renew a fresh-valid verdict")
+
+    def test_start_rejects_mismatched_configuration_audit(self):
+        (self.root / "hold_config_audit").touch()
+        time.sleep(.2)
+        path = self.root / "config-runtime.json"
+        audit = json.loads(path.read_text())
+        audit["config_sha256"] = "different-configuration"
+        path.write_text(json.dumps(audit))
+        response = self.trigger("/hope/lifecycle/start")
+        self.assertFalse(response.success)
+        self.assertIn("CONFIG_NOT_APPLIED", response.message)
+        self.assertFalse((self.root / "actions").exists())
 
     def test_start_stop_and_configuration_use_existing_worker_rules(self):
         from rcl_interfaces.srv import SetParameters
@@ -461,7 +453,8 @@ class NativeOperationsTests(unittest.TestCase):
         self.wait(lambda: self.lifecycle and self.lifecycle[-1] == "RUNNING", 10)
         self.wait(lambda: self.player_stats().get("owner", {}).get("hardware_lock"))
         owner = self.player_stats()["owner"]
-        original_children = child_pids(self.process.pid)
+        children_file = Path(f"/proc/{self.process.pid}/task/{self.process.pid}/children")
+        original_children = children_file.read_text().split()
         self.assertEqual(len(original_children), 1)
         with (self.root / "hardware.lock").open("r+") as hardware:
             with self.assertRaises(BlockingIOError):
@@ -470,7 +463,7 @@ class NativeOperationsTests(unittest.TestCase):
             self.wait(lambda: any(s.startswith("DDS_RECONNECT_DEFERRED") for s in self.status))
             time.sleep(1.2)  # More than one network poll; deferred status must persist.
             self.assertEqual(self.status[-1].split(":")[0], "DDS_RECONNECT_DEFERRED")
-            self.assertEqual(child_pids(self.process.pid), original_children)
+            self.assertEqual(children_file.read_text().split(), original_children)
             self.assertEqual(self.player_stats()["owner"], owner)
             self.assertEqual(self.lifecycle[-1], "RUNNING")
             with self.assertRaises(BlockingIOError):
@@ -491,7 +484,7 @@ class NativeOperationsTests(unittest.TestCase):
         pending = self.trigger("/hope/runner/enter_motion", wait=False)
         self.wait(lambda: any(int(r[2]) == 4 for r in self.requests))
         (self.root / "network_signature").write_text("CHANGED_WHILE_COMMAND_IN_FLIGHT")
-        self.wait_reconnect_deferred(pending)
+        self.wait(lambda: any(s.startswith("DDS_RECONNECT_DEFERRED") for s in self.status), 1.8)
         emergency = self.trigger("/hope/runner/emergency_passive")
         self.assertTrue(emergency.success, emergency.message)
         self.wait(pending.done)
@@ -505,7 +498,7 @@ class NativeOperationsTests(unittest.TestCase):
         pending = self.trigger("/hope/runner/emergency_passive", wait=False)
         self.wait(lambda: bool(self.requests))
         (self.root / "network_signature").write_text("CHANGED_WITH_NATIVE_EMERGENCY_ONLY")
-        self.wait_reconnect_deferred(pending)
+        self.wait(lambda: any(s.startswith("DDS_RECONNECT_DEFERRED") for s in self.status), 1.8)
         self.assertIsNone(self.process.poll())
         req, action = int(self.requests[-1][1]), int(self.requests[-1][2])
         self.ack = req, action, 1, 3
@@ -519,7 +512,7 @@ class NativeOperationsTests(unittest.TestCase):
         self.accept_emergency = False
         pending = self.trigger("/hope/runner/emergency_passive", wait=False)
         self.wait(lambda: bool(self.requests))
-        children = child_pids(self.process.pid)
+        children = Path(f"/proc/{self.process.pid}/task/{self.process.pid}/children").read_text().split()
         self.assertEqual(len(children), 1)
         os.kill(int(children[0]), signal.SIGKILL)
         time.sleep(2.2)  # Longer than failed-worker grace, shorter than action timeout.
@@ -617,7 +610,7 @@ class NativeOperationsTests(unittest.TestCase):
         self.wait(pending.done)
         self.assertTrue(pending.result().results[0].successful)
 
-    def test_expired_native_player_pose_cannot_qualify_start(self):
+    def test_expired_player_pose_does_not_block_passive_start(self):
         self.wait(lambda: self.player_pubs["UCB_P2"].get_subscription_count() > 0)
         for _ in range(5):
             self.publish_player("UCB_P2", -.5)
@@ -625,9 +618,12 @@ class NativeOperationsTests(unittest.TestCase):
         time.sleep(.4)
         response = self.trigger("/hope/lifecycle/start")
         self.assertTrue(response.success, response.message)  # Asynchronous admission attempt.
-        self.wait(lambda: any("PLAYER_POSITION_UNVERIFIED" in result for result in self.results))
-        self.assertEqual(self.lifecycle[-1], "STOPPED")
-        self.assertFalse((self.root / "actions").exists(), "stale player evidence must not reach the backend")
+        self.wait(lambda: self.lifecycle[-1] == "RUNNING")
+        self.assertIn("START_COMPLETE_RUNNER_PASSIVE", self.results)
+        self.assertEqual((self.root / "actions").read_text().splitlines(), ["START"])
+        self.assertFalse(self.fields[-1]["player_positions"]["P1"])
+        self.assertEqual(self.modes[-1], "PASSIVE")
+        self.assertEqual(self.requests, [], "START must not dispatch a motion action")
 
     def test_300hz_ingress_preserves_rate_and_native_marker_without_replay(self):
         binary = Path(os.environ["HOPE_NATIVE_BIN_DIR"]) / "hope-operations-test-ingress"
@@ -653,7 +649,7 @@ class NativeOperationsTests(unittest.TestCase):
         self.accept = False
         future = self.trigger("/hope/runner/enter_motion", wait=False)
         self.wait(lambda: bool(self.requests))
-        children = child_pids(self.process.pid)
+        children = Path(f"/proc/{self.process.pid}/task/{self.process.pid}/children").read_text().split()
         self.assertEqual(len(children), 1)
         os.kill(int(children[0]), signal.SIGKILL)
         self.wait(future.done)

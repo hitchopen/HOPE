@@ -33,7 +33,7 @@ std::filesystem::path temporary_path(const std::string& suffix) {
        std::to_string(stamp) + suffix);
 }
 
-struct TurnCase { double yaw; bool flat; bool send_pose; bool expected_valid; bool stale = false; bool source_stale = false; bool y_filter = false; double y_min = -0.7; double y_max = -0.3; const char* y_reason = nullptr; bool runtime_update = false; bool runtime_enabled = true; double updated_min = std::numeric_limits<double>::quiet_NaN(); double updated_max = std::numeric_limits<double>::quiet_NaN(); bool reject_stale = true; };
+struct TurnCase { double yaw; bool flat; bool send_pose; bool expected_valid; bool stale = false; bool source_stale = false; bool y_filter = false; double y_min = -0.7; double y_max = -0.3; const char* y_reason = nullptr; bool runtime_update = false; bool runtime_enabled = true; double updated_min = std::numeric_limits<double>::quiet_NaN(); double updated_max = std::numeric_limits<double>::quiet_NaN(); bool reject_stale = true; bool shared_home = false; bool send_home = true; double home_world_id = 1.; bool live_side = false; double home_y = -.7625; };
 class PlannerNodeTurnGuard : public ::testing::TestWithParam<TurnCase> {
   void TearDown() override { if (rclcpp::ok()) rclcpp::shutdown(); }
 };
@@ -46,6 +46,8 @@ TEST_P(PlannerNodeTurnGuard, BothOutputsRejectTheWholeCommand) {
 
   const auto csv_path = temporary_path(".csv");
   rclcpp::NodeOptions options;
+  options.arguments({"--ros-args", "--params-file",
+                     std::string(HOPE_PLANNER_CONFIG_DIR) + "/return_physics.yaml"});
   options.append_parameter_override("target_turn_reject_stale_pose", c.reject_stale);
   options.append_parameter_override("input_qos_depth", 64);
   options.append_parameter_override("post_net_one_shot_enabled", true);
@@ -55,7 +57,7 @@ TEST_P(PlannerNodeTurnGuard, BothOutputsRejectTheWholeCommand) {
   options.append_parameter_override("debug_csv_path", csv_path.string());
   options.append_parameter_override("debug_session_id", "post_net_one_shot_test");
   options.append_parameter_override("spin_shadow_enabled", false);
-  options.append_parameter_override("swing_side_reference_mode", c.send_pose ? "session_home_v1" : "live_base_v1");
+  options.append_parameter_override("swing_side_reference_mode", c.send_pose && !c.live_side ? "session_home_v1" : "live_base_v1");
   options.append_parameter_override("robot_pose_topic", c.flat ? "" : "/test/session_home_pose");
   options.append_parameter_override("base_pose_flat_input_topic", c.flat ? "/test/base_flat" : "");
   options.append_parameter_override("publish_typed_command", true);
@@ -64,6 +66,10 @@ TEST_P(PlannerNodeTurnGuard, BothOutputsRejectTheWholeCommand) {
   options.append_parameter_override("ball_y_filter_min_m", c.y_min);
   options.append_parameter_override("ball_y_filter_max_m", c.y_max);
 
+  if (c.shared_home) {
+    options.append_parameter_override("racket_flat_schema", 4);
+    options.append_parameter_override("session_home_input_topic", "/test/runner_home");
+  }
   auto planner = std::make_shared<PlannerNode>(options);
   auto io_node = std::make_shared<rclcpp::Node>("one_shot_test_io");
   std::atomic<int> command_messages{0};
@@ -85,6 +91,8 @@ TEST_P(PlannerNodeTurnGuard, BothOutputsRejectTheWholeCommand) {
       [&typed, &typed_count](const hope_msgs::msg::RacketCommand::SharedPtr msg) {
         typed = *msg; ++typed_count;
       });
+  auto home_publisher = io_node->create_publisher<std_msgs::msg::Float64MultiArray>(
+      "/test/runner_home", rclcpp::QoS(10).reliable());
   auto flat_publisher = io_node->create_publisher<std_msgs::msg::Float64MultiArray>(
       "/test/base_flat", rclcpp::QoS(10).reliable());
   auto publisher = io_node->create_publisher<geometry_msgs::msg::PoseArray>(
@@ -175,7 +183,7 @@ TEST_P(PlannerNodeTurnGuard, BothOutputsRejectTheWholeCommand) {
     pose.orientation.w = 1.0;
     message.poses.push_back(pose);
     base_pose.header.stamp = message.header.stamp;
-    if (c.source_stale) --base_pose.header.stamp.sec;
+    if (c.source_stale) base_pose.header.stamp = io_node->get_clock()->now() - rclcpp::Duration::from_seconds(1.0);
     if (c.send_pose && (!c.stale || initial_pose)) {
     if (c.flat) {
       const auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
@@ -186,6 +194,11 @@ TEST_P(PlannerNodeTurnGuard, BothOutputsRejectTheWholeCommand) {
       flat_publisher->publish(flat);
     } else base_publisher->publish(base_pose);
   }
+    if (c.shared_home && c.send_home) {
+      std_msgs::msg::Float64MultiArray home;
+      home.data = {1, 12345, -.50, c.home_y, .58, 1, c.home_world_id};
+      home_publisher->publish(home);
+    }
     publisher->publish(message);
     executor.spin_some(5ms);
     std::this_thread::sleep_for(1ms);
@@ -209,8 +222,8 @@ TEST_P(PlannerNodeTurnGuard, BothOutputsRejectTheWholeCommand) {
   EXPECT_EQ(command_messages.load(), 1);
   {
     std::lock_guard<std::mutex> lock(command_mutex);
-    ASSERT_EQ(one_shot_packet.size(), 19U);
-    EXPECT_DOUBLE_EQ(one_shot_packet[0], 2.0);
+    ASSERT_EQ(one_shot_packet.size(), c.shared_home ? 20U : 19U);
+    EXPECT_DOUBLE_EQ(one_shot_packet[0], c.shared_home ? 4.0 : 2.0);
     ASSERT_DOUBLE_EQ(one_shot_packet[1], c.expected_valid ? 1.0 : 0.0);
     ASSERT_EQ(typed_count.load(), 1);
     EXPECT_EQ(typed.valid, c.expected_valid);
@@ -225,6 +238,10 @@ TEST_P(PlannerNodeTurnGuard, BothOutputsRejectTheWholeCommand) {
     // (-0.7625) it is BH; relative to the startup origin it would be FH.
     EXPECT_DOUBLE_EQ(one_shot_packet[2], -1.0);
     EXPECT_DOUBLE_EQ(one_shot_packet[16], 1.0);
+    if (c.shared_home) {
+      EXPECT_NEAR(one_shot_packet[3], .08, 1e-9); // HOME=-.50, independent of live base=-.58
+      EXPECT_DOUBLE_EQ(one_shot_packet[19], 12345);
+    }
     }
   }
 
@@ -248,9 +265,9 @@ TEST_P(PlannerNodeTurnGuard, BothOutputsRejectTheWholeCommand) {
   }
   EXPECT_EQ(solve_rows, 1);
   EXPECT_NE(solve_row.find(",initial_incoming,"), std::string::npos);
-  EXPECT_NE(solve_row.find(c.y_reason ? c.y_reason : c.expected_valid ? "target_turn_allowed" :
+  if (!c.shared_home || c.expected_valid) { EXPECT_NE(solve_row.find(c.y_reason ? c.y_reason : c.expected_valid ? "target_turn_allowed" :
       (c.source_stale ? "target_turn_base_source_stale" : c.stale ? "target_turn_base_stale" :
-       (c.send_pose ? "target_turn_exceeds_limit" : "target_turn_base_unavailable"))), std::string::npos);
+       (c.send_pose ? "target_turn_exceeds_limit" : "target_turn_base_unavailable"))), std::string::npos); }
 
   const auto fields = [](const std::string& row) {
     std::vector<std::string> values;
@@ -270,6 +287,7 @@ TEST_P(PlannerNodeTurnGuard, BothOutputsRejectTheWholeCommand) {
   EXPECT_DOUBLE_EQ(metric("target_turn_reject_stale_pose"), c.reject_stale ? 1.0 : 0.0);
   EXPECT_DOUBLE_EQ(metric("base_pose_age_exceeded_commands_total"), (c.stale || c.source_stale) ? 1.0 : 0.0);
   EXPECT_DOUBLE_EQ(metric("pose_age_limit_ms"), 200.0);
+  if (c.live_side) EXPECT_DOUBLE_EQ(metric("swing_side_reference_y"), -.7625);
   EXPECT_DOUBLE_EQ(metric("base_receipt_stale_rejections_total"), (c.stale && c.reject_stale) ? 1.0 : 0.0);
   EXPECT_DOUBLE_EQ(metric("base_source_stale_rejections_total"), (c.source_stale && c.reject_stale) ? 1.0 : 0.0);
   if (c.send_pose) {
@@ -345,6 +363,10 @@ TEST(PlannerBodyTiming, HealthReportsWithoutBallsOrRecording) {
 }
 
 INSTANTIATE_TEST_SUITE_P(PoseAndFlat, PlannerNodeTurnGuard, ::testing::Values(
+    [] { TurnCase c{0, true, true, true}; c.shared_home = true; c.live_side = true; c.home_y = 0.; return c; }(),
+    [] { TurnCase c{0, true, true, true}; c.shared_home = true; return c; }(),
+    [] { TurnCase c{0, true, true, false}; c.shared_home = true; c.send_home = false; return c; }(),
+    [] { TurnCase c{0, true, true, false}; c.shared_home = true; c.home_world_id = 2; return c; }(),
     [] { TurnCase c{0, true, true, true}; c.stale = true; c.reject_stale = false; return c; }(),
     [] { TurnCase c{0, true, true, true}; c.source_stale = true; c.reject_stale = false; return c; }(),
     [] { TurnCase c{0, true, false, false}; c.reject_stale = false; return c; }(),

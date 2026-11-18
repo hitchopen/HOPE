@@ -220,7 +220,7 @@ def run(args):
                     ros.spin_once(node, timeout_sec=0)
             if args.control and loop >= next_health_check:
                 next_health_check = loop + .5
-                reason = recovery.reason(loop, robot_route(os.environ.get("HOPE_XBOX_HDU_IP", "10.42.20.10")), estop_received[1])
+                reason = recovery.reason(loop, robot_route(os.environ.get("HOPE_LIFECYCLE_HDU_IP", "")), estop_received[1])
                 if reason:
                     print(reason, file=sys.stderr, flush=True)
                     raise SystemExit(75)

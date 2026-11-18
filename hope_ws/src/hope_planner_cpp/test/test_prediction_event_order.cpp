@@ -65,6 +65,8 @@ TEST(PredictionEventOrder, CrossingAfterContactUsesReboundArc) {
     EXPECT_NEAR(strike.strike_source_time_s, 12.0008125, 1e-10);
     EXPECT_NEAR(strike.ball_velocity.x(), -1.6, 1e-10);
     EXPECT_NEAR(strike.ball_velocity.z(), 0.9, 1e-10);
+    if (mode == SpinPhysicsMode::kVenueGripBounce)
+      EXPECT_NEAR(strike.ball_spin_rad_s.y(), -30.0, 1e-10);
   }
 }
 
@@ -77,6 +79,7 @@ TEST(PredictionEventOrder, LaterImpactReversalDoesNotHideEarlierCrossing) {
   EXPECT_EQ(strike.predicted_bounces, 0);
   EXPECT_NEAR(strike.strike_source_time_s, 12.00025, 1e-10);
   EXPECT_NEAR(strike.ball_velocity.x(), -2.0, 1e-10);
+  EXPECT_EQ(strike.ball_spin_rad_s, Vec3(0.0, 500.0, 0.0));
 }
 
 TEST(PredictionEventOrder, LowDescendingCrossingsHaveNoPolicyHeightCutoff) {

@@ -136,7 +136,7 @@ def test_lifecycle_external_field_wire_is_unchanged_by_parsed_fanout(monkeypatch
     module._config_publishers = {key: Mock() for key in module._config.values()}
     module._mocap_config_pub = Mock()
     module._publish()
-    expected = json.dumps({**raw, "auto_record_on_start": False, "busy": False, "draining": False,
+    expected = json.dumps({**raw, "busy": False, "draining": False,
                            "player_positions": module._player_positions.status(0),
                            "elink_observation": {"state": "UNKNOWN"},
                            "ball_model_verification": None}, ensure_ascii=False)

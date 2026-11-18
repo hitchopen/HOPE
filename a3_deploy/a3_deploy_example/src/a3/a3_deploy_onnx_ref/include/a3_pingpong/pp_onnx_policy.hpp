@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "a3_pingpong/pp_obs_builder.hpp"
+#include "a3_pingpong/pp_explicit_gru.hpp"
 #include "a3_pingpong/pp_deploy_config.hpp"
 #include "a3_pingpong/pp_deploy_contract.hpp"
 #include "a3_pingpong/pp_qdes_contract.hpp"
@@ -40,6 +41,11 @@ class PpOnnxPolicy {
     so.SetIntraOpNumThreads(1);
     session_ = std::make_unique<Ort::Session>(env_, model_path.c_str(), so);
 
+    if (PpExplicitGru::IsRecurrent(*session_)) {
+      recurrent_ = std::make_unique<PpExplicitGru>(*session_);
+      if (!recurrent_->has_references())
+        throw std::runtime_error("Native GRU requires genuine motion reference outputs");
+    }
     // detect obs input dim: 180 (full), 175 (deploy_parity), 177 (hitter_footwork),
     // 110 (legacy hitter_pure), 112 (legacy Schema27 reach permissions),
     // 127 (Schema28 append-only frozen-core shadow feedback),
@@ -3354,6 +3360,14 @@ class PpOnnxPolicy {
     return r;
   }
 
+  bool is_recurrent() const { return static_cast<bool>(recurrent_); }
+  void BeginPolicyTick(std::uint64_t tick) { if (recurrent_) recurrent_->BeginTick(tick); }
+  void ResetRecurrentSession() { if (recurrent_) recurrent_->ResetSession(); }
+  const std::array<float,110>& recurrent_state() const {
+    if (!recurrent_) throw std::runtime_error("Feed-forward policy has no GRU state");
+    return recurrent_->hidden();
+  }
+  std::uint64_t recurrent_advances() const { return recurrent_ ? recurrent_->advances() : 0; }
   // Deterministic mean action (31), Isaac order.
   Eigen::VectorXd mean_action(const Eigen::VectorXd& obs, int time_step) {
     auto out = Run(obs, time_step, {"actions"});
@@ -3484,6 +3498,7 @@ class PpOnnxPolicy {
                               const std::vector<const char*>& out_names) {
     obs_f_.resize(obs_dim_);
     for (int i = 0; i < obs_dim_; ++i) obs_f_[i] = static_cast<float>(obs[i]);
+    if (recurrent_) return recurrent_->Run(obs_f_, time_step, out_names);
     float ts = static_cast<float>(time_step);
     std::array<int64_t, 2> obs_shape{1, obs_dim_};
     std::array<int64_t, 2> ts_shape{1, 1};
@@ -3613,6 +3628,7 @@ class PpOnnxPolicy {
   Ort::Env env_;
   Ort::MemoryInfo mem_;
   std::unique_ptr<Ort::Session> session_;
+  std::unique_ptr<PpExplicitGru> recurrent_;  // destroyed before its referenced session
   PpOnnxLoadProfile load_profile_ = PpOnnxLoadProfile::kProductionStrict;
   bool v17_r1_stationary_replay_ = false;
   bool v17_r6_p0_contract_audit_ = false;

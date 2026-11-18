@@ -1,0 +1,1395 @@
+{
+  "v5": {
+    "all": {
+      "n": 120,
+      "planned": 120,
+      "completed": 120,
+      "contacts": 111,
+      "legal": 107,
+      "collisions": 2,
+      "position_cm": [
+        5.337972563059166,
+        11.50652487674652
+      ],
+      "velocity_mps": [
+        0.2979334398188133,
+        0.05588864709774057
+      ],
+      "normal_deg": [
+        5.987029847654217,
+        72.81471070577444
+      ]
+    },
+    "by_side": {
+      "BHfront": {
+        "n": 30,
+        "planned": 30,
+        "completed": 30,
+        "contacts": 29,
+        "legal": 29,
+        "collisions": 1,
+        "position_cm": [
+          4.736702957884999,
+          7.6478423331147045
+        ],
+        "velocity_mps": [
+          0.25287843202599997,
+          0.033945668826070786
+        ],
+        "normal_deg": [
+          3.0688237399981673,
+          5.395560634646429
+        ]
+      },
+      "BHother": {
+        "n": 27,
+        "planned": 27,
+        "completed": 27,
+        "contacts": 22,
+        "legal": 21,
+        "collisions": 1,
+        "position_cm": [
+          7.418219478784075,
+          15.419561598010022
+        ],
+        "velocity_mps": [
+          0.37411694962612585,
+          0.13750357282412237
+        ],
+        "normal_deg": [
+          10.669387826432704,
+          190.88360061701061
+        ]
+      },
+      "FH": {
+        "n": 63,
+        "planned": 63,
+        "completed": 63,
+        "contacts": 60,
+        "legal": 57,
+        "collisions": 0,
+        "position_cm": [
+          4.732757030212382,
+          9.273924677949253
+        ],
+        "velocity_mps": [
+          0.28673812980273333,
+          0.027780482103199146
+        ],
+        "normal_deg": [
+          5.369926955632985,
+          40.48589170117964
+        ]
+      }
+    },
+    "by_height": {
+      "0": {
+        "n": 46,
+        "planned": 46,
+        "completed": 46,
+        "contacts": 44,
+        "legal": 43,
+        "collisions": 2,
+        "position_cm": [
+          4.941104488798696,
+          6.830701470912737
+        ],
+        "velocity_mps": [
+          0.3146615283768044,
+          0.049288685847856034
+        ],
+        "normal_deg": [
+          3.3449530325800443,
+          11.029478611880592
+        ]
+      },
+      "1": {
+        "n": 37,
+        "planned": 37,
+        "completed": 37,
+        "contacts": 34,
+        "legal": 33,
+        "collisions": 0,
+        "position_cm": [
+          5.090360960157298,
+          13.16291062238301
+        ],
+        "velocity_mps": [
+          0.2515842905061243,
+          0.08598929190423127
+        ],
+        "normal_deg": [
+          7.0589474499714315,
+          144.43697562865395
+        ]
+      },
+      "2": {
+        "n": 37,
+        "planned": 37,
+        "completed": 37,
+        "contacts": 33,
+        "legal": 31,
+        "collisions": 0,
+        "position_cm": [
+          6.078987717744323,
+          14.857093904217285
+        ],
+        "velocity_mps": [
+          0.3234855060594054,
+          0.0308443123422846
+        ],
+        "normal_deg": [
+          8.199856393807595,
+          63.2823630882008
+        ]
+      }
+    },
+    "shards": [
+      {
+        "end_drift_cm": 3.3945858284969184,
+        "end_width_cm": 33.17536159629999,
+        "end_heading_deg": 3.992149959119941,
+        "max_width_cm": 33.17536159629999,
+        "min_width_cm": 29.240490920500008,
+        "minimum_base_height": 1.06301753086
+      },
+      {
+        "end_drift_cm": 2.7200685997781116,
+        "end_width_cm": 31.3240631898,
+        "end_heading_deg": 4.672976580138415,
+        "max_width_cm": 32.0622984196,
+        "min_width_cm": 30.469502506899993,
+        "minimum_base_height": 1.05566229744
+      },
+      {
+        "end_drift_cm": 2.3663139817600776,
+        "end_width_cm": 31.997501216200007,
+        "end_heading_deg": 6.471783610910738,
+        "max_width_cm": 32.2912731666,
+        "min_width_cm": 29.753072858499998,
+        "minimum_base_height": 1.05073941813
+      },
+      {
+        "end_drift_cm": 2.598885801088214,
+        "end_width_cm": 32.649599735,
+        "end_heading_deg": 7.509910435536884,
+        "max_width_cm": 33.173311215300004,
+        "min_width_cm": 30.063900315400005,
+        "minimum_base_height": 1.06150882485
+      },
+      {
+        "end_drift_cm": 3.134654153338931,
+        "end_width_cm": 31.323478704499998,
+        "end_heading_deg": 2.9222784924231426,
+        "max_width_cm": 32.3520865732,
+        "min_width_cm": 30.091231896500005,
+        "minimum_base_height": 1.06041563908
+      },
+      {
+        "end_drift_cm": 3.259514083538813,
+        "end_width_cm": 32.13123334269999,
+        "end_heading_deg": 2.9836524215414455,
+        "max_width_cm": 32.49382878269999,
+        "min_width_cm": 30.107975581400005,
+        "minimum_base_height": 1.05597012228
+      }
+    ],
+    "mean_end_drift_cm": 2.912337074666844,
+    "max_end_drift_cm": 3.3945858284969184,
+    "max_end_heading_deg": 7.509910435536884
+  },
+  "width1": {
+    "all": {
+      "n": 120,
+      "planned": 120,
+      "completed": 120,
+      "contacts": 111,
+      "legal": 107,
+      "collisions": 2,
+      "position_cm": [
+        5.301835102683059,
+        9.904837658443101
+      ],
+      "velocity_mps": [
+        0.28568717485115125,
+        0.03639570009577273
+      ],
+      "normal_deg": [
+        5.772827742876174,
+        77.33641796097179
+      ]
+    },
+    "by_side": {
+      "BHfront": {
+        "n": 30,
+        "planned": 30,
+        "completed": 30,
+        "contacts": 29,
+        "legal": 29,
+        "collisions": 1,
+        "position_cm": [
+          4.844772723498333,
+          7.185982515912218
+        ],
+        "velocity_mps": [
+          0.25006559460930333,
+          0.034190389702579226
+        ],
+        "normal_deg": [
+          3.0681777722567327,
+          5.519507114776419
+        ]
+      },
+      "BHother": {
+        "n": 27,
+        "planned": 27,
+        "completed": 27,
+        "contacts": 22,
+        "legal": 21,
+        "collisions": 1,
+        "position_cm": [
+          7.022086310586297,
+          10.247536604219917
+        ],
+        "velocity_mps": [
+          0.3230212366473741,
+          0.058197595048701624
+        ],
+        "normal_deg": [
+          9.685184370622814,
+          218.76549537883344
+        ]
+      },
+      "FH": {
+        "n": 63,
+        "planned": 63,
+        "completed": 63,
+        "contacts": 60,
+        "legal": 57,
+        "collisions": 0,
+        "position_cm": [
+          4.7822333370029675,
+          9.414938461832115
+        ],
+        "velocity_mps": [
+          0.2866495199107929,
+          0.026899659227495737
+        ],
+        "normal_deg": [
+          5.384032031279731,
+          40.727983837588525
+        ]
+      }
+    },
+    "by_height": {
+      "0": {
+        "n": 46,
+        "planned": 46,
+        "completed": 46,
+        "contacts": 44,
+        "legal": 43,
+        "collisions": 2,
+        "position_cm": [
+          5.07022448308674,
+          6.62673388428517
+        ],
+        "velocity_mps": [
+          0.30805978369973486,
+          0.04707240676142987
+        ],
+        "normal_deg": [
+          3.123606287030152,
+          8.33883863941547
+        ]
+      },
+      "1": {
+        "n": 37,
+        "planned": 37,
+        "completed": 37,
+        "contacts": 34,
+        "legal": 33,
+        "collisions": 0,
+        "position_cm": [
+          4.860384785706217,
+          8.633048411683326
+        ],
+        "velocity_mps": [
+          0.2104064328465595,
+          0.013569605581709367
+        ],
+        "normal_deg": [
+          5.637736917269566,
+          62.703428627633606
+        ]
+      },
+      "2": {
+        "n": 37,
+        "planned": 37,
+        "completed": 37,
+        "contacts": 33,
+        "legal": 31,
+        "collisions": 0,
+        "position_cm": [
+          6.031233757536406,
+          14.458514600066758
+        ],
+        "velocity_mps": [
+          0.33315332207101755,
+          0.03740554088960734
+        ],
+        "normal_deg": [
+          9.20154524331838,
+          157.25028190245152
+        ]
+      }
+    },
+    "shards": [
+      {
+        "end_drift_cm": 2.6051693707802825,
+        "end_width_cm": 32.060288738100006,
+        "end_heading_deg": 5.425286063921859,
+        "max_width_cm": 32.06715882300001,
+        "min_width_cm": 28.819233371099994,
+        "minimum_base_height": 1.06389307753
+      },
+      {
+        "end_drift_cm": 2.4183460987767664,
+        "end_width_cm": 30.106133023899993,
+        "end_heading_deg": 4.71478958339646,
+        "max_width_cm": 31.86857154039999,
+        "min_width_cm": 29.7756412337,
+        "minimum_base_height": 1.05619598132
+      },
+      {
+        "end_drift_cm": 2.0264716186034115,
+        "end_width_cm": 30.925879134900004,
+        "end_heading_deg": 7.041252436557414,
+        "max_width_cm": 31.6302698311,
+        "min_width_cm": 29.162901852699996,
+        "minimum_base_height": 1.05108662242
+      },
+      {
+        "end_drift_cm": 2.5161781925565205,
+        "end_width_cm": 31.639004423899998,
+        "end_heading_deg": 7.108337002748125,
+        "max_width_cm": 32.1269990931,
+        "min_width_cm": 29.1229136192,
+        "minimum_base_height": 1.06233526547
+      },
+      {
+        "end_drift_cm": 2.5548700832212994,
+        "end_width_cm": 30.253702028199992,
+        "end_heading_deg": 2.0189199377559324,
+        "max_width_cm": 31.7668145716,
+        "min_width_cm": 29.6138772184,
+        "minimum_base_height": 1.06068583891
+      },
+      {
+        "end_drift_cm": 2.497657258383733,
+        "end_width_cm": 31.022626265700005,
+        "end_heading_deg": 1.7480870428394755,
+        "max_width_cm": 31.4478114136,
+        "min_width_cm": 29.525746742399996,
+        "minimum_base_height": 1.05652829144
+      }
+    ],
+    "mean_end_drift_cm": 2.436448770387002,
+    "max_end_drift_cm": 2.6051693707802825,
+    "max_end_heading_deg": 7.108337002748125
+  },
+  "width3": {
+    "all": {
+      "n": 120,
+      "planned": 120,
+      "completed": 120,
+      "contacts": 112,
+      "legal": 109,
+      "collisions": 2,
+      "position_cm": [
+        5.297276813805592,
+        9.445505063314506
+      ],
+      "velocity_mps": [
+        0.2795310382780059,
+        0.03245030038806032
+      ],
+      "normal_deg": [
+        5.340864417089574,
+        38.02899405607156
+      ]
+    },
+    "by_side": {
+      "BHfront": {
+        "n": 30,
+        "planned": 30,
+        "completed": 30,
+        "contacts": 29,
+        "legal": 29,
+        "collisions": 1,
+        "position_cm": [
+          4.841836840741666,
+          6.501797169818057
+        ],
+        "velocity_mps": [
+          0.24803907700966,
+          0.03414969904913396
+        ],
+        "normal_deg": [
+          3.039696514067467,
+          5.7455104759334015
+        ]
+      },
+      "BHother": {
+        "n": 27,
+        "planned": 27,
+        "completed": 27,
+        "contacts": 23,
+        "legal": 23,
+        "collisions": 1,
+        "position_cm": [
+          7.076291919789258,
+          10.141867693692616
+        ],
+        "velocity_mps": [
+          0.2915394089858963,
+          0.042887697557149884
+        ],
+        "normal_deg": [
+          7.532391586287371,
+          54.15102325617351
+        ]
+      },
+      "FH": {
+        "n": 63,
+        "planned": 63,
+        "completed": 63,
+        "contacts": 60,
+        "legal": 57,
+        "collisions": 0,
+        "position_cm": [
+          4.751717946033509,
+          8.796037577731372
+        ],
+        "velocity_mps": [
+          0.2893807657214557,
+          0.02653681630109599
+        ],
+        "normal_deg": [
+          5.497432726967715,
+          41.88818107857934
+        ]
+      }
+    },
+    "by_height": {
+      "0": {
+        "n": 46,
+        "planned": 46,
+        "completed": 46,
+        "contacts": 45,
+        "legal": 44,
+        "collisions": 2,
+        "position_cm": [
+          5.102135586180869,
+          6.2538331637469255
+        ],
+        "velocity_mps": [
+          0.3041922582858,
+          0.04656378162311885
+        ],
+        "normal_deg": [
+          3.1650330532734565,
+          8.481382055582863
+        ]
+      },
+      "1": {
+        "n": 37,
+        "planned": 37,
+        "completed": 37,
+        "contacts": 34,
+        "legal": 34,
+        "collisions": 0,
+        "position_cm": [
+          4.768706511087568,
+          7.843205416977479
+        ],
+        "velocity_mps": [
+          0.21417785193926758,
+          0.014258817038260275
+        ],
+        "normal_deg": [
+          5.618946182736054,
+          63.45193346405734
+        ]
+      },
+      "2": {
+        "n": 37,
+        "planned": 37,
+        "completed": 37,
+        "contacts": 33,
+        "legal": 31,
+        "collisions": 0,
+        "position_cm": [
+          6.068455129246243,
+          14.094383848882668
+        ],
+        "velocity_mps": [
+          0.3142243294719192,
+          0.026864519715659604
+        ],
+        "normal_deg": [
+          7.767870292944218,
+          37.487422099598795
+        ]
+      }
+    },
+    "shards": [
+      {
+        "end_drift_cm": 1.9414429164116072,
+        "end_width_cm": 30.956724424899996,
+        "end_heading_deg": 4.842827395370705,
+        "max_width_cm": 30.983965789199996,
+        "min_width_cm": 28.2996301235,
+        "minimum_base_height": 1.0641358353
+      },
+      {
+        "end_drift_cm": 2.706421751922772,
+        "end_width_cm": 29.016670428199998,
+        "end_heading_deg": 5.059670329428875,
+        "max_width_cm": 31.766010426500003,
+        "min_width_cm": 28.708804463899995,
+        "minimum_base_height": 1.05648025214
+      },
+      {
+        "end_drift_cm": 1.851041024994231,
+        "end_width_cm": 29.952249870999992,
+        "end_heading_deg": 6.0465109300387105,
+        "max_width_cm": 30.7506621568,
+        "min_width_cm": 28.257264696399996,
+        "minimum_base_height": 1.05166102193
+      },
+      {
+        "end_drift_cm": 2.9057796240664264,
+        "end_width_cm": 30.633015569699996,
+        "end_heading_deg": 3.760920572974689,
+        "max_width_cm": 31.632329502700006,
+        "min_width_cm": 28.2564126909,
+        "minimum_base_height": 1.06280495488
+      },
+      {
+        "end_drift_cm": 2.9015358988348816,
+        "end_width_cm": 29.36537507360001,
+        "end_heading_deg": 1.7728247215615063,
+        "max_width_cm": 31.2808212093,
+        "min_width_cm": 29.01102168790001,
+        "minimum_base_height": 1.06101151639
+      },
+      {
+        "end_drift_cm": 2.3772082745325593,
+        "end_width_cm": 29.784993807600003,
+        "end_heading_deg": 2.30921834937142,
+        "max_width_cm": 30.691824408899993,
+        "min_width_cm": 28.684369837300004,
+        "minimum_base_height": 1.05694501483
+      }
+    ],
+    "mean_end_drift_cm": 2.447238248460413,
+    "max_end_drift_cm": 2.9057796240664264,
+    "max_end_heading_deg": 6.0465109300387105
+  },
+  "foot2": {
+    "all": {
+      "n": 120,
+      "planned": 120,
+      "completed": 120,
+      "contacts": 112,
+      "legal": 109,
+      "collisions": 1,
+      "position_cm": [
+        5.12389260508455,
+        9.650015277839234
+      ],
+      "velocity_mps": [
+        0.28098947867981416,
+        0.03333707144540647
+      ],
+      "normal_deg": [
+        5.481379108193882,
+        43.374849085353794
+      ]
+    },
+    "by_side": {
+      "BHfront": {
+        "n": 30,
+        "planned": 30,
+        "completed": 30,
+        "contacts": 29,
+        "legal": 29,
+        "collisions": 0,
+        "position_cm": [
+          4.548320296667667,
+          6.200126603824247
+        ],
+        "velocity_mps": [
+          0.24465438492107666,
+          0.03502890093330743
+        ],
+        "normal_deg": [
+          2.9450715688125326,
+          5.608907912001469
+        ]
+      },
+      "BHother": {
+        "n": 27,
+        "planned": 27,
+        "completed": 27,
+        "contacts": 23,
+        "legal": 23,
+        "collisions": 1,
+        "position_cm": [
+          6.835171988385185,
+          11.179965111619923
+        ],
+        "velocity_mps": [
+          0.2998279681364815,
+          0.043306707488729626
+        ],
+        "normal_deg": [
+          7.838093092501037,
+          70.40745234177841
+        ]
+      },
+      "FH": {
+        "n": 63,
+        "planned": 63,
+        "completed": 63,
+        "contacts": 60,
+        "legal": 57,
+        "collisions": 0,
+        "position_cm": [
+          4.664569206725652,
+          9.0133329728246
+        ],
+        "velocity_mps": [
+          0.29021826594064126,
+          0.02739278627307417
+        ],
+        "normal_deg": [
+          5.679124324148604,
+          44.29053238387389
+        ]
+      }
+    },
+    "by_height": {
+      "0": {
+        "n": 46,
+        "planned": 46,
+        "completed": 46,
+        "contacts": 45,
+        "legal": 44,
+        "collisions": 1,
+        "position_cm": [
+          4.807761339116522,
+          6.290655719080605
+        ],
+        "velocity_mps": [
+          0.30395931536423915,
+          0.04789515278087661
+        ],
+        "normal_deg": [
+          3.1589540141536947,
+          8.86925806487588
+        ]
+      },
+      "1": {
+        "n": 37,
+        "planned": 37,
+        "completed": 37,
+        "contacts": 34,
+        "legal": 34,
+        "collisions": 0,
+        "position_cm": [
+          4.6340117779402705,
+          8.067052758610062
+        ],
+        "velocity_mps": [
+          0.2143288078415135,
+          0.01491735126454185
+        ],
+        "normal_deg": [
+          5.6697378684244875,
+          66.60263430402281
+        ]
+      },
+      "2": {
+        "n": 37,
+        "planned": 37,
+        "completed": 37,
+        "contacts": 33,
+        "legal": 31,
+        "collisions": 0,
+        "position_cm": [
+          6.0068014926215145,
+          14.265719083331456
+        ],
+        "velocity_mps": [
+          0.3190930552618026,
+          0.02710607599516135
+        ],
+        "normal_deg": [
+          8.180359654067297,
+          49.020302487945344
+        ]
+      }
+    },
+    "shards": [
+      {
+        "end_drift_cm": 2.8685256796606944,
+        "end_width_cm": 31.772701697200002,
+        "end_heading_deg": 2.832245341915612,
+        "max_width_cm": 31.884625637099994,
+        "min_width_cm": 29.178161684399996,
+        "minimum_base_height": 1.06412549769
+      },
+      {
+        "end_drift_cm": 2.7315135438471176,
+        "end_width_cm": 29.768334685099994,
+        "end_heading_deg": 4.83303789970937,
+        "max_width_cm": 32.219733643400005,
+        "min_width_cm": 29.275354549599996,
+        "minimum_base_height": 1.05683550099
+      },
+      {
+        "end_drift_cm": 2.111755824982557,
+        "end_width_cm": 30.765852946400006,
+        "end_heading_deg": 4.456406668290501,
+        "max_width_cm": 31.154193024300003,
+        "min_width_cm": 28.91197081929999,
+        "minimum_base_height": 1.05164872863
+      },
+      {
+        "end_drift_cm": 3.706540221411789,
+        "end_width_cm": 31.4605010752,
+        "end_heading_deg": 3.53033369746101,
+        "max_width_cm": 32.6222123707,
+        "min_width_cm": 29.080237281300004,
+        "minimum_base_height": 1.06262730823
+      },
+      {
+        "end_drift_cm": 3.1821443764815562,
+        "end_width_cm": 30.217961486,
+        "end_heading_deg": 2.553662882024784,
+        "max_width_cm": 32.0342670512,
+        "min_width_cm": 29.8018447228,
+        "minimum_base_height": 1.06132218333
+      },
+      {
+        "end_drift_cm": 2.5478114765999016,
+        "end_width_cm": 30.82679943140001,
+        "end_heading_deg": 4.060302918622614,
+        "max_width_cm": 31.101870986599998,
+        "min_width_cm": 29.1710586773,
+        "minimum_base_height": 1.05657559102
+      }
+    ],
+    "mean_end_drift_cm": 2.858048520497269,
+    "max_end_drift_cm": 3.706540221411789,
+    "max_end_heading_deg": 4.83303789970937
+  },
+  "foot4": {
+    "all": {
+      "n": 120,
+      "planned": 120,
+      "completed": 120,
+      "contacts": 112,
+      "legal": 107,
+      "collisions": 3,
+      "position_cm": [
+        5.148225706611575,
+        8.576950730318776
+      ],
+      "velocity_mps": [
+        0.2988763481223325,
+        0.05924428627680099
+      ],
+      "normal_deg": [
+        5.565350692056284,
+        41.058217259412004
+      ]
+    },
+    "by_side": {
+      "BHfront": {
+        "n": 30,
+        "planned": 30,
+        "completed": 30,
+        "contacts": 29,
+        "legal": 29,
+        "collisions": 1,
+        "position_cm": [
+          4.378074569343,
+          5.102698141240351
+        ],
+        "velocity_mps": [
+          0.24054306573208667,
+          0.035632093005713614
+        ],
+        "normal_deg": [
+          2.7462644184582663,
+          4.665664426620021
+        ]
+      },
+      "BHother": {
+        "n": 27,
+        "planned": 27,
+        "completed": 27,
+        "contacts": 23,
+        "legal": 22,
+        "collisions": 1,
+        "position_cm": [
+          6.993973921457779,
+          8.871057048840676
+        ],
+        "velocity_mps": [
+          0.30881564139518514,
+          0.046803510805466075
+        ],
+        "normal_deg": [
+          7.444184286502258,
+          59.16615880515805
+        ]
+      },
+      "FH": {
+        "n": 63,
+        "planned": 63,
+        "completed": 63,
+        "contacts": 60,
+        "legal": 56,
+        "collisions": 1,
+        "position_cm": [
+          4.7239293941863325,
+          8.182788275688495
+        ],
+        "velocity_mps": [
+          0.3223944045245603,
+          0.07360414385471084
+        ],
+        "normal_deg": [
+          6.102558329483257,
+          45.04159850683305
+        ]
+      }
+    },
+    "by_height": {
+      "0": {
+        "n": 46,
+        "planned": 46,
+        "completed": 46,
+        "contacts": 45,
+        "legal": 43,
+        "collisions": 3,
+        "position_cm": [
+          4.926632037802805,
+          5.647547268375763
+        ],
+        "velocity_mps": [
+          0.34315659140540866,
+          0.11486499330480211
+        ],
+        "normal_deg": [
+          3.5209340838612175,
+          10.829651795669745
+        ]
+      },
+      "1": {
+        "n": 37,
+        "planned": 37,
+        "completed": 37,
+        "contacts": 35,
+        "legal": 34,
+        "collisions": 0,
+        "position_cm": [
+          4.4962648043054045,
+          7.165943438478223
+        ],
+        "velocity_mps": [
+          0.2231925915466405,
+          0.017424252161504547
+        ],
+        "normal_deg": [
+          5.739669918451541,
+          70.79797903221312
+        ]
+      },
+      "2": {
+        "n": 37,
+        "planned": 37,
+        "completed": 37,
+        "contacts": 32,
+        "legal": 30,
+        "collisions": 0,
+        "position_cm": [
+          6.075681440409729,
+          12.283644016214238
+        ],
+        "velocity_mps": [
+          0.319508991427173,
+          0.02332283852733222
+        ],
+        "normal_deg": [
+          7.932738600173812,
+          38.06869427318658
+        ]
+      }
+    },
+    "shards": [
+      {
+        "end_drift_cm": 3.8439583486526985,
+        "end_width_cm": 30.79825795469999,
+        "end_heading_deg": 1.7204949955653164,
+        "max_width_cm": 31.289634301000003,
+        "min_width_cm": 29.6313469968,
+        "minimum_base_height": 1.06449108623
+      },
+      {
+        "end_drift_cm": 3.698022276006573,
+        "end_width_cm": 29.065895707200006,
+        "end_heading_deg": 3.05443328938563,
+        "max_width_cm": 31.3535734106,
+        "min_width_cm": 28.893123592399995,
+        "minimum_base_height": 1.05730869527
+      },
+      {
+        "end_drift_cm": 2.8956125430103428,
+        "end_width_cm": 29.960829886499994,
+        "end_heading_deg": 4.666563680659872,
+        "max_width_cm": 30.691438802500002,
+        "min_width_cm": 28.358488886499998,
+        "minimum_base_height": 1.05169411358
+      },
+      {
+        "end_drift_cm": 4.358621477977341,
+        "end_width_cm": 31.0165259543,
+        "end_heading_deg": 9.635771103350898,
+        "max_width_cm": 31.97211215600001,
+        "min_width_cm": 29.616144287900003,
+        "minimum_base_height": 1.06389611665
+      },
+      {
+        "end_drift_cm": 3.696377438020332,
+        "end_width_cm": 30.562827973500006,
+        "end_heading_deg": 1.5326903870105368,
+        "max_width_cm": 32.2858488661,
+        "min_width_cm": 30.2145370189,
+        "minimum_base_height": 1.06121909824
+      },
+      {
+        "end_drift_cm": 3.781986670757905,
+        "end_width_cm": 30.0316060446,
+        "end_heading_deg": 7.399470828889744,
+        "max_width_cm": 30.943664226099997,
+        "min_width_cm": 29.001659519799993,
+        "minimum_base_height": 1.05632360695
+      }
+    ],
+    "mean_end_drift_cm": 3.712429792404199,
+    "max_end_drift_cm": 4.358621477977341,
+    "max_end_heading_deg": 9.635771103350898
+  },
+  "hip2": {
+    "all": {
+      "n": 120,
+      "planned": 120,
+      "completed": 120,
+      "contacts": 112,
+      "legal": 107,
+      "collisions": 2,
+      "position_cm": [
+        5.101324385750083,
+        9.668113413271168
+      ],
+      "velocity_mps": [
+        0.27357640571956005,
+        0.03267019050079114
+      ],
+      "normal_deg": [
+        5.366293302583541,
+        40.035857785386256
+      ]
+    },
+    "by_side": {
+      "BHfront": {
+        "n": 30,
+        "planned": 30,
+        "completed": 30,
+        "contacts": 29,
+        "legal": 29,
+        "collisions": 1,
+        "position_cm": [
+          4.612866893497667,
+          7.006354412025885
+        ],
+        "velocity_mps": [
+          0.24941464163642,
+          0.034573158437187224
+        ],
+        "normal_deg": [
+          2.999256829115267,
+          5.48292245432217
+        ]
+      },
+      "BHother": {
+        "n": 27,
+        "planned": 27,
+        "completed": 27,
+        "contacts": 23,
+        "legal": 21,
+        "collisions": 1,
+        "position_cm": [
+          6.635039794267407,
+          11.13347290395184
+        ],
+        "velocity_mps": [
+          0.2782390110915111,
+          0.045702131936542635
+        ],
+        "normal_deg": [
+          7.506330972236036,
+          56.48703916993608
+        ]
+      },
+      "FH": {
+        "n": 63,
+        "planned": 63,
+        "completed": 63,
+        "contacts": 60,
+        "legal": 57,
+        "collisions": 0,
+        "position_cm": [
+          4.676616587934285,
+          9.005493880223739
+        ],
+        "velocity_mps": [
+          0.28308374821879045,
+          0.025801195238369257
+        ],
+        "normal_deg": [
+          5.576294526764984,
+          44.76424551573407
+        ]
+      }
+    },
+    "by_height": {
+      "0": {
+        "n": 46,
+        "planned": 46,
+        "completed": 46,
+        "contacts": 44,
+        "legal": 43,
+        "collisions": 2,
+        "position_cm": [
+          4.757707698339348,
+          6.667182067951364
+        ],
+        "velocity_mps": [
+          0.30193730852566086,
+          0.046417356685538175
+        ],
+        "normal_deg": [
+          3.1389997165224566,
+          8.743007383228102
+        ]
+      },
+      "1": {
+        "n": 37,
+        "planned": 37,
+        "completed": 37,
+        "contacts": 35,
+        "legal": 33,
+        "collisions": 0,
+        "position_cm": [
+          4.744654049496487,
+          8.70353787324322
+        ],
+        "velocity_mps": [
+          0.20913271558547564,
+          0.014078654427823595
+        ],
+        "normal_deg": [
+          5.616741312093622,
+          65.75530382450376
+        ]
+      },
+      "2": {
+        "n": 37,
+        "planned": 37,
+        "completed": 37,
+        "contacts": 33,
+        "legal": 31,
+        "collisions": 0,
+        "position_cm": [
+          5.885193846892703,
+          13.475118762770418
+        ],
+        "velocity_mps": [
+          0.302760595067681,
+          0.028165957720042725
+        ],
+        "normal_deg": [
+          7.884912994662919,
+          40.647340480656794
+        ]
+      }
+    },
+    "shards": [
+      {
+        "end_drift_cm": 2.886363637669722,
+        "end_width_cm": 32.0075755518,
+        "end_heading_deg": 0.43120557595653347,
+        "max_width_cm": 32.025447942499994,
+        "min_width_cm": 29.334709947100002,
+        "minimum_base_height": 1.0637822744
+      },
+      {
+        "end_drift_cm": 2.4773671949779397,
+        "end_width_cm": 30.390824618300005,
+        "end_heading_deg": 4.16756229437426,
+        "max_width_cm": 31.819985363400004,
+        "min_width_cm": 30.0448367621,
+        "minimum_base_height": 1.05629349884
+      },
+      {
+        "end_drift_cm": 1.5003486615643928,
+        "end_width_cm": 30.542884766300006,
+        "end_heading_deg": 4.4061800307722025,
+        "max_width_cm": 30.820328773399996,
+        "min_width_cm": 28.74829791450001,
+        "minimum_base_height": 1.05142391265
+      },
+      {
+        "end_drift_cm": 3.162701555526105,
+        "end_width_cm": 31.080442596,
+        "end_heading_deg": 6.462870488282316,
+        "max_width_cm": 32.1289142216,
+        "min_width_cm": 29.531714129699992,
+        "minimum_base_height": 1.06219689546
+      },
+      {
+        "end_drift_cm": 2.78273567350942,
+        "end_width_cm": 30.0999289625,
+        "end_heading_deg": 2.2254965165579086,
+        "max_width_cm": 32.0339407119,
+        "min_width_cm": 29.946087147,
+        "minimum_base_height": 1.06076480007
+      },
+      {
+        "end_drift_cm": 2.333075481518991,
+        "end_width_cm": 31.026131571000004,
+        "end_heading_deg": 4.091670704882681,
+        "max_width_cm": 31.3773394297,
+        "min_width_cm": 29.7081762724,
+        "minimum_base_height": 1.05619527426
+      }
+    ],
+    "mean_end_drift_cm": 2.523765367461095,
+    "max_end_drift_cm": 3.162701555526105,
+    "max_end_heading_deg": 6.462870488282316
+  },
+  "width05": {
+    "all": {
+      "n": 120,
+      "planned": 120,
+      "completed": 120,
+      "contacts": 111,
+      "legal": 107,
+      "collisions": 2,
+      "position_cm": [
+        5.295380093959917,
+        10.175459723170052
+      ],
+      "velocity_mps": [
+        0.28622407623612917,
+        0.036798059642043066
+      ],
+      "normal_deg": [
+        5.545488036433625,
+        49.899923793410956
+      ]
+    },
+    "by_side": {
+      "BHfront": {
+        "n": 30,
+        "planned": 30,
+        "completed": 30,
+        "contacts": 29,
+        "legal": 29,
+        "collisions": 1,
+        "position_cm": [
+          4.814641114105001,
+          7.274103566355263
+        ],
+        "velocity_mps": [
+          0.24964983285828335,
+          0.034165171839423504
+        ],
+        "normal_deg": [
+          3.0660680691019997,
+          5.477497194240527
+        ]
+      },
+      "BHother": {
+        "n": 27,
+        "planned": 27,
+        "completed": 27,
+        "contacts": 22,
+        "legal": 21,
+        "collisions": 1,
+        "position_cm": [
+          7.115346552737777,
+          10.959543134496357
+        ],
+        "velocity_mps": [
+          0.32431151583704443,
+          0.057524849583298114
+        ],
+        "normal_deg": [
+          8.66716564236963,
+          104.59540681967258
+        ]
+      },
+      "FH": {
+        "n": 63,
+        "planned": 63,
+        "completed": 63,
+        "contacts": 60,
+        "legal": 57,
+        "collisions": 0,
+        "position_cm": [
+          4.744317792509842,
+          9.387752443995536
+        ],
+        "velocity_mps": [
+          0.28731719420613966,
+          0.02790901417658008
+        ],
+        "normal_deg": [
+          5.388302380238016,
+          40.48406624064498
+        ]
+      }
+    },
+    "by_height": {
+      "0": {
+        "n": 46,
+        "planned": 46,
+        "completed": 46,
+        "contacts": 44,
+        "legal": 43,
+        "collisions": 2,
+        "position_cm": [
+          5.017979968001086,
+          6.630538508398482
+        ],
+        "velocity_mps": [
+          0.3104631400015652,
+          0.04822958243856239
+        ],
+        "normal_deg": [
+          3.149854838634565,
+          8.39479262917251
+        ]
+      },
+      "1": {
+        "n": 37,
+        "planned": 37,
+        "completed": 37,
+        "contacts": 34,
+        "legal": 33,
+        "collisions": 0,
+        "position_cm": [
+          4.86705359704054,
+          8.76666867309272
+        ],
+        "velocity_mps": [
+          0.21019685255506218,
+          0.013730051616603348
+        ],
+        "normal_deg": [
+          5.677835751278515,
+          62.87643047608435
+        ]
+      },
+      "2": {
+        "n": 37,
+        "planned": 37,
+        "completed": 37,
+        "contacts": 33,
+        "legal": 31,
+        "collisions": 0,
+        "position_cm": [
+          6.068582423152432,
+          15.114476092197087
+        ],
+        "velocity_mps": [
+          0.33211624766827563,
+          0.03703722859828419
+        ],
+        "normal_deg": [
+          8.391495108041621,
+          73.27207322008391
+        ]
+      }
+    },
+    "shards": [
+      {
+        "end_drift_cm": 2.876116395029248,
+        "end_width_cm": 32.4625023891,
+        "end_heading_deg": 6.085478765948346,
+        "max_width_cm": 32.46262192030001,
+        "min_width_cm": 29.040460255199996,
+        "minimum_base_height": 1.06382693389
+      },
+      {
+        "end_drift_cm": 2.252536707126469,
+        "end_width_cm": 30.468487548200006,
+        "end_heading_deg": 4.721561043444183,
+        "max_width_cm": 31.947137855700003,
+        "min_width_cm": 29.953241956099998,
+        "minimum_base_height": 1.0561898287
+      },
+      {
+        "end_drift_cm": 2.3242417813829714,
+        "end_width_cm": 31.4529030341,
+        "end_heading_deg": 6.95015443546775,
+        "max_width_cm": 31.9942944352,
+        "min_width_cm": 29.457957164900005,
+        "minimum_base_height": 1.05097488926
+      },
+      {
+        "end_drift_cm": 2.8817305193224287,
+        "end_width_cm": 32.2973393826,
+        "end_heading_deg": 7.246509452040679,
+        "max_width_cm": 32.7322310305,
+        "min_width_cm": 29.543192524499993,
+        "minimum_base_height": 1.0621620005
+      },
+      {
+        "end_drift_cm": 2.62277217626977,
+        "end_width_cm": 30.665380728700008,
+        "end_heading_deg": 1.737926886021076,
+        "max_width_cm": 31.9020690962,
+        "min_width_cm": 29.6378009401,
+        "minimum_base_height": 1.06067387073
+      },
+      {
+        "end_drift_cm": 2.6363335530153624,
+        "end_width_cm": 31.2513357681,
+        "end_heading_deg": 1.3923752383816084,
+        "max_width_cm": 31.655827656199996,
+        "min_width_cm": 29.678502384399998,
+        "minimum_base_height": 1.05645390407
+      }
+    ],
+    "mean_end_drift_cm": 2.5989551886910416,
+    "max_end_drift_cm": 2.8817305193224287,
+    "max_end_heading_deg": 7.246509452040679
+  }
+}

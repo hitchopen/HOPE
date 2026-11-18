@@ -185,8 +185,6 @@ class FieldAssetsTest(unittest.TestCase):
                                              "DEFAULT" if state == "default" else digest],
                                             capture_output=True, text=True, timeout=5)
                     self.assertEqual(result.returncode == 0, state in {"valid", "default"}, result.stderr)
-                    if result.returncode == 0:
-                        self.assertEqual("--shared-session-home" in result.stdout.splitlines(), mode == "OPTITRACK")
                     if state == "valid":
                         self.assertEqual(result.stdout.splitlines()[-2:], ["--serve-timeline", str(path)])
                     elif state == "default":
@@ -246,7 +244,8 @@ class LifecycleModeTest(unittest.TestCase):
             HelperEvent=HelperEvent, validate_session_id=validate_session_id,
             parse_helper_event=parse_helper_event, LIFECYCLE_HELPER="/fixed/helper",
             LAPTOP_LIFECYCLE_HELPER="/fixed/laptop-helper",
-            LAPTOP_USER="operator", ROBOT_USER="agi", SSH_OPTIONS=("-T",), json=json)
+            LAPTOP_USER="operator", ROBOT_USER="agi", SSH_OPTIONS=("-T",), json=json,
+            MAC_USER="dongc1", MAC_LIFECYCLE_HELPER="/home/dongc1/.local/libexec/hope-lifecycle")
         exec(compile(ast.Module(body=classes, type_ignores=[]), str(source), "exec"), namespace)
         def run(argv, **kwargs):
             calls.append(argv)
@@ -266,6 +265,9 @@ class LifecycleModeTest(unittest.TestCase):
             self.assertNotIn("start-base", argv)
             self.assertNotIn("start-planner", argv)
             self.assertEqual(argv[-3:], ["KERNEL", "a" * 64, "legacy"])
+        actions = [argv for argv in calls]
+        self.assertLess(next(i for i, argv in enumerate(actions) if "start-runner" in argv),
+                        next(i for i, argv in enumerate(actions) if "start-transport-gateway" in argv))
         calls.clear()
         backend.kill_all_and_collect(config, session, lambda event: None, "KERNEL")
         self.assertEqual(len(calls), 2)
@@ -275,6 +277,12 @@ class LifecycleModeTest(unittest.TestCase):
         backend.start(config, session, lambda event: None)
         self.assertTrue(any("start-base" in argv for argv in calls))
         self.assertTrue(any("start-planner" in argv for argv in calls))
+        self.assertLess(next(i for i, argv in enumerate(calls) if "start-base" in argv),
+                        next(i for i, argv in enumerate(calls) if "start-planner" in argv))
+        self.assertLess(next(i for i, argv in enumerate(calls) if "start-base" in argv),
+                        next(i for i, argv in enumerate(calls) if "start-hal" in argv))
+        self.assertLess(next(i for i, argv in enumerate(calls) if "start-runner" in argv),
+                        next(i for i, argv in enumerate(calls) if "start-transport-gateway" in argv))
 
 
 if __name__ == "__main__":

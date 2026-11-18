@@ -1,0 +1,21 @@
+[Unit]
+Description=HOPE read-only live scene
+After=hope-host-bridge.service
+
+[Service]
+Type=simple
+Environment=HOPE_ROOT=%h/Desktop/workspace/nohope
+EnvironmentFile=-%h/.config/hope-foxglove/host-bridge.env
+# Stopping `distrobox enter` does not kill the python inside the container: it
+# is reparented and keeps port 8769 and the previous session's joint reader.
+# Every lifecycle START try-restarts this unit, so clear strays both ways.
+ExecStartPre=/usr/bin/python3 ${HOPE_ROOT}/foxglove/helpers/hope-live-scene-stop
+ExecStart=/usr/bin/distrobox enter hope -- bash ${HOPE_ROOT}/foxglove/helpers/hope-live-scene
+ExecStop=/usr/bin/python3 ${HOPE_ROOT}/foxglove/helpers/hope-live-scene-stop
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=15
+
+[Install]
+WantedBy=default.target

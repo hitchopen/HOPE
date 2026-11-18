@@ -84,6 +84,7 @@ TEST(FutureContactPredictor, ReliableSpinRetainsPhysicalFrictionAndExactPredicti
   ASSERT_TRUE(result.valid);
   EXPECT_EQ(result.predicted_bounces, 1);
   EXPECT_EQ(result.ball_velocity, expected.ball_velocity);
+  EXPECT_EQ(result.ball_spin_rad_s, expected.ball_spin_rad_s);
   EXPECT_DOUBLE_EQ(result.strike_source_time_s, expected.strike_source_time_s);
 }
 TEST(FutureContactPredictor, EstimatorSegmentQualityCannotBeOverriddenByExternalSpin) {

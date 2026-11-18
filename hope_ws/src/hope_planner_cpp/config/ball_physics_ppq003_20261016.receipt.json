@@ -1,0 +1,294 @@
+{
+  "schema_version": 1,
+  "date_local": "2026-10-16",
+  "recorded_utc": "2026-10-16T03:54:53.650854+00:00",
+  "status": "deployed_and_live_parameters_verified",
+  "selected_model": "PPQ003-only all-data fit",
+  "parameters": {
+    "drag_k": 0.12578796161747127,
+    "magnus_k": 0.0037874689056767883,
+    "restitution_v": 0.9533118292627528,
+    "table_tangential_gain": 0.41671118545156105,
+    "table_friction_cap_mu": 0.22496121635123217,
+    "restitution_h": 0.583288814548439,
+    "post_net_future_bounce_tangential_gain": 0.41671118545156105,
+    "post_net_future_bounce_restitution_v": 0.9533118292627528,
+    "future_contact_spin_enabled": true,
+    "future_contact_magnus_enabled": true,
+    "future_contact_spin_tangential_gain": 0.41671118545156105,
+    "future_contact_spin_omega_scale": 1.0,
+    "future_contact_spin_min_coherence": 0.4,
+    "spin_window_s": 0.18
+  },
+  "calculation_receipt": "/home/user/.cache/hope-setup/results/ball_refit_ppq003_20261016/calculation_receipt.json",
+  "calculation_receipt_sha256": "47f6a910b8056864311004f33eeb8f197b9968bac37bd17ebc60a7499dfc07b9",
+  "hdu_runtime": {
+    "state": {
+      "state": "RUNNING",
+      "session": "model21800_20261016T025829Z",
+      "mode": "PASSIVE",
+      "command_publishing": true,
+      "alive": true
+    },
+    "state_age_s": {
+      "state": 0.17700967000018863,
+      "session": 0.17568337300053827,
+      "mode": 0.2167268070006685,
+      "command_publishing": 0.376805852999496,
+      "alive": 0.00043898799958697055
+    },
+    "parameters": {
+      "/hope_planner": {
+        "available": true,
+        "actual": {
+          "drag_k": 0.12578796161747127,
+          "magnus_k": 0.0037874689056767883,
+          "restitution_v": 0.9533118292627528,
+          "table_tangential_gain": 0.41671118545156105,
+          "table_friction_cap_mu": 0.22496121635123217,
+          "restitution_h": 0.583288814548439,
+          "post_net_future_bounce_tangential_gain": 0.41671118545156105,
+          "post_net_future_bounce_restitution_v": 0.9533118292627528,
+          "future_contact_spin_enabled": true,
+          "future_contact_magnus_enabled": true,
+          "future_contact_spin_tangential_gain": 0.41671118545156105,
+          "future_contact_spin_omega_scale": 1.0,
+          "future_contact_spin_min_coherence": 0.4,
+          "spin_window_s": 0.18
+        },
+        "all_14_match": true,
+        "matches": {
+          "drag_k": true,
+          "magnus_k": true,
+          "restitution_v": true,
+          "table_tangential_gain": true,
+          "table_friction_cap_mu": true,
+          "restitution_h": true,
+          "post_net_future_bounce_tangential_gain": true,
+          "post_net_future_bounce_restitution_v": true,
+          "future_contact_spin_enabled": true,
+          "future_contact_magnus_enabled": true,
+          "future_contact_spin_tangential_gain": true,
+          "future_contact_spin_omega_scale": true,
+          "future_contact_spin_min_coherence": true,
+          "spin_window_s": true
+        }
+      }
+    }
+  },
+  "laptop_runtime": {
+    "state": {
+      "state": "RUNNING",
+      "session": "model21800_20261016T025829Z",
+      "alive": true,
+      "mode": "PASSIVE",
+      "command_publishing": true
+    },
+    "state_age_s": {
+      "state": 0.26603254000656307,
+      "session": 0.2525806960184127,
+      "alive": 0.21975002501858398,
+      "mode": 0.20052210398716852,
+      "command_publishing": 0.4137350919772871
+    },
+    "parameters": {
+      "/hope_ball_flight_packetizer": {
+        "available": true,
+        "actual": {
+          "drag_k": 0.12578796161747127,
+          "magnus_k": 0.0037874689056767883,
+          "restitution_v": 0.9533118292627528,
+          "table_tangential_gain": 0.41671118545156105,
+          "table_friction_cap_mu": 0.22496121635123217,
+          "restitution_h": 0.583288814548439,
+          "post_net_future_bounce_tangential_gain": 0.41671118545156105,
+          "post_net_future_bounce_restitution_v": 0.9533118292627528,
+          "future_contact_spin_enabled": true,
+          "future_contact_magnus_enabled": true,
+          "future_contact_spin_tangential_gain": 0.41671118545156105,
+          "future_contact_spin_omega_scale": 1.0,
+          "future_contact_spin_min_coherence": 0.4,
+          "spin_window_s": 0.18
+        },
+        "all_14_match": true,
+        "matches": {
+          "drag_k": true,
+          "magnus_k": true,
+          "restitution_v": true,
+          "table_tangential_gain": true,
+          "table_friction_cap_mu": true,
+          "restitution_h": true,
+          "post_net_future_bounce_tangential_gain": true,
+          "post_net_future_bounce_restitution_v": true,
+          "future_contact_spin_enabled": true,
+          "future_contact_magnus_enabled": true,
+          "future_contact_spin_tangential_gain": true,
+          "future_contact_spin_omega_scale": true,
+          "future_contact_spin_min_coherence": true,
+          "spin_window_s": true
+        }
+      }
+    }
+  },
+  "hdu_deployment": {
+    "before_sha256": "4982e0a832171f6a90b2b1633cb9df93fff03b1989971dc2b246797d681e17e8",
+    "after_sha256": "17c04ca99d95791aab4eea14a05b63656fdf5ed8c5d9f417c17dda4c8118ae9b",
+    "state_before": {
+      "mode": "PASSIVE",
+      "lifecycle": "RUNNING",
+      "session": "model21800_20261016T025829Z"
+    },
+    "session_id": "model21800_20261016T025829Z",
+    "old_attempt": "planner_attempt_001",
+    "restart_scope": "Planner only; Runner/HAL/base relay and runner transport untouched",
+    "backup": "/home/agi/hope_physics_backups/ppq003_20261016/model21800_hardware.yaml",
+    "new_attempt": "planner_attempt_002",
+    "planner_y_filter_unchanged": true,
+    "configuration_sha256": "17c04ca99d95791aab4eea14a05b63656fdf5ed8c5d9f417c17dda4c8118ae9b"
+  },
+  "laptop_restart": {
+    "state_before": {
+      "lifecycle": "RUNNING",
+      "mode": "PASSIVE"
+    },
+    "command": [
+      "/home/user/Desktop/workspace/nohope/foxglove/helpers/hope-lifecycle",
+      "_run-laptop",
+      "model21800_20261015T134308Z",
+      "192.168.8.155",
+      "192.168.8.182",
+      "10.42.10.12",
+      "192.168.100.99",
+      "P1",
+      "OPTITRACK",
+      "DEFAULT",
+      "new_20261015",
+      "vrpn",
+      "192.168.100.99",
+      "3883",
+      "mm",
+      "v2"
+    ],
+    "runtime_env_unchanged": true,
+    "scope": "Independent laptop mocap/packetizer bridge restarted normally; Runner and hardware services untouched"
+  },
+  "stream_check": {
+    "duration_s": 5.002146142011043,
+    "counts": {
+      "/poses": 1501,
+      "/a3/base_pose_laptop_flat": 1500,
+      "/hope/runner/mode": 25,
+      "/hope/runner/command_publishing": 10
+    },
+    "last_scalar": {
+      "/hope/runner/mode": "PASSIVE",
+      "/hope/runner/command_publishing": true
+    },
+    "scope": "Received streams only; not ball-tracking accuracy or physical catching acceptance"
+  },
+  "local_changes": [
+    {
+      "path": "hope_ws/src/hope_planner_cpp/config/model21800_hardware.yaml",
+      "before_sha256": "951a8beae96572a69649ea136295c8faab1f8b4d198e2c9de7da6f2e274547f6",
+      "after_sha256": "16efdf6fdd5bc2bfdf9351155907493c1d65c674c3274cab770444f8d554cbb1"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/config/model21800_flight_packetizer.yaml",
+      "before_sha256": "d1e2c1272b229331f61c76a841c7b6a556ddb56b876175ae779a4bd5a65fbb74",
+      "after_sha256": "178f571d3a5e07799997e7dd4c098ab69dc6224bc442c31f01c56151080434a5"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/config/model14600_spin_contact.yaml",
+      "before_sha256": "ae6da8cd5516d68c4b3611f7fa8c57bf4ee2612afeac85569ca9b1977babb46e",
+      "after_sha256": "a2bbd6d0b9ec6d01a361e8120a157769ebc0ad0733543c025b98f62f188416c9"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/config/model14600_adaptive_flight_packetizer.yaml",
+      "before_sha256": "d1e2c1272b229331f61c76a841c7b6a556ddb56b876175ae779a4bd5a65fbb74",
+      "after_sha256": "178f571d3a5e07799997e7dd4c098ab69dc6224bc442c31f01c56151080434a5"
+    },
+    {
+      "path": "hope_ws/src/hope_planner_cpp/include/hope_planner_cpp/types.hpp",
+      "before_sha256": "60eb1442b6d52750a885fb5a71b726838db59c4f53e1c12a745a047770cbf0eb",
+      "after_sha256": "c0620652a2cddd7d6717de4567a1fd625ed3157f21e9a52f284769b4cb8ef18a"
+    },
+    {
+      "path": "agi/a3_deploy_example/scripts/pp_ball_physics.py",
+      "before_sha256": "b46423835b268c0a1c9141554ccb28c9e62b42b19aa98a637ba0a36b87e1acd8",
+      "after_sha256": "6b66506593a665e6dac0b7d324eb1b7ee8a391b0e8f78b8dabfdfa5cbd1f510c"
+    },
+    {
+      "path": "agi/a3_deploy_example/scripts/tests/test_ball_physics_config.py",
+      "before_sha256": "959c35e35c900545906e5f0476ba5b47f9e9f32266bf19081e4f456a5deb7b16",
+      "after_sha256": "faaeae91156abec9112c677db42c282a7e94f255f70ce2a6435e457f119c2f4d"
+    },
+    {
+      "path": "agi/A3_MuJoCo_Sim/aimrt_mujoco_sim/src/module/mujoco_sim_module/mujoco_sim_module.h",
+      "before_sha256": "323a7c0591b1389cd198ed961b05fe734343c5af3bf33f51a3d6321cbdf85a1f",
+      "after_sha256": "c2b78383c6507dd4d656bd25821cb6dfd0ab1d09328c9a098001a51effef8380"
+    },
+    {
+      "path": "agi/A3_MuJoCo_Sim/aimrt_mujoco_sim/src/module/mujoco_sim_module/common/gate3_ball_contact_model.h",
+      "before_sha256": "6cf3d1e63e42c1a691b66927b3b4488f7277394fdd03e0f8950a5776c9161ce8",
+      "after_sha256": "73fc5d499d8b3b39a21d27bdd9dc48906fdb46f6caf7e556bb8a666cc80a0212"
+    },
+    {
+      "path": "agi/A3_MuJoCo_Sim/aimrt_mujoco_sim/src/module/mujoco_sim_module/common/gate3_ball_contact_model_test.cc",
+      "before_sha256": "a511b68e58c22b09ee814606e42700876cc9ec448451914a9f34d9865dc7c9e8",
+      "after_sha256": "370d1b81404ec203bb6388734d5239289ab3db0de233da545b1f2e65d021c7f5"
+    }
+  ],
+  "mdu_runner_pid_unchanged": 15659,
+  "runner_restarted": false,
+  "hardware_services_stopped": false,
+  "new_gate3_run": false,
+  "physical_accuracy_tested": false,
+  "tests": {
+    "parameter_regression_passed": 14,
+    "cpp_contact_passed": 3,
+    "planner_build_install": true,
+    "sim_current_build_install": true
+  },
+  "source_sha256": {
+    "hope_ws/src/hope_planner_cpp/config/ball_physics_ppq003_20261016.yaml": "7042da1b39a47df82e5178784afa795add1670783d65d3bb157336f75ef10739",
+    "docs/operations/ball_physics_ppq003_deployment_20261016.md": "3e93bd724d6eedf98bb64257aa5c280e78739110bdaae4b37c56aa2eff247a8c",
+    "docs/operations/ball_physics_calibration.md": "620704d541cbde179b4bae713c7bdd87822262d23ee9f746845359cca5c4fb62"
+  },
+  "artifact_directory": "/home/user/.cache/hope-setup/results/ball_deploy_ppq003_20261016",
+  "evidence_sha256": {
+    "mdu_after.txt": "1f2faec9e08a37020c1a342bd396a5a09bb563acaeb1a83300e4f8bf08a74139",
+    "deploy_hdu.py": "046d83c4b229aa92d25f7470e3a95f59a749cc717c81be346d64231b78109d40",
+    "hdu_runtime_before.json": "f455a9ab81132cdce6bc75770fb25f4a330178c3828e4e60ac371adad90059f7",
+    "runtime_before.json": "5ca12e73f7b0f4f7281f446cb8a98951a626ef4315de7587ebe2a88ae8064e54",
+    "build_sim_current.log": "3cad8f1bc1687485393ae35b526a951ef25622e4226c58c450564016d5e5c05d",
+    "build_planner.log": "5c7b243db4f91bab2259abab8337a9f3fd6f76f688760c7693906d9b9fbedf89",
+    "streams_after.json": "2b3c5812923bec86c3c84dc083579002cd6695145bf502fdb634559ae2bf9841",
+    "probe.py": "dd460808ad8ec694e357e4196cd301d483c7afae260e37efd30b9c7ff52186a4",
+    "hdu_runtime_after.json": "a80e5d7f5b228b7821101c3a5ff2be9c45020ff9d31237337ea5c234caf62ec3",
+    "laptop_restart.log": "9ec0592a3a4be364575e1ff76cd5be25e78404210304eaba401f26ab4f3a663a",
+    "adopted_parameters.json": "7042874dfd5c6005480200d8a5a3e0e9ac9981019d4c62067567ee55efadbf64",
+    "probe_hdu.py": "fbd16de863abdfb674e0ad8c64047d35a264af00a3e17bd91f1c4a9911e87812",
+    "contact_tests.log": "c1ce4c4e198139e96ea58407f678d31bc9015338c387e5cb1d77443b3210a481",
+    "check_streams.py": "e9061fea7f88c46f4fae965c048830a969de9a24652e3504198fa17612b3afda",
+    "build_sim.log": "62b6c2c018611d10a481f0125bae2fc4d3d17f5215a02d563c27820f65c74cee",
+    "write_deployment_receipt.py": "07518bcce0ffe1335b065ee2f7cf7794e33ca33469bbd8778f7975053c1e3596",
+    "hdu_deploy.log": "f685fb199035a732a39bae0a13c3bf93504277fc56d51f9f7f5d32e69539e2e0",
+    "mdu_runner_identity.txt": "35be9d173edfaf48a29f7cf5f095172032d0f6cc4690014b85418b0785337d90",
+    "mdu_before.txt": "9a3466733566245de4c64902d74a6a8232e4049d8601c9ebb8042972cc857477",
+    "laptop_runtime_after.json": "e71245b12ef8fa5147a62cf441a80c8977d0e588ac7a100d7ad6c1159f8c0138",
+    "hdu_probe_before.log": "dac7404df946b7e8e111eb514d22b3997642559044428ff19db3d245f174811d",
+    "local_changes.json": "2628c68b5d249f4abf2e753f51554d2d6591a125cbc4541f0303a1f2bb32538d",
+    "laptop_restart.json": "35d98910d0898b9718b28e006e2c11e37ff234b806653e7478db6415df0f9bb8",
+    "hdu_preflight.txt": "8acccb08ddb09daf32140c16cf2765d16ce6669e5896a18df7263a1f0d7630d1",
+    "hdu_expected_hashes.json": "9094a7249a5f7af907de57536a52f9893dda182efe1f1e92cecb20d4743167ec",
+    "probe_laptop.py": "2f6935c29b19cb94782e76096ba62376733269d1ea4ebc0a97614472e9799efe",
+    "hdu_probe_after.log": "a393a9918b6756ec02be9371ce5e34c12737ce2d1ff1e6586101fbdb7c4395f6",
+    "hdu_deployment.json": "89840e465a49245318eb29f3ba71f2d8bb795e8953b0b2f6ac775cd9b4feef08",
+    "parameter_tests.log": "11a0f69837185ee278d256b8cc0a6414fc89900bb1aa664a30ee3a8498b6f847",
+    "laptop_packetizer_identity.txt": "ba7e9ab5d23a8b54ef3c02602a4bc8932c828b49df7e754e93e816dd16f48046",
+    "hdu_runtime_identity.txt": "473bdf2e958d6016beace797298373011e890ecf512f40e3813c8835e7c137ed",
+    "laptop_probe_after.log": "c049cb6a7b7a9053506cac1bc521deb0acfa21e963e169d313cc758a60516a9b",
+    "streams.log": "e45b17df27bc01752d2923b1edb7d57c6993c04dec9045059ef85470a4b26855",
+    "restart_laptop.py": "f8b49ea636a69a02938849f6cffcfa1f90ca58498238fa7c6339554dd144768c"
+  }
+}

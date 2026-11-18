@@ -1,0 +1,37 @@
+{
+  "sampled_at_utc": "2026-10-15T14:00:45.827964+00:00",
+  "status": {},
+  "markers": {
+    "/vrpn_mocap/ppp3/pose_id_10": {
+      "samples": 2974,
+      "median_y_m": -0.5543593239924284,
+      "min_y_m": -0.554366031965561,
+      "max_y_m": -0.554352346568258,
+      "last": {
+        "y_mm": -554.3568605142224,
+        "frame": "world",
+        "source_stamp": 1792072845.8277006,
+        "receipt_wall": 1792072845.8279512
+      }
+    },
+    "/vrpn_mocap/ppp4/pose_id_11": {
+      "samples": 2973,
+      "median_y_m": -1.3895904353652275,
+      "min_y_m": -1.3895985566487077,
+      "max_y_m": -1.3895789354532482,
+      "last": {
+        "y_mm": -1389.5857777818933,
+        "frame": "world",
+        "source_stamp": 1792072845.8210301,
+        "receipt_wall": 1792072845.8215158
+      }
+    }
+  },
+  "table_side": "P1",
+  "raw_units": "mm",
+  "scale_to_m": 0.001,
+  "runtime_evidence": "laptop-runtime.env and running avatar_pro_hope_bridge launch: table_side=P1, position_scale=0.001",
+  "bounds_mode": "fixed snapshot; remeasure after marker or table frame changes",
+  "min_y_m": -1.3895904353652275,
+  "max_y_m": -0.5543593239924284
+}

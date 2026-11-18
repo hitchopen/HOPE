@@ -139,11 +139,18 @@ class PlannerNode final : public rclcpp::Node {
   a3_deploy::SessionHomeReceipt solve_home_; // solver thread only
   bool solve_home_valid_ = false;
   bool solve_posture_stable_ = false;
-  std::mutex hit_speed_scale_publish_mutex_;
   std::atomic<double> hit_speed_scale_{1.0};
   std::string hit_speed_scale_state_file_;
   std::atomic<double> last_command_hit_speed_scale_{NAN};
   rclcpp::Service<rcl_interfaces::srv::SetParametersAtomically>::SharedPtr hit_speed_scale_service_;
+  // Serialize live updates from Stage 3 input selection through publication.
+  std::mutex flight_time_publish_mutex_;
+  std::atomic<double> flight_time_override_s_{NAN};
+  double solve_flight_time_s_ = NAN; // solver thread only
+  std::atomic<double> last_command_flight_time_requested_s_{NAN};
+  std::atomic<double> last_command_flight_time_s_{NAN};
+  std::string flight_time_state_file_;
+  rclcpp::Service<rcl_interfaces::srv::SetParametersAtomically>::SharedPtr flight_time_service_;
   RuntimePlaneReference runtime_plane_;
   PlaneSelection solve_plane_; // solver thread only
   std::uint64_t plane_flight_counter_ = 0;
@@ -169,6 +176,7 @@ class PlannerNode final : public rclcpp::Node {
   rclcpp::Subscription<hope_msgs::msg::BallFlightPacket>::SharedPtr
       flight_packet_subscription_;
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr base_subscription_;
+  rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr runner_home_subscription_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr robot_pose_subscription_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr flat_publisher_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr base_publisher_;
@@ -222,9 +230,13 @@ class PlannerNode final : public rclcpp::Node {
   double question_fixture_max_velocity_error_mps_ = 0.10;
   double question_fixture_max_tts_error_s_ = 0.03;
 
-  std::vector<double> swing_side_fh_y_range_, swing_side_bh_y_range_;
   double swing_side_split_y_ = -0.25;
   double swing_side_hysteresis_y_ = 0.04;
+  std::vector<double> swing_side_fh_y_range_;
+  std::vector<double> swing_side_bh_y_range_;
+  std::atomic<double> runner_home_y_{std::numeric_limits<double>::quiet_NaN()};
+  std::atomic<double> runner_home_x_{std::numeric_limits<double>::quiet_NaN()};
+  std::vector<double> x_hit_home_support_range_;
   std::string swing_side_reference_mode_ = "live_base_v1";
   // An explicit pre-flight session-boundary freeze owns HOME when requested;
   // otherwise the first valid solve does. Process-start base packets can

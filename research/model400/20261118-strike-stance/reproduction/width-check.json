@@ -1,0 +1,6 @@
+{
+  "paired_samples": 300,
+  "width_difference_cm_mean": -0.2963637698607876,
+  "width_difference_abs_cm_p95": 0.30425119360004,
+  "scope": "Archived native Runner observation vs nearest plant timestamp; code reuses native policy FK in pelvis frame"
+}

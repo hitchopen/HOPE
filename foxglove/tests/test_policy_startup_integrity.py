@@ -83,7 +83,8 @@ def test_damaged_bundle_cannot_block_stop_but_blocks_start(tmp_path, catalogs, d
     assert result.returncode == 0, result.stdout + result.stderr
     assert 'STOP hope-runner' in result.stdout
     assert 'STOP hope-hal' in result.stdout
-    assert 'AGIBOT_PM_RESTORED' in result.stdout
+    # STOP starts the vendor restore; verify-vendor-mdu reports AGIBOT_PM_RESTORED separately.
+    assert 'reason=AGIBOT_PM_STARTED_ELINK_PRESENT' in result.stdout
     assert result.stderr  # integrity problem is still reported separately
     start = dispatch(helper, 'start-runner', tmp_path)
     assert start.returncode != 0
