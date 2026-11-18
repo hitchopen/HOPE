@@ -1,0 +1,38 @@
+# Auto-dock (Reposition) target and limits for PpDockController.
+# Frame: table_p1_to_p2_v1 pelvis pose from /a3/base_pose_flat (schema 2).
+# Target: 0.50 m behind the P1 end line, on the table centerline, facing +x.
+# First-hardware values (2026-11-17): slower than the MuJoCo envelope and a
+# 1.5 m start cap. Widen only after attended runs at short range.
+target:
+  x: -0.50
+  y: -0.7625
+  yaw: 0.0
+# Command is cut inside capture; done uses the wider tolerance because
+# HumanLike keeps stepping ~1 s after the command returns to zero.
+capture:
+  position_m: 0.03
+  yaw_rad: 0.0262      # 1.5 deg
+tolerance:
+  position_m: 0.10
+  yaw_rad: 0.0873      # 5 deg
+reopen:
+  position_m: 0.15
+  yaw_rad: 0.1396      # 8 deg
+gains:
+  xy: 0.5
+  yaw: 0.8
+limits:
+  forward_m_s: 0.20
+  backward_m_s: 0.10
+  lateral_m_s: 0.10
+  yaw_rad_s: 0.30
+  min_linear_m_s: 0.06
+  min_yaw_rad_s: 0.08
+yaw_priority_rad: 0.60
+approach_distance_m: 0.50
+timing:
+  timeout_s: 45.0
+  mocap_max_age_s: 0.15
+  settle_hold_s: 0.30
+  max_attempts: 5
+  max_start_distance_m: 1.5

@@ -1,0 +1,107 @@
+import { decodeRobotIdentity, RobotIdentity, robotConnectionUrl } from "./robotConnection";
+// One atomic saved-config/runtime report; legacy scalar topics cannot overwrite it.
+export const CONFIG_KEYS = ["laptop_wifi_ip", "hdu_wifi_ip", "mdu_internal_ip", "motive_ip",
+  "vrpn_ip", "mocap_source", "vrpn_port", "vrpn_units", "table_side", "operator_profile",
+  "gripper_profile", "pants_profile", "vrpn_world_frame_confirmed"] as const;
+export const MOCAP_BINDING_KEYS = ["hdu_wifi_ip", "mocap_source", "motive_ip", "vrpn_ip", "vrpn_port", "vrpn_units", "pants_profile", "table_side"] as const;
+export function sameMocapBinding(draft: Partial<RuntimeConfigValues>, saved: Partial<RuntimeConfigValues>): boolean {
+  return MOCAP_BINDING_KEYS.every((key) => draft[key] === saved[key]);
+}
+export function configForSave(draft: RuntimeConfigValues, saved: Partial<RuntimeConfigValues>): RuntimeConfigValues {
+  const values = Object.fromEntries(CONFIG_KEYS.map((key) => [key, draft[key]])) as RuntimeConfigValues;
+  return draft.mocap_source === "vrpn" && sameMocapBinding(draft, saved) ? values :
+    { ...values, vrpn_world_frame_confirmed: "false" };
+}
+export type RuntimeConfigValues = Record<(typeof CONFIG_KEYS)[number], string>;
+export type ConfigRuntime = {
+  robotIdentity?: RobotIdentity;
+  hostConnection?: { hdu_ip: string; laptop_ip: string };
+  revision: number;
+  source: string;
+  config_sha256: string;
+  values: RuntimeConfigValues;
+  applied: boolean;
+  /** Every HDU consumer matches (laptop audit excluded): the robot admits a Kernel START on this. */
+  hduApplied: boolean;
+  state: string;
+  reason: string;
+  mocapProcesses: Array<{ kind: string; program: string; expected: string; startup: string; files: string; matches: boolean }>;
+  /** Laptop receiver process kinds the configured mocap source needs but that are not running. */
+  laptopMissing: string[];
+  services: Array<{ service: string; matches: boolean; expected_peers: string; actual_peers: string | null; reason: string }>;
+};
+export function decodeConfigRuntime(raw: unknown): ConfigRuntime | undefined {
+  try {
+    const s = typeof raw === "string" ? JSON.parse(raw) as Record<string, unknown> : undefined;
+    if (!s || s.schema_version !== 1 || !Number.isSafeInteger(s.revision) || (s.revision as number) < 0 ||
+      s.source !== "/var/lib/hope-lifecycle/config.json" || typeof s.config_sha256 !== "string" ||
+      !/^[0-9a-f]{64}$/.test(s.config_sha256) || typeof s.applied !== "boolean" ||
+      typeof s.state !== "string" || typeof s.reason !== "string" || !Array.isArray(s.services) ||
+      s.values == null || typeof s.values !== "object") { return undefined; }
+    const values = s.values as Record<string, unknown>;
+    if (!CONFIG_KEYS.every((k) => typeof values[k] === "string") ||
+      !["vrpn_world_frame_confirmed"].every((k) => values[k] === "true" || values[k] === "false")) { return undefined; }
+    const services: ConfigRuntime["services"] = [];
+    for (const rawService of s.services as unknown[]) {
+      if (!rawService || typeof rawService !== "object") { return undefined; }
+      const row = rawService as Record<string, unknown>;
+      if (typeof row.service !== "string" || typeof row.matches !== "boolean" ||
+          typeof row.expected_peers !== "string" || !(row.actual_peers === null || typeof row.actual_peers === "string")) { return undefined; }
+      services.push({ service: row.service, matches: row.matches, expected_peers: row.expected_peers,
+        actual_peers: row.actual_peers, reason: typeof row.reason === "string" ? row.reason : "" });
+    }
+    const mocapProcesses: ConfigRuntime["mocapProcesses"] = [];
+    const laptop = s.laptop as { processes?: unknown; matches?: unknown; receipt?: Record<string, unknown>;
+      mismatches?: Record<string, unknown> } | undefined;
+    const missing = laptop?.mismatches?.missing_processes;
+    const laptopMissing = Array.isArray(missing) ? missing.filter((kind): kind is string => typeof kind === "string") : [];
+    if (Array.isArray(laptop?.processes)) {
+      for (const value of laptop.processes as unknown[]) {
+        if (!value || typeof value !== "object") { continue; }
+        const p = value as Record<string, unknown>;
+        const endpoint = p.endpoint as { expected?: unknown; startup_parameters?: unknown } | undefined;
+        if (!endpoint || typeof p.kind !== "string") { continue; }
+        const files = Array.isArray(p.parameter_files) ? p.parameter_files as Array<{ path?: unknown }> : [];
+        mocapProcesses.push({ kind: p.kind, program: typeof p.program === "string" ? p.program : "",
+          expected: JSON.stringify(endpoint.expected) ?? "", startup: JSON.stringify(endpoint.startup_parameters) ?? "",
+          files: files.map((f) => typeof f.path === "string" ? f.path : "").join(" · "), matches: p.matches === true });
+      }
+    }
+    const applied = s.applied && s.state === "APPLIED" && (s.revision as number) > 0 &&
+      services.length > 0 && services.every((row) => row.matches);
+    const robotIdentity = decodeRobotIdentity(s.robot_identity);
+    const receipt = laptop?.receipt;
+    let hostConnection: ConfigRuntime["hostConnection"];
+    // Host :8767 reaches the robot through DDS; no direct :8766 browser socket
+    // is required. Trust only the applied, identity-bound receiver audit.
+    if (applied && laptop?.matches === true && robotIdentity && receipt &&
+        receipt.HOPE_LIFECYCLE_MACHINE_ID === robotIdentity.machine_id &&
+        receipt.HOPE_LIFECYCLE_HDU_IP === values.hdu_wifi_ip &&
+        receipt.HOPE_LIFECYCLE_LAPTOP_IP === values.laptop_wifi_ip) {
+      const hdu_ip = values.hdu_wifi_ip as string, laptop_ip = values.laptop_wifi_ip as string;
+      robotConnectionUrl(hdu_ip); robotConnectionUrl(laptop_ip);
+      hostConnection = { hdu_ip, laptop_ip };
+    }
+    return { robotIdentity, hostConnection, revision: s.revision as number, source: s.source, config_sha256: s.config_sha256,
+      values: values as RuntimeConfigValues, applied,
+      hduApplied: s.hdu_applied === true && (s.revision as number) > 0 && services.length > 0 && services.every((row) => row.matches),
+      state: s.state, reason: s.reason, services, mocapProcesses, laptopMissing };
+  } catch { return undefined; }
+}
+export function configRuntimeReady(status: ConfigRuntime | undefined, receivedAt: number | undefined, now: number): boolean {
+  return status?.applied === true && receivedAt !== undefined && now >= receivedAt && now - receivedAt < 1500;
+}
+export function savedConfigObserved(status: ConfigRuntime | undefined, request: { revision: number; values: RuntimeConfigValues }): boolean {
+  return status != undefined && status.revision > request.revision &&
+    CONFIG_KEYS.every((key) => status.values[key] === request.values[key]);
+}
+
+/** The supervisor keeps the revision when the confirmed values equal the saved ones (runtime re-check only). */
+export function configUnchangedReply(results: ReadonlyArray<{ reason?: unknown }>): boolean {
+  return results.length > 0 && results.every((result) =>
+    typeof result.reason === "string" && result.reason.startsWith("CONFIG_UNCHANGED:"));
+}
+
+export function confirmedRobotHost(status: ConfigRuntime | undefined): string | undefined {
+  return status?.robotIdentity?.connection?.hdu_ip ?? status?.hostConnection?.hdu_ip;
+}

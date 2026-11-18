@@ -1,0 +1,28 @@
+# Explicit Schema28 overlay. Layer this after model21800_hardware.yaml only for
+# a 127-D Schema28 artifact whose metadata enables optional reach. The labels
+# are deterministic functions of the visible target tuple/TTS and immutable
+# session HOME; no foot pose, contact, load, or plant inference participates.
+hope_planner:
+  ros__parameters:
+    racket_flat_schema: 3
+    reach_permission_enabled: true
+    reach_permission_contract: "staged_support_intent_training_v3"
+    screened_target_tuple_contract: "fixed_home_staged_support_intent_bank_v3_axis_envelope_prefilter_not_certification_v1"
+    target_tuple_frame_contract: "table_world_xy_minus_immutable_session_home_xy_actor_world_z_v1"
+    # Fail-closed engineering allowance for independent HOME/target sensing.
+    # It is not supplied by the bank receipt and does not certify or broaden
+    # the correlated x support.
+    target_tuple_relative_x_sensor_tolerance_m: 0.0015
+    reach_permission_min_tts_s: 0.60
+    reach_permission_fh_level1_abs_y_m: 0.275
+    reach_permission_fh_level2_abs_y_m: 0.300
+    reach_permission_bh_level1_abs_y_m: 0.090
+    reach_permission_bh_level2_abs_y_m: 0.120
+    reach_permission_fh_min_relative_y_m: -0.350
+    reach_permission_fh_max_relative_y_m: -0.250
+    reach_permission_bh_min_relative_y_m: -0.140
+    reach_permission_bh_max_relative_y_m: 0.180
+    # Schema28 bank side labels use the exact immutable-HOME split. Hysteresis
+    # would preserve the prior side inside a band and relabel valid bank rows.
+    swing_side_split_y: -0.25
+    swing_side_hysteresis_y: 0.0

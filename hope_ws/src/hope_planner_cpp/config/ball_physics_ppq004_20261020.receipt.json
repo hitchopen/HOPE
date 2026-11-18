@@ -46,7 +46,5 @@
   ],
   "evidence_directory": "/home/user/Desktop/workspace/nohope/output/ball_ppq004_20261020",
   "runtime_session": "model21800_20261020T105118Z",
-  "physical_validation": "NOT_TESTED",
-  "portable_evidence_directory": "calibration/ppq004_20261020",
-  "status_scope": "Historical 2026-10-20 receipt; not a claim about this checkout or current robot"
+  "physical_validation": "NOT_TESTED"
 }

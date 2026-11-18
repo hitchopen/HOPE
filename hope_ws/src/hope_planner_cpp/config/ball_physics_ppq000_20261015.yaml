@@ -1,0 +1,35 @@
+# ppq_000, one confirmed ball/table; see ball_physics_ppq000_20261015.receipt.json.
+# Same fitted physics for Planner and packetizer. Fixed radius/gravity and
+# unmeasured paddle laws are intentionally not reidentified by this fit.
+hope_planner:
+  ros__parameters:
+    drag_k: 0.12562070851939272
+    magnus_k: 0.004060203305901695
+    restitution_v: 0.9398884451943814
+    table_tangential_gain: 0.4095501337300715
+    table_friction_cap_mu: 0.22332158274483332
+    restitution_h: 0.5904498662699285
+    post_net_future_bounce_tangential_gain: 0.4095501337300715
+    post_net_future_bounce_restitution_v: 0.9398884451943814
+    future_contact_spin_enabled: true
+    future_contact_magnus_enabled: true
+    future_contact_spin_tangential_gain: 0.4095501337300715
+    future_contact_spin_omega_scale: 1.0
+    future_contact_spin_min_coherence: 0.4
+    spin_window_s: 0.18
+hope_ball_flight_packetizer:
+  ros__parameters:
+    drag_k: 0.12562070851939272
+    magnus_k: 0.004060203305901695
+    restitution_v: 0.9398884451943814
+    table_tangential_gain: 0.4095501337300715
+    table_friction_cap_mu: 0.22332158274483332
+    restitution_h: 0.5904498662699285
+    post_net_future_bounce_tangential_gain: 0.4095501337300715
+    post_net_future_bounce_restitution_v: 0.9398884451943814
+    future_contact_spin_enabled: true
+    future_contact_magnus_enabled: true
+    future_contact_spin_tangential_gain: 0.4095501337300715
+    future_contact_spin_omega_scale: 1.0
+    future_contact_spin_min_coherence: 0.4
+    spin_window_s: 0.18

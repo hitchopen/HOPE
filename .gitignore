@@ -160,3 +160,6 @@ events.out.tfevents.*
 
 # Generated Gate3 evidence
 /a3_deploy/a3_deploy_example/gate3/runs/
+
+.cursor/
+out/

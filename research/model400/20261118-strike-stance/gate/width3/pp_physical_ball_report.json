@@ -1,0 +1,3481 @@
+{
+  "ball_lifecycle_contract": "continuous_flight_to_natural_rest_v2",
+  "evidence_topic": "/sim/gate3/physical_ball_state",
+  "expected_shot_ids": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26
+  ],
+  "landing_censored_count": 0,
+  "landing_measured": true,
+  "landing_observation_count": 26,
+  "landing_pass": true,
+  "max_sample_gap_limit_s": 0.05,
+  "min_post_contact_landing_observation_s": 0.75,
+  "min_samples_per_shot": 20,
+  "physical_contact_measured": true,
+  "physical_contact_pass": true,
+  "rows": [
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962435534378006,
+      "first_stamp_ns": 1794962433146384672,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.004004349,
+          "position_table": [
+            0.783648106680474,
+            -1.0225,
+            0.026617471888197963
+          ],
+          "position_world": [
+            0.783648106680474,
+            -1.0225,
+            0.786617471888198
+          ],
+          "stamp_ns": 1794962433750378789,
+          "velocity_world": [
+            -1.3762645050690898,
+            -3.141818337900527e-49,
+            3.2529085657212393
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.003998382,
+        "position_table": [
+          2.2043396650267284,
+          -0.737358852977469,
+          0.028740002742592807
+        ],
+        "position_world": [
+          2.2043396650267284,
+          -0.737358852977469,
+          0.7887400027425928
+        ],
+        "stamp_ns": 1794962434810372184,
+        "velocity_world": [
+          2.269237452501771,
+          0.348425373192863,
+          2.867767364395627
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962435534378006,
+      "max_sample_gap_s": 0.004633913,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 18.909073319510174,
+      "post_contact_observation_s": 1.2680073740000002,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.003998382,
+          "position_table": [
+            2.2043396650267284,
+            -0.737358852977469,
+            0.028740002742592807
+          ],
+          "position_world": [
+            2.2043396650267284,
+            -0.737358852977469,
+            0.7887400027425928
+          ],
+          "stamp_ns": 1794962434810372184,
+          "velocity_world": [
+            2.269237452501771,
+            0.348425373192863,
+            2.867767364395627
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.003995805,
+          "position_table": [
+            0.08076342924610949,
+            -1.0216278325489703,
+            0.28539965137258005
+          ],
+          "position_world": [
+            0.08076342924610949,
+            -1.0216278325489703,
+            1.04539965137258
+          ],
+          "stamp_ns": 1794962434266370632,
+          "velocity_world": [
+            4.502249633174392,
+            0.6022375389519131,
+            2.4184240746832053
+          ]
+        }
+      ],
+      "samples": 598,
+      "shot_id": 1,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.004006914,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.6685989760328916,
+          -0.51363420053086,
+          -0.7599988410425765
+        ],
+        "position_world": [
+          3.6685989760328916,
+          -0.51363420053086,
+          1.1589574234948871e-06
+        ],
+        "stamp_ns": 1794962435534378006,
+        "velocity_world": [
+          1.3622058839058095,
+          0.2077760380846685,
+          -4.5652324118640495
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962438998378968,
+      "first_stamp_ns": 1794962436662378933,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.0040098930000000005,
+          "position_table": [
+            0.7822714914261977,
+            -0.7125,
+            0.029858735029688277
+          ],
+          "position_world": [
+            0.7822714914261977,
+            -0.7125,
+            0.7898587350296883
+          ],
+          "stamp_ns": 1794962437266388372,
+          "velocity_world": [
+            -1.3766152542763253,
+            4.047839834660738e-47,
+            3.2412631414903537
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.003991934,
+        "position_table": [
+          2.1604506719053247,
+          -0.8129198570763005,
+          0.02559280298081945
+        ],
+        "position_world": [
+          2.1604506719053247,
+          -0.8129198570763005,
+          0.7855928029808195
+        ],
+        "stamp_ns": 1794962438294379166,
+        "velocity_world": [
+          2.3469648310193785,
+          -0.10080839398555316,
+          2.740298615113687
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962438998378968,
+      "max_sample_gap_s": 0.004934942,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 19.22981613786381,
+      "post_contact_observation_s": 1.2120050450000002,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.003991934,
+          "position_table": [
+            2.1604506719053247,
+            -0.8129198570763005,
+            0.02559280298081945
+          ],
+          "position_world": [
+            2.1604506719053247,
+            -0.8129198570763005,
+            0.7855928029808195
+          ],
+          "stamp_ns": 1794962438294379166,
+          "velocity_world": [
+            2.3469648310193785,
+            -0.10080839398555316,
+            2.740298615113687
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.004000341,
+          "position_table": [
+            0.08679554578396059,
+            -0.7133247786214192,
+            0.28319181061074006
+          ],
+          "position_world": [
+            0.08679554578396059,
+            -0.7133247786214192,
+            1.04319181061074
+          ],
+          "stamp_ns": 1794962437786373923,
+          "velocity_world": [
+            4.682874367138401,
+            -0.24477928363846516,
+            2.1699359411604524
+          ]
+        }
+      ],
+      "samples": 585,
+      "shot_id": 2,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.003982986,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.6310151501483268,
+          -0.8672883099521941,
+          -0.7607705875452851
+        ],
+        "position_world": [
+          3.6310151501483268,
+          -0.8672883099521941,
+          -0.0007705875452850954
+        ],
+        "stamp_ns": 1794962438998378968,
+        "velocity_world": [
+          1.423344971038625,
+          -0.039486169795880835,
+          -4.514453687120775
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962442546383224,
+      "first_stamp_ns": 1794962440174406137,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.004000621,
+          "position_table": [
+            0.783648106680474,
+            -1.0575,
+            0.026617471888197963
+          ],
+          "position_world": [
+            0.783648106680474,
+            -1.0575,
+            0.786617471888198
+          ],
+          "stamp_ns": 1794962440778377625,
+          "velocity_world": [
+            -1.3762645050690898,
+            -4.773422584106151e-34,
+            3.2529085657212393
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.00414708,
+        "position_table": [
+          2.209954590280048,
+          -0.7272820976494382,
+          0.02864661601303009
+        ],
+        "position_world": [
+          2.209954590280048,
+          -0.7272820976494382,
+          0.7886466160130301
+        ],
+        "stamp_ns": 1794962441830525043,
+        "velocity_world": [
+          2.2765192891281907,
+          0.39400702725531644,
+          2.836641989020493
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962442546383224,
+      "max_sample_gap_s": 0.004762453000000001,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 17.66309089408839,
+      "post_contact_observation_s": 1.252012195,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.00414708,
+          "position_table": [
+            2.209954590280048,
+            -0.7272820976494382,
+            0.02864661601303009
+          ],
+          "position_world": [
+            2.209954590280048,
+            -0.7272820976494382,
+            0.7886466160130301
+          ],
+          "stamp_ns": 1794962441830525043,
+          "velocity_world": [
+            2.2765192891281907,
+            0.39400702725531644,
+            2.836641989020493
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.003999054,
+          "position_table": [
+            0.08571434829625098,
+            -1.0558857976499734,
+            0.28922165735714045
+          ],
+          "position_world": [
+            0.08571434829625098,
+            -1.0558857976499734,
+            1.0492216573571405
+          ],
+          "stamp_ns": 1794962441294371029,
+          "velocity_world": [
+            4.572653017119973,
+            0.7149716270315408,
+            2.3432135026630116
+          ]
+        }
+      ],
+      "samples": 594,
+      "shot_id": 3,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.004004176,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.664631528935327,
+          -0.4800191880235874,
+          -0.746051440947087
+        ],
+        "position_world": [
+          3.664631528935327,
+          -0.4800191880235874,
+          0.013948559052912993
+        ],
+        "stamp_ns": 1794962442546383224,
+        "velocity_world": [
+          1.3706988142985328,
+          0.22762737939470906,
+          -4.523806845361778
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962446034387464,
+      "first_stamp_ns": 1794962443690378813,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.003990617,
+          "position_table": [
+            0.783648106680474,
+            -0.6575,
+            0.026617471888197963
+          ],
+          "position_world": [
+            0.783648106680474,
+            -0.6575,
+            0.786617471888198
+          ],
+          "stamp_ns": 1794962444294372275,
+          "velocity_world": [
+            -1.3762645050690898,
+            3.9531998851748266e-47,
+            3.2529085657212393
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.003992479,
+        "position_table": [
+          2.1614201299075617,
+          -0.815673657239712,
+          0.020100000000000007
+        ],
+        "position_world": [
+          2.1614201299075617,
+          -0.815673657239712,
+          0.7801
+        ],
+        "stamp_ns": 1794962445326368708,
+        "velocity_world": [
+          2.3301821303426404,
+          -0.19021714241907534,
+          2.7895977435564348
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962446034387464,
+      "max_sample_gap_s": 0.005050627,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 15.902007652576584,
+      "post_contact_observation_s": 1.220012445,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.003992479,
+          "position_table": [
+            2.1614201299075617,
+            -0.815673657239712,
+            0.020100000000000007
+          ],
+          "position_world": [
+            2.1614201299075617,
+            -0.815673657239712,
+            0.7801
+          ],
+          "stamp_ns": 1794962445326368708,
+          "velocity_world": [
+            2.3301821303426404,
+            -0.19021714241907534,
+            2.7895977435564348
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.00399417,
+          "position_table": [
+            0.08546541274554029,
+            -0.6586040351914751,
+            0.2842992876877999
+          ],
+          "position_world": [
+            0.08546541274554029,
+            -0.6586040351914751,
+            1.0442992876878
+          ],
+          "stamp_ns": 1794962444814375019,
+          "velocity_world": [
+            4.647447894121125,
+            -0.3604278376342835,
+            2.210656403129563
+          ]
+        }
+      ],
+      "samples": 587,
+      "shot_id": 4,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.004009071,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.632341414439147,
+          -0.9314740701682948,
+          -0.7526620740628438
+        ],
+        "position_world": [
+          3.632341414439147,
+          -0.9314740701682948,
+          0.00733792593715623
+        ],
+        "stamp_ns": 1794962446034387464,
+        "velocity_world": [
+          1.4104864410197944,
+          -0.10519241043134117,
+          -4.505552866688508
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962449562382310,
+      "first_stamp_ns": 1794962447202386019,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.004044333000000001,
+          "position_table": [
+            0.7864002831768993,
+            -1.0925,
+            0.020100000000000007
+          ],
+          "position_world": [
+            0.7864002831768993,
+            -1.0925,
+            0.7801
+          ],
+          "stamp_ns": 1794962447802415315,
+          "velocity_world": [
+            -1.3755577111714323,
+            3.8248070711076845e-63,
+            3.2762274521130275
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.003997142,
+        "position_table": [
+          2.199584167810839,
+          -0.7757406487774253,
+          0.020100000000000007
+        ],
+        "position_world": [
+          2.199584167810839,
+          -0.7757406487774253,
+          0.7801
+        ],
+        "stamp_ns": 1794962448846381831,
+        "velocity_world": [
+          2.3044394842537583,
+          0.3721421258814241,
+          2.8500842692308823
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962449562382310,
+      "max_sample_gap_s": 0.004634752000000001,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 15.893544018685066,
+      "post_contact_observation_s": 1.2440091370000002,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.003997142,
+          "position_table": [
+            2.199584167810839,
+            -0.7757406487774253,
+            0.020100000000000007
+          ],
+          "position_world": [
+            2.199584167810839,
+            -0.7757406487774253,
+            0.7801
+          ],
+          "stamp_ns": 1794962448846381831,
+          "velocity_world": [
+            2.3044394842537583,
+            0.3721421258814241,
+            2.8500842692308823
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.00399931,
+          "position_table": [
+            0.07524205068712865,
+            -1.092463866042004,
+            0.28397795863989717
+          ],
+          "position_world": [
+            0.07524205068712865,
+            -1.092463866042004,
+            1.0439779586398972
+          ],
+          "stamp_ns": 1794962448318373173,
+          "velocity_world": [
+            4.6307239476364055,
+            0.7068661778798417,
+            2.321080538724198
+          ]
+        }
+      ],
+      "samples": 591,
+      "shot_id": 5,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.003997007,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.671945572017573,
+          -0.546044764111599,
+          -0.751822669506129
+        ],
+        "position_world": [
+          3.671945572017573,
+          -0.546044764111599,
+          0.008177330493871093
+        ],
+        "stamp_ns": 1794962449562382310,
+        "velocity_world": [
+          1.3897954311100664,
+          0.2059765359912924,
+          -4.528010208000223
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962453054370329,
+      "first_stamp_ns": 1794962450718383249,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.003999915000000001,
+          "position_table": [
+            0.7822714914261977,
+            -0.6125,
+            0.029858735029688277
+          ],
+          "position_world": [
+            0.7822714914261977,
+            -0.6125,
+            0.7898587350296883
+          ],
+          "stamp_ns": 1794962451322370885,
+          "velocity_world": [
+            -1.3766152542763253,
+            2.520696581644401e-34,
+            3.2412631414903537
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.004414260000000001,
+        "position_table": [
+          2.159883249616347,
+          -0.8201039063436825,
+          0.028334494476994987
+        ],
+        "position_world": [
+          2.159883249616347,
+          -0.8201039063436825,
+          0.788334494476995
+        ],
+        "stamp_ns": 1794962452350792156,
+        "velocity_world": [
+          2.327117282126799,
+          -0.2615517931731984,
+          2.732636829799244
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962453054370329,
+      "max_sample_gap_s": 0.004511719,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 16.137506277410658,
+      "post_contact_observation_s": 1.215975405,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.004414260000000001,
+          "position_table": [
+            2.159883249616347,
+            -0.8201039063436825,
+            0.028334494476994987
+          ],
+          "position_world": [
+            2.159883249616347,
+            -0.8201039063436825,
+            0.788334494476995
+          ],
+          "stamp_ns": 1794962452350792156,
+          "velocity_world": [
+            2.327117282126799,
+            -0.2615517931731984,
+            2.732636829799244
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.004019513000000001,
+          "position_table": [
+            0.0776317576176102,
+            -0.6130066497135305,
+            0.2820110948985519
+          ],
+          "position_world": [
+            0.0776317576176102,
+            -0.6130066497135305,
+            1.042011094898552
+          ],
+          "stamp_ns": 1794962451838394924,
+          "velocity_world": [
+            4.674739494779294,
+            -0.46853116807041684,
+            2.1892478593405857
+          ]
+        }
+      ],
+      "samples": 585,
+      "shot_id": 6,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.003989785,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.6177756422059697,
+          -0.9817155823564915,
+          -0.7611281237459212
+        ],
+        "position_world": [
+          3.6177756422059697,
+          -0.9817155823564915,
+          -0.0011281237459211712
+        ],
+        "stamp_ns": 1794962453054370329,
+        "velocity_world": [
+          1.4103844500176475,
+          -0.15385545900786965,
+          -4.516416310776845
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962456622383556,
+      "first_stamp_ns": 1794962454230423947,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.004004944,
+          "position_table": [
+            0.7864002831768993,
+            -1.0225,
+            0.020100000000000007
+          ],
+          "position_world": [
+            0.7864002831768993,
+            -1.0225,
+            0.7801
+          ],
+          "stamp_ns": 1794962454830374263,
+          "velocity_world": [
+            -1.3755577111714323,
+            3.8248070711076845e-63,
+            3.2762274521130275
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.004000915,
+        "position_table": [
+          2.187132445035066,
+          -0.7053045199457008,
+          0.02879783999462815
+        ],
+        "position_world": [
+          2.187132445035066,
+          -0.7053045199457008,
+          0.7887978399946282
+        ],
+        "stamp_ns": 1794962455894372670,
+        "velocity_world": [
+          2.2282816542074992,
+          0.3817081800633028,
+          2.887073091197406
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962456622383556,
+      "max_sample_gap_s": 0.004537477000000001,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 17.30291475378969,
+      "post_contact_observation_s": 1.276009173,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.004000915,
+          "position_table": [
+            2.187132445035066,
+            -0.7053045199457008,
+            0.02879783999462815
+          ],
+          "position_world": [
+            2.187132445035066,
+            -0.7053045199457008,
+            0.7887978399946282
+          ],
+          "stamp_ns": 1794962455894372670,
+          "velocity_world": [
+            2.2282816542074992,
+            0.3817081800633028,
+            2.887073091197406
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.004001099,
+          "position_table": [
+            0.08214058247981197,
+            -1.021647519834937,
+            0.2890736497176849
+          ],
+          "position_world": [
+            0.08214058247981197,
+            -1.021647519834937,
+            1.049073649717685
+          ],
+          "stamp_ns": 1794962455346374383,
+          "velocity_world": [
+            4.427103946633968,
+            0.6669890037408556,
+            2.423192317235351
+          ]
+        }
+      ],
+      "samples": 599,
+      "shot_id": 7,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.004005321,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.6348458621194237,
+          -0.459449424652132,
+          -0.7590274636478623
+        ],
+        "position_world": [
+          3.6348458621194237,
+          -0.459449424652132,
+          0.0009725363521376233
+        ],
+        "stamp_ns": 1794962456622383556,
+        "velocity_world": [
+          1.3384109189736118,
+          0.2255531754151823,
+          -4.56924566578178
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962457766376475,
+      "first_stamp_ns": 1794962455390373538,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.0038861340000000003,
+          "position_table": [
+            0.7822714914261977,
+            -1.0575,
+            0.029858735029688277
+          ],
+          "position_world": [
+            0.7822714914261977,
+            -1.0575,
+            0.7898587350296883
+          ],
+          "stamp_ns": 1794962455994377356,
+          "velocity_world": [
+            -1.3766152542763253,
+            -9.887958556979654e-50,
+            3.2412631414903537
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.003949266,
+        "position_table": [
+          2.2092607005011904,
+          -0.7905260901377295,
+          0.02583760126683632
+        ],
+        "position_world": [
+          2.2092607005011904,
+          -0.7905260901377295,
+          0.7858376012668363
+        ],
+        "stamp_ns": 1794962457046509449,
+        "velocity_world": [
+          2.3132375257185824,
+          0.30417729202677873,
+          2.862665051911118
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962457766376475,
+      "max_sample_gap_s": 0.004743721,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 16.8735103437078,
+      "post_contact_observation_s": 1.255996117,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.003949266,
+          "position_table": [
+            2.2092607005011904,
+            -0.7905260901377295,
+            0.02583760126683632
+          ],
+          "position_world": [
+            2.2092607005011904,
+            -0.7905260901377295,
+            0.7858376012668363
+          ],
+          "stamp_ns": 1794962457046509449,
+          "velocity_world": [
+            2.3132375257185824,
+            0.30417729202677873,
+            2.862665051911118
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.004008531,
+          "position_table": [
+            0.08386207166518946,
+            -1.0562188759872582,
+            0.28699245867574175
+          ],
+          "position_world": [
+            0.08386207166518946,
+            -1.0562188759872582,
+            1.0469924586757418
+          ],
+          "stamp_ns": 1794962456510380358,
+          "velocity_world": [
+            4.56716616569714,
+            0.5894757005320994,
+            2.3763474604567705
+          ]
+        }
+      ],
+      "samples": 595,
+      "shot_id": 8,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.003992637,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.6939492459988563,
+          -0.6042177766844435,
+          -0.7557434167521372
+        ],
+        "position_world": [
+          3.6939492459988563,
+          -0.6042177766844435,
+          0.004256583247862856
+        ],
+        "stamp_ns": 1794962457766376475,
+        "velocity_world": [
+          1.3907551857422429,
+          0.16217823771329642,
+          -4.551311556714499
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962458870378417,
+      "first_stamp_ns": 1794962456550374976,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.0039876370000000005,
+          "position_table": [
+            0.7822714914261977,
+            -0.7125,
+            0.029858735029688277
+          ],
+          "position_world": [
+            0.7822714914261977,
+            -0.7125,
+            0.7898587350296883
+          ],
+          "stamp_ns": 1794962457154375158,
+          "velocity_world": [
+            -1.3766152542763253,
+            -3.0231231280622496e-34,
+            3.2412631414903537
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.0039836,
+        "position_table": [
+          2.096910067234761,
+          -0.8021527161616396,
+          0.020100000000000007
+        ],
+        "position_world": [
+          2.096910067234761,
+          -0.8021527161616396,
+          0.7801
+        ],
+        "stamp_ns": 1794962458170380511,
+        "velocity_world": [
+          2.3563365275003267,
+          -0.08960027141617546,
+          2.7302920111022617
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962458870378417,
+      "max_sample_gap_s": 0.004746576000000001,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 17.775599863584873,
+      "post_contact_observation_s": 1.195997948,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.0039836,
+          "position_table": [
+            2.096910067234761,
+            -0.8021527161616396,
+            0.020100000000000007
+          ],
+          "position_world": [
+            2.096910067234761,
+            -0.8021527161616396,
+            0.7801
+          ],
+          "stamp_ns": 1794962458170380511,
+          "velocity_world": [
+            2.3563365275003267,
+            -0.08960027141617546,
+            2.7302920111022617
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.004003192,
+          "position_table": [
+            0.07979920801068063,
+            -0.7130023887626376,
+            0.2782963879020435
+          ],
+          "position_world": [
+            0.07979920801068063,
+            -0.7130023887626376,
+            1.0382963879020435
+          ],
+          "stamp_ns": 1794962457674380469,
+          "velocity_world": [
+            4.640655996529911,
+            -0.22532764213121367,
+            2.1164981024011467
+          ]
+        }
+      ],
+      "samples": 581,
+      "shot_id": 9,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.00400316,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.5660638130483564,
+          -0.8488877192546624,
+          -0.7558431721431781
+        ],
+        "position_world": [
+          3.5660638130483564,
+          -0.8488877192546624,
+          0.004156827856821934
+        ],
+        "stamp_ns": 1794962458870378417,
+        "velocity_world": [
+          1.4338647572983916,
+          -0.0318349747995695,
+          -4.4908539012753845
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962460038388459,
+      "first_stamp_ns": 1794962457710379548,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.003998888,
+          "position_table": [
+            0.783648106680474,
+            -0.6575,
+            0.026617471888197963
+          ],
+          "position_world": [
+            0.783648106680474,
+            -0.6575,
+            0.786617471888198
+          ],
+          "stamp_ns": 1794962458314383408,
+          "velocity_world": [
+            -1.3762645050690898,
+            3.9531825361266056e-47,
+            3.2529085657212393
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.003985609,
+        "position_table": [
+          2.1128176123455766,
+          -0.8136200691409922,
+          0.022833852395275245
+        ],
+        "position_world": [
+          2.1128176123455766,
+          -0.8136200691409922,
+          0.7828338523952753
+        ],
+        "stamp_ns": 1794962459338374048,
+        "velocity_world": [
+          2.3378452717217413,
+          -0.1942981377544476,
+          2.7338523952752016
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962460038388459,
+      "max_sample_gap_s": 0.004944866,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 17.35317881567044,
+      "post_contact_observation_s": 1.2040135,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.003985609,
+          "position_table": [
+            2.1128176123455766,
+            -0.8136200691409922,
+            0.022833852395275245
+          ],
+          "position_world": [
+            2.1128176123455766,
+            -0.8136200691409922,
+            0.7828338523952753
+          ],
+          "stamp_ns": 1794962459338374048,
+          "velocity_world": [
+            2.3378452717217413,
+            -0.1942981377544476,
+            2.7338523952752016
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.003999845,
+          "position_table": [
+            0.0747884797459178,
+            -0.6579614724386564,
+            0.2760746031699406
+          ],
+          "position_world": [
+            0.0747884797459178,
+            -0.6579614724386564,
+            1.0360746031699406
+          ],
+          "stamp_ns": 1794962458834374959,
+          "velocity_world": [
+            4.6255711950056915,
+            -0.3608345708230827,
+            2.172294381966004
+          ]
+        }
+      ],
+      "samples": 583,
+      "shot_id": 10,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.0039997470000000005,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.5716510879191925,
+          -0.9311142346335934,
+          -0.7485009661692513
+        ],
+        "position_world": [
+          3.5716510879191925,
+          -0.9311142346335934,
+          0.011499033830748738
+        ],
+        "stamp_ns": 1794962460038388459,
+        "velocity_world": [
+          1.4200675197191492,
+          -0.1092501882238295,
+          -4.479513821024418
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962461250385500,
+      "first_stamp_ns": 1794962458870375476,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.00400077,
+          "position_table": [
+            0.7822714914261977,
+            -1.0925,
+            0.029858735029688277
+          ],
+          "position_world": [
+            0.7822714914261977,
+            -1.0925,
+            0.7898587350296883
+          ],
+          "stamp_ns": 1794962459474376295,
+          "velocity_world": [
+            -1.3766152542763253,
+            1.8037039597462313e-35,
+            3.2412631414903537
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.003986555,
+        "position_table": [
+          2.1994736036386646,
+          -0.7510173852696108,
+          0.022987281562909967
+        ],
+        "position_world": [
+          2.1994736036386646,
+          -0.7510173852696108,
+          0.78298728156291
+        ],
+        "stamp_ns": 1794962460526375159,
+        "velocity_world": [
+          2.290008018053944,
+          0.41116934493947843,
+          2.887281562909949
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962461250385500,
+      "max_sample_gap_s": 0.004945156,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 16.991081949804958,
+      "post_contact_observation_s": 1.260014004,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.003986555,
+          "position_table": [
+            2.1994736036386646,
+            -0.7510173852696108,
+            0.022987281562909967
+          ],
+          "position_world": [
+            2.1994736036386646,
+            -0.7510173852696108,
+            0.78298728156291
+          ],
+          "stamp_ns": 1794962460526375159,
+          "velocity_world": [
+            2.290008018053944,
+            0.41116934493947843,
+            2.887281562909949
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.003987045,
+          "position_table": [
+            0.08972434070308904,
+            -1.0901787454764074,
+            0.29151325916452375
+          ],
+          "position_world": [
+            0.08972434070308904,
+            -1.0901787454764074,
+            1.0515132591645238
+          ],
+          "stamp_ns": 1794962459990371496,
+          "velocity_world": [
+            4.530787622277957,
+            0.7358428789437546,
+            2.369440795933161
+          ]
+        }
+      ],
+      "samples": 596,
+      "shot_id": 11,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.004013032000000001,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.6771267289475023,
+          -0.4902602394660315,
+          -0.7605913431191813
+        ],
+        "position_world": [
+          3.6771267289475023,
+          -0.4902602394660315,
+          -0.0005913431191813404
+        ],
+        "stamp_ns": 1794962461250385500,
+        "velocity_world": [
+          1.3747031923278614,
+          0.2372922519249972,
+          -4.5661945351792586
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962462350386068,
+      "first_stamp_ns": 1794962460030370845,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.00402014,
+          "position_table": [
+            0.7822714914261977,
+            -0.6125,
+            0.029858735029688277
+          ],
+          "position_world": [
+            0.7822714914261977,
+            -0.6125,
+            0.7898587350296883
+          ],
+          "stamp_ns": 1794962460634401948,
+          "velocity_world": [
+            -1.3766152542763253,
+            -9.888125709292801e-50,
+            3.2412631414903537
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.004012978,
+        "position_table": [
+          2.1089595133450927,
+          -0.7924841847606188,
+          0.025526405175690603
+        ],
+        "position_world": [
+          2.1089595133450927,
+          -0.7924841847606188,
+          0.7855264051756906
+        ],
+        "stamp_ns": 1794962461654386892,
+        "velocity_world": [
+          2.3439244314029706,
+          -0.23127309333591656,
+          2.7071079423263105
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962462350386068,
+      "max_sample_gap_s": 0.004725619,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 17.02156943747324,
+      "post_contact_observation_s": 1.196008591,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.004012978,
+          "position_table": [
+            2.1089595133450927,
+            -0.7924841847606188,
+            0.025526405175690603
+          ],
+          "position_world": [
+            2.1089595133450927,
+            -0.7924841847606188,
+            0.7855264051756906
+          ],
+          "stamp_ns": 1794962461654386892,
+          "velocity_world": [
+            2.3439244314029706,
+            -0.23127309333591656,
+            2.7071079423263105
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.003996974,
+          "position_table": [
+            0.07918459910306633,
+            -0.6134056624222878,
+            0.27804607201944576
+          ],
+          "position_world": [
+            0.07918459910306633,
+            -0.6134056624222878,
+            1.0380460720194458
+          ],
+          "stamp_ns": 1794962461154377477,
+          "velocity_world": [
+            4.645209845054862,
+            -0.4144810312202998,
+            2.1298059596160006
+          ]
+        }
+      ],
+      "samples": 581,
+      "shot_id": 12,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.004002552,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.562759331608563,
+          -0.9333632804055121,
+          -0.745617514916224
+        ],
+        "position_world": [
+          3.562759331608563,
+          -0.9333632804055121,
+          0.014382485083776092
+        ],
+        "stamp_ns": 1794962462350386068,
+        "velocity_world": [
+          1.4265441135081613,
+          -0.1350602016345631,
+          -4.46933404182369
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962463610386676,
+      "first_stamp_ns": 1794962461190384715,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.003976108,
+          "position_table": [
+            0.7822714914261977,
+            -1.0225,
+            0.029858735029688277
+          ],
+          "position_world": [
+            0.7822714914261977,
+            -1.0225,
+            0.7898587350296883
+          ],
+          "stamp_ns": 1794962461794370962,
+          "velocity_world": [
+            -1.3766152542763253,
+            -9.887958556979654e-50,
+            3.2412631414903537
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.003985144,
+        "position_table": [
+          2.2292384313177602,
+          -0.6393570414285138,
+          0.0230725760613133
+        ],
+        "position_world": [
+          2.2292384313177602,
+          -0.6393570414285138,
+          0.7830725760613133
+        ],
+        "stamp_ns": 1794962462870386600,
+        "velocity_world": [
+          2.1877806017207178,
+          0.4599609479159388,
+          2.972576061313314
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962463610386676,
+      "max_sample_gap_s": 0.00494932,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 16.51251425634878,
+      "post_contact_observation_s": 1.304006036,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.003985144,
+          "position_table": [
+            2.2292384313177602,
+            -0.6393570414285138,
+            0.0230725760613133
+          ],
+          "position_world": [
+            2.2292384313177602,
+            -0.6393570414285138,
+            0.7830725760613133
+          ],
+          "stamp_ns": 1794962462870386600,
+          "velocity_world": [
+            2.1877806017207178,
+            0.4599609479159388,
+            2.972576061313314
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.004003444,
+          "position_table": [
+            0.08268597174481512,
+            -1.0216237329015803,
+            0.2909301112308995
+          ],
+          "position_world": [
+            0.08268597174481512,
+            -1.0216237329015803,
+            1.0509301112308995
+          ],
+          "stamp_ns": 1794962462306380640,
+          "velocity_world": [
+            4.399086082291678,
+            0.774655558732276,
+            2.5432649739833124
+          ]
+        }
+      ],
+      "samples": 606,
+      "shot_id": 13,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.004005247,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.6750116830940467,
+          -0.33363039385796617,
+          -0.7620244969387437
+        ],
+        "position_world": [
+          3.6750116830940467,
+          -0.33363039385796617,
+          -0.002024496938743725
+        ],
+        "stamp_ns": 1794962463610386676,
+        "velocity_world": [
+          1.3044758560647742,
+          0.2802982643887717,
+          -4.5978274132263595
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962464666380081,
+      "first_stamp_ns": 1794962462350381182,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.003992853,
+          "position_table": [
+            0.7822714914261977,
+            -0.7125,
+            0.029858735029688277
+          ],
+          "position_world": [
+            0.7822714914261977,
+            -0.7125,
+            0.7898587350296883
+          ],
+          "stamp_ns": 1794962462954389515,
+          "velocity_world": [
+            -1.3766152542763253,
+            4.047839890029313e-47,
+            3.2412631414903537
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.004006595,
+        "position_table": [
+          2.105009234758635,
+          -0.7994915625530534,
+          0.0228128779971567
+        ],
+        "position_world": [
+          2.105009234758635,
+          -0.7994915625530534,
+          0.7828128779971567
+        ],
+        "stamp_ns": 1794962463970395832,
+        "velocity_world": [
+          2.3670139288245844,
+          -0.08602812665409992,
+          2.712877997156719
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962464666380081,
+      "max_sample_gap_s": 0.00522253,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 18.77932546508763,
+      "post_contact_observation_s": 1.192000771,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.004006595,
+          "position_table": [
+            2.105009234758635,
+            -0.7994915625530534,
+            0.0228128779971567
+          ],
+          "position_world": [
+            2.105009234758635,
+            -0.7994915625530534,
+            0.7828128779971567
+          ],
+          "stamp_ns": 1794962463970395832,
+          "velocity_world": [
+            2.3670139288245844,
+            -0.08602812665409992,
+            2.712877997156719
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.0036697450000000003,
+          "position_table": [
+            0.0805952697960691,
+            -0.7130207713235298,
+            0.27863350887669847
+          ],
+          "position_world": [
+            0.0805952697960691,
+            -0.7130207713235298,
+            1.0386335088766985
+          ],
+          "stamp_ns": 1794962463474379310,
+          "velocity_world": [
+            4.662673597854745,
+            -0.21950487870286312,
+            2.114937166444456
+          ]
+        }
+      ],
+      "samples": 580,
+      "shot_id": 14,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.003837907,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.5727041756872517,
+          -0.8437548725342393,
+          -0.7475548962637301
+        ],
+        "position_world": [
+          3.5727041756872517,
+          -0.8437548725342393,
+          0.012445103736269995
+        ],
+        "stamp_ns": 1794962464666380081,
+        "velocity_world": [
+          1.4396559026805107,
+          -0.02956542905239512,
+          -4.471101704682477
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962465898396234,
+      "first_stamp_ns": 1794962463510400226,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.004004864,
+          "position_table": [
+            0.7864002831768993,
+            -1.0575,
+            0.020100000000000007
+          ],
+          "position_world": [
+            0.7864002831768993,
+            -1.0575,
+            0.7801
+          ],
+          "stamp_ns": 1794962464110388659,
+          "velocity_world": [
+            -1.3755577111714323,
+            3.8248070711076845e-63,
+            3.2762274521130275
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.003999867,
+        "position_table": [
+          2.1961144183946515,
+          -0.7133234737179237,
+          0.02300491091680279
+        ],
+        "position_world": [
+          2.1961144183946515,
+          -0.7133234737179237,
+          0.7830049109168028
+        ],
+        "stamp_ns": 1794962465170386492,
+        "velocity_world": [
+          2.2535254285846356,
+          0.4199194920274157,
+          2.9049109168027796
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962465898396234,
+      "max_sample_gap_s": 0.005214671000000001,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 16.31175391929566,
+      "post_contact_observation_s": 1.271847003,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.003999867,
+          "position_table": [
+            2.1961144183946515,
+            -0.7133234737179237,
+            0.02300491091680279
+          ],
+          "position_world": [
+            2.1961144183946515,
+            -0.7133234737179237,
+            0.7830049109168028
+          ],
+          "stamp_ns": 1794962465170386492,
+          "velocity_world": [
+            2.2535254285846356,
+            0.4199194920274157,
+            2.9049109168027796
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.0041679740000000005,
+          "position_table": [
+            0.0814035757195867,
+            -1.0566883551973645,
+            0.28867073554810263
+          ],
+          "position_world": [
+            0.0814035757195867,
+            -1.0566883551973645,
+            1.0486707355481026
+          ],
+          "stamp_ns": 1794962464626549231,
+          "velocity_world": [
+            4.478142640485156,
+            0.7269304932398999,
+            2.425017607792176
+          ]
+        }
+      ],
+      "samples": 598,
+      "shot_id": 15,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.004012816000000001,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.6592948847388564,
+          -0.4420874312599924,
+          -0.7607721649898079
+        ],
+        "position_world": [
+          3.6592948847388564,
+          -0.4420874312599924,
+          -0.0007721649898078699
+        ],
+        "stamp_ns": 1794962465898396234,
+        "velocity_world": [
+          1.351341879840157,
+          0.24998974614102826,
+          -4.571500561592701
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962466982427674,
+      "first_stamp_ns": 1794962464670377334,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.004000028,
+          "position_table": [
+            0.7822714914261977,
+            -0.6575,
+            0.029858735029688277
+          ],
+          "position_world": [
+            0.7822714914261977,
+            -0.6575,
+            0.7898587350296883
+          ],
+          "stamp_ns": 1794962465274378090,
+          "velocity_world": [
+            -1.3766152542763253,
+            4.047839667508425e-47,
+            3.2412631414903537
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.0039975290000000005,
+        "position_table": [
+          2.091562786674447,
+          -0.7922654914074111,
+          0.025494162966672507
+        ],
+        "position_world": [
+          2.091562786674447,
+          -0.7922654914074111,
+          0.7854941629666725
+        ],
+        "stamp_ns": 1794962466286385470,
+        "velocity_world": [
+          2.362836710069017,
+          -0.158274989703215,
+          2.690984807339993
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962466982427674,
+      "max_sample_gap_s": 0.004803615000000001,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 18.238621885080164,
+      "post_contact_observation_s": 1.187631445,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.0039975290000000005,
+          "position_table": [
+            2.091562786674447,
+            -0.7922654914074111,
+            0.025494162966672507
+          ],
+          "position_world": [
+            2.091562786674447,
+            -0.7922654914074111,
+            0.7854941629666725
+          ],
+          "stamp_ns": 1794962466286385470,
+          "velocity_world": [
+            2.362836710069017,
+            -0.158274989703215,
+            2.690984807339993
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.0043717190000000005,
+          "position_table": [
+            0.08613966173216604,
+            -0.6585920378104105,
+            0.28258135252165606
+          ],
+          "position_world": [
+            0.08613966173216604,
+            -0.6585920378104105,
+            1.042581352521656
+          ],
+          "stamp_ns": 1794962465794796229,
+          "velocity_world": [
+            4.654946329514913,
+            -0.32579029280289085,
+            2.063769008823538
+          ]
+        }
+      ],
+      "samples": 579,
+      "shot_id": 16,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.004053935,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.55491383456662,
+          -0.8831118780729428,
+          -0.7576933352674705
+        ],
+        "position_world": [
+          3.55491383456662,
+          -0.8831118780729428,
+          0.0023066647325295396
+        ],
+        "stamp_ns": 1794962466982427674,
+        "velocity_world": [
+          1.4377887833057432,
+          -0.07867341276296223,
+          -4.488970781068772
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962468210397166,
+      "first_stamp_ns": 1794962465830384735,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.0039976460000000005,
+          "position_table": [
+            0.7822714914261977,
+            -1.0925,
+            0.029858735029688277
+          ],
+          "position_world": [
+            0.7822714914261977,
+            -1.0925,
+            0.7898587350296883
+          ],
+          "stamp_ns": 1794962466434372139,
+          "velocity_world": [
+            -1.3766152542763253,
+            -9.887958556979654e-50,
+            3.2412631414903537
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.00399563,
+        "position_table": [
+          2.2083827322261484,
+          -0.7403770340766702,
+          0.02875826676284554
+        ],
+        "position_world": [
+          2.2083827322261484,
+          -0.7403770340766702,
+          0.7887582667628456
+        ],
+        "stamp_ns": 1794962467490380044,
+        "velocity_world": [
+          2.290495557298529,
+          0.4337825916103299,
+          2.8738098244240877
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962468210397166,
+      "max_sample_gap_s": 0.004803102,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 17.779233750678703,
+      "post_contact_observation_s": 1.260018494,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.00399563,
+          "position_table": [
+            2.2083827322261484,
+            -0.7403770340766702,
+            0.02875826676284554
+          ],
+          "position_world": [
+            2.2083827322261484,
+            -0.7403770340766702,
+            0.7887582667628456
+          ],
+          "stamp_ns": 1794962467490380044,
+          "velocity_world": [
+            2.290495557298529,
+            0.4337825916103299,
+            2.8738098244240877
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.003999536000000001,
+          "position_table": [
+            0.09029031044101858,
+            -1.090053385633107,
+            0.29185091436253163
+          ],
+          "position_world": [
+            0.09029031044101858,
+            -1.090053385633107,
+            1.0518509143625316
+          ],
+          "stamp_ns": 1794962466950378672,
+          "velocity_world": [
+            4.524636989871689,
+            0.7461087098839848,
+            2.3866035768217
+          ]
+        }
+      ],
+      "samples": 596,
+      "shot_id": 17,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.0040080210000000005,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.678734067085843,
+          -0.4630439837229123,
+          -0.745479762559304
+        ],
+        "position_world": [
+          3.678734067085843,
+          -0.4630439837229123,
+          0.014520237440695936
+        ],
+        "stamp_ns": 1794962468210397166,
+        "velocity_world": [
+          1.372537580961619,
+          0.25877385330916364,
+          -4.538979857454598
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962469306510201,
+      "first_stamp_ns": 1794962466990372419,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.003998161,
+          "position_table": [
+            0.7864002831768993,
+            -0.6125,
+            0.020100000000000007
+          ],
+          "position_world": [
+            0.7864002831768993,
+            -0.6125,
+            0.7801
+          ],
+          "stamp_ns": 1794962467590377421,
+          "velocity_world": [
+            -1.3755577111714323,
+            3.8248070711076845e-63,
+            3.2762274521130275
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.004000296,
+        "position_table": [
+          2.0983745915914596,
+          -0.7854976435024157,
+          0.020100000000000007
+        ],
+        "position_world": [
+          2.0983745915914596,
+          -0.7854976435024157,
+          0.7801
+        ],
+        "stamp_ns": 1794962468606385482,
+        "velocity_world": [
+          2.356690467575051,
+          -0.22807840213824151,
+          2.7249172823852015
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962469306510201,
+      "max_sample_gap_s": 0.004573044,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 17.329364752271708,
+      "post_contact_observation_s": 1.1961208140000001,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.004000296,
+          "position_table": [
+            2.0983745915914596,
+            -0.7854976435024157,
+            0.020100000000000007
+          ],
+          "position_world": [
+            2.0983745915914596,
+            -0.7854976435024157,
+            0.7801
+          ],
+          "stamp_ns": 1794962468606385482,
+          "velocity_world": [
+            2.356690467575051,
+            -0.22807840213824151,
+            2.7249172823852015
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.003995575,
+          "position_table": [
+            0.07143204239802636,
+            -0.6125918025175244,
+            0.2760275672055652
+          ],
+          "position_world": [
+            0.07143204239802636,
+            -0.6125918025175244,
+            1.0360275672055652
+          ],
+          "stamp_ns": 1794962468110389387,
+          "velocity_world": [
+            4.668555941949388,
+            -0.4007224779476954,
+            2.1204169465048075
+          ]
+        }
+      ],
+      "samples": 580,
+      "shot_id": 18,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.004135890000000001,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.5663749257932467,
+          -0.9259960884858562,
+          -0.7611138109801815
+        ],
+        "position_world": [
+          3.5663749257932467,
+          -0.9259960884858562,
+          -0.0011138109801815269
+        ],
+        "stamp_ns": 1794962469306510201,
+        "velocity_world": [
+          1.4330353893827583,
+          -0.13553746617903575,
+          -4.5006394326567225
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962470594376734,
+      "first_stamp_ns": 1794962468150384665,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.004005595000000001,
+          "position_table": [
+            0.7822714914261977,
+            -1.0225,
+            0.029858735029688277
+          ],
+          "position_world": [
+            0.7822714914261977,
+            -1.0225,
+            0.7898587350296883
+          ],
+          "stamp_ns": 1794962468754384472,
+          "velocity_world": [
+            -1.3766152542763253,
+            4.33604192732917e-50,
+            3.2412631414903537
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.003999145,
+        "position_table": [
+          2.289041200989613,
+          -0.5877755704975649,
+          0.029168505673684786
+        ],
+        "position_world": [
+          2.289041200989613,
+          -0.5877755704975649,
+          0.7891685056736848
+        ],
+        "stamp_ns": 1794962469850387422,
+        "velocity_world": [
+          2.1507066693510604,
+          0.5034886470510037,
+          3.010594336639423
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962470594376734,
+      "max_sample_gap_s": 0.005292125,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 17.756847860011277,
+      "post_contact_observation_s": 1.32798885,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.003999145,
+          "position_table": [
+            2.289041200989613,
+            -0.5877755704975649,
+            0.029168505673684786
+          ],
+          "position_world": [
+            2.289041200989613,
+            -0.5877755704975649,
+            0.7891685056736848
+          ],
+          "stamp_ns": 1794962469850387422,
+          "velocity_world": [
+            2.1507066693510604,
+            0.5034886470510037,
+            3.010594336639423
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.004014816,
+          "position_table": [
+            0.08343667911857508,
+            -1.0213977033037371,
+            0.29143339509217836
+          ],
+          "position_world": [
+            0.08343667911857508,
+            -1.0213977033037371,
+            1.0514333950921784
+          ],
+          "stamp_ns": 1794962469266387884,
+          "velocity_world": [
+            4.393176825664073,
+            0.8509072580479855,
+            2.6500019037085796
+          ]
+        }
+      ],
+      "samples": 612,
+      "shot_id": 19,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.003987087,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.7205243489559514,
+          -0.2499119924950384,
+          -0.7450162485555264
+        ],
+        "position_world": [
+          3.7205243489559514,
+          -0.2499119924950384,
+          0.014983751444473658
+        ],
+        "stamp_ns": 1794962470594376734,
+        "velocity_world": [
+          1.2766551509191604,
+          0.3075127985190615,
+          -4.587311169675088
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962471622383916,
+      "first_stamp_ns": 1794962469310442431,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.00387183,
+          "position_table": [
+            0.7822714914261977,
+            -0.7125,
+            0.029858735029688277
+          ],
+          "position_world": [
+            0.7822714914261977,
+            -0.7125,
+            0.7898587350296883
+          ],
+          "stamp_ns": 1794962469914379843,
+          "velocity_world": [
+            -1.3766152542763253,
+            4.0478602859609605e-47,
+            3.2412631414903537
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.003822133,
+        "position_table": [
+          2.0870812277899256,
+          -0.7720563689690676,
+          0.022799524442058794
+        ],
+        "position_world": [
+          2.0870812277899256,
+          -0.7720563689690676,
+          0.7827995244420588
+        ],
+        "stamp_ns": 1794962470926389804,
+        "velocity_world": [
+          2.3893119418987454,
+          -0.05834891012459463,
+          2.699524442058792
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962471622383916,
+      "max_sample_gap_s": 0.005285406,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 18.057257456898192,
+      "post_contact_observation_s": 1.1879961410000002,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.003822133,
+          "position_table": [
+            2.0870812277899256,
+            -0.7720563689690676,
+            0.022799524442058794
+          ],
+          "position_world": [
+            2.0870812277899256,
+            -0.7720563689690676,
+            0.7827995244420588
+          ],
+          "stamp_ns": 1794962470926389804,
+          "velocity_world": [
+            2.3893119418987454,
+            -0.05834891012459463,
+            2.699524442058792
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.0040103280000000005,
+          "position_table": [
+            0.07413361744573002,
+            -0.7126891016657102,
+            0.2740905363646766
+          ],
+          "position_world": [
+            0.07413361744573002,
+            -0.7126891016657102,
+            1.0340905363646766
+          ],
+          "stamp_ns": 1794962470434387775,
+          "velocity_world": [
+            4.669692329044267,
+            -0.15282422129891732,
+            2.1058124107631846
+          ]
+        }
+      ],
+      "samples": 579,
+      "shot_id": 20,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.0039964910000000005,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.5656756863874786,
+          -0.8013445823174085,
+          -0.7595762555584261
+        ],
+        "position_world": [
+          3.5656756863874786,
+          -0.8013445823174085,
+          0.0004237444415738428
+        ],
+        "stamp_ns": 1794962471622383916,
+        "velocity_world": [
+          1.454445233389242,
+          -0.018451750203895407,
+          -4.494134473511129
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962472898669339,
+      "first_stamp_ns": 1794962470470380735,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.0040017410000000005,
+          "position_table": [
+            0.7822714914261977,
+            -1.0575,
+            0.029858735029688277
+          ],
+          "position_world": [
+            0.7822714914261977,
+            -1.0575,
+            0.7898587350296883
+          ],
+          "stamp_ns": 1794962471074378585,
+          "velocity_world": [
+            -1.3766152542763253,
+            4.0741392633569835e-34,
+            3.2412631414903537
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.004000125,
+        "position_table": [
+          2.277506071783912,
+          -0.6500000177709653,
+          0.026078272668952795
+        ],
+        "position_world": [
+          2.277506071783912,
+          -0.6500000177709653,
+          0.7860782726689528
+        ],
+        "stamp_ns": 1794962472158376857,
+        "velocity_world": [
+          2.1991049331881776,
+          0.48731434504248283,
+          2.9830029400680464
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962472898669339,
+      "max_sample_gap_s": 0.004790376000000001,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 17.91239531031665,
+      "post_contact_observation_s": 1.3122798020000002,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.004000125,
+          "position_table": [
+            2.277506071783912,
+            -0.6500000177709653,
+            0.026078272668952795
+          ],
+          "position_world": [
+            2.277506071783912,
+            -0.6500000177709653,
+            0.7860782726689528
+          ],
+          "stamp_ns": 1794962472158376857,
+          "velocity_world": [
+            2.1991049331881776,
+            0.48731434504248283,
+            2.9830029400680464
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.004008129,
+          "position_table": [
+            0.07790322572464872,
+            -1.0572640439903866,
+            0.28676425243184145
+          ],
+          "position_world": [
+            0.07790322572464872,
+            -1.0572640439903866,
+            1.0467642524318415
+          ],
+          "stamp_ns": 1794962471586389537,
+          "velocity_world": [
+            4.465396020874638,
+            0.8123629457070903,
+            2.5968859228760666
+          ]
+        }
+      ],
+      "samples": 608,
+      "shot_id": 21,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.004273667,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.7299343448653954,
+          -0.3243629028443599,
+          -0.7563157367122431
+        ],
+        "position_world": [
+          3.7299343448653954,
+          -0.3243629028443599,
+          0.003684263287756997
+        ],
+        "stamp_ns": 1794962472898669339,
+        "velocity_world": [
+          1.3063986898617257,
+          0.3004657937720701,
+          -4.59648349262415
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962473938389480,
+      "first_stamp_ns": 1794962471630371424,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.004001374,
+          "position_table": [
+            0.7822714914261977,
+            -0.6575,
+            0.029858735029688277
+          ],
+          "position_world": [
+            0.7822714914261977,
+            -0.6575,
+            0.7898587350296883
+          ],
+          "stamp_ns": 1794962472234374935,
+          "velocity_world": [
+            -1.3766152542763253,
+            -3.0231231280622496e-34,
+            3.2412631414903537
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.003987129,
+        "position_table": [
+          2.079913063435027,
+          -0.7771088476717103,
+          0.020100000000000007
+        ],
+        "position_world": [
+          2.079913063435027,
+          -0.7771088476717103,
+          0.7801
+        ],
+        "stamp_ns": 1794962473242372409,
+        "velocity_world": [
+          2.3800677450520706,
+          -0.15505893416321742,
+          2.7063901485625914
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962473938389480,
+      "max_sample_gap_s": 0.004569829,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 19.133087282504675,
+      "post_contact_observation_s": 1.184011371,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.003987129,
+          "position_table": [
+            2.079913063435027,
+            -0.7771088476717103,
+            0.020100000000000007
+          ],
+          "position_world": [
+            2.079913063435027,
+            -0.7771088476717103,
+            0.7801
+          ],
+          "stamp_ns": 1794962473242372409,
+          "velocity_world": [
+            2.3800677450520706,
+            -0.15505893416321742,
+            2.7063901485625914
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.0040003470000000005,
+          "position_table": [
+            0.08091000143413392,
+            -0.658189737078159,
+            0.2786381654721728
+          ],
+          "position_world": [
+            0.08091000143413392,
+            -0.658189737078159,
+            1.0386381654721728
+          ],
+          "stamp_ns": 1794962472754378109,
+          "velocity_world": [
+            4.669330786837995,
+            -0.283078748105972,
+            2.066888388842722
+          ]
+        }
+      ],
+      "samples": 578,
+      "shot_id": 22,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.0038139510000000003,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.5537630937860842,
+          -0.8704655607068368,
+          -0.7574374262952173
+        ],
+        "position_world": [
+          3.5537630937860842,
+          -0.8704655607068368,
+          0.0025625737047827715
+        ],
+        "stamp_ns": 1794962473938389480,
+        "velocity_world": [
+          1.448267041103135,
+          -0.0881435555420104,
+          -4.486155844148232
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962475194385658,
+      "first_stamp_ns": 1794962472790380635,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.003980325,
+          "position_table": [
+            0.7864002831768993,
+            -1.0925,
+            0.020100000000000007
+          ],
+          "position_world": [
+            0.7864002831768993,
+            -1.0925,
+            0.7801
+          ],
+          "stamp_ns": 1794962473390390919,
+          "velocity_world": [
+            -1.3755577111714323,
+            3.8248070711076845e-63,
+            3.2762274521130275
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.004026657,
+        "position_table": [
+          2.259269378693815,
+          -0.7194527640111889,
+          0.028896353443760292
+        ],
+        "position_world": [
+          2.259269378693815,
+          -0.7194527640111889,
+          0.7888963534437603
+        ],
+        "stamp_ns": 1794962474466413921,
+        "velocity_world": [
+          2.249976198593539,
+          0.4557852474232938,
+          2.91984561444735
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962475194385658,
+      "max_sample_gap_s": 0.004862904,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 19.449134269756875,
+      "post_contact_observation_s": 1.284007923,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.004026657,
+          "position_table": [
+            2.259269378693815,
+            -0.7194527640111889,
+            0.028896353443760292
+          ],
+          "position_world": [
+            2.259269378693815,
+            -0.7194527640111889,
+            0.7888963534437603
+          ],
+          "stamp_ns": 1794962474466413921,
+          "velocity_world": [
+            2.249976198593539,
+            0.4557852474232938,
+            2.91984561444735
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.004000763,
+          "position_table": [
+            0.09008959299621924,
+            -1.0898475189696752,
+            0.2906469205967366
+          ],
+          "position_world": [
+            0.09008959299621924,
+            -1.0898475189696752,
+            1.0506469205967366
+          ],
+          "stamp_ns": 1794962473910377735,
+          "velocity_world": [
+            4.519722457268584,
+            0.7607180434364744,
+            2.485720323814149
+          ]
+        }
+      ],
+      "samples": 602,
+      "shot_id": 23,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.003997139,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.7204073341476662,
+          -0.42066647522720935,
+          -0.7464907376874856
+        ],
+        "position_world": [
+          3.7204073341476662,
+          -0.42066647522720935,
+          0.013509262312514411
+        ],
+        "stamp_ns": 1794962475194385658,
+        "velocity_world": [
+          1.3416280583608655,
+          0.28032730549219687,
+          -4.557388466039605
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962476258383570,
+      "first_stamp_ns": 1794962473950376285,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.003996984,
+          "position_table": [
+            0.783648106680474,
+            -0.6125,
+            0.026617471888197963
+          ],
+          "position_world": [
+            0.783648106680474,
+            -0.6125,
+            0.786617471888198
+          ],
+          "stamp_ns": 1794962474554378845,
+          "velocity_world": [
+            -1.3762645050690898,
+            -3.141818337900527e-49,
+            3.2529085657212393
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.00367897,
+        "position_table": [
+          2.0781095751856795,
+          -0.7629625263363715,
+          0.022790478190972463
+        ],
+        "position_world": [
+          2.0781095751856795,
+          -0.7629625263363715,
+          0.7827904781909725
+        ],
+        "stamp_ns": 1794962475566385771,
+        "velocity_world": [
+          2.368044108080298,
+          -0.20680584485200376,
+          2.6904781909724456
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962476258383570,
+      "max_sample_gap_s": 0.004865646,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 17.639224927440445,
+      "post_contact_observation_s": 1.18399499,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.00367897,
+          "position_table": [
+            2.0781095751856795,
+            -0.7629625263363715,
+            0.022790478190972463
+          ],
+          "position_world": [
+            2.0781095751856795,
+            -0.7629625263363715,
+            0.7827904781909725
+          ],
+          "stamp_ns": 1794962475566385771,
+          "velocity_world": [
+            2.368044108080298,
+            -0.20680584485200376,
+            2.6904781909724456
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.004011368,
+          "position_table": [
+            0.06913216421776842,
+            -0.6125917505175862,
+            0.27183551057996347
+          ],
+          "position_world": [
+            0.06913216421776842,
+            -0.6125917505175862,
+            1.0318355105799635
+          ],
+          "stamp_ns": 1794962475074388580,
+          "velocity_world": [
+            4.661663057404308,
+            -0.34704494373798567,
+            2.1016307824904077
+          ]
+        }
+      ],
+      "samples": 578,
+      "shot_id": 24,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.0039926070000000004,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.5377407713228735,
+          -0.8908038117476806,
+          -0.7445376078078948
+        ],
+        "position_world": [
+          3.5377407713228735,
+          -0.8908038117476806,
+          0.015462392192105177
+        ],
+        "stamp_ns": 1794962476258383570,
+        "velocity_world": [
+          1.4439489634366742,
+          -0.1277663396391244,
+          -4.457512886664256
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962477554385424,
+      "first_stamp_ns": 1794962475110370383,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.003997543,
+          "position_table": [
+            0.7822714914261977,
+            -1.0225,
+            0.029858735029688277
+          ],
+          "position_world": [
+            0.7822714914261977,
+            -1.0225,
+            0.7898587350296883
+          ],
+          "stamp_ns": 1794962475714371028,
+          "velocity_world": [
+            -1.3766152542763253,
+            4.33604192732917e-50,
+            3.2412631414903537
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.003982960000000001,
+        "position_table": [
+          2.2792356145684227,
+          -0.6533925726620469,
+          0.029143532410334516
+        ],
+        "position_world": [
+          2.2792356145684227,
+          -0.6533925726620469,
+          0.7891435324103345
+        ],
+        "stamp_ns": 1794962476810372468,
+        "velocity_world": [
+          2.15486339221522,
+          0.42376020274019016,
+          3.0022908462528215
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962477554385424,
+      "max_sample_gap_s": 0.00475259,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 17.922112418259537,
+      "post_contact_observation_s": 1.3280093510000002,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.003982960000000001,
+          "position_table": [
+            2.2792356145684227,
+            -0.6533925726620469,
+            0.029143532410334516
+          ],
+          "position_world": [
+            2.2792356145684227,
+            -0.6533925726620469,
+            0.7891435324103345
+          ],
+          "stamp_ns": 1794962476810372468,
+          "velocity_world": [
+            2.15486339221522,
+            0.42376020274019016,
+            3.0022908462528215
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.003997559,
+          "position_table": [
+            0.07790736705384872,
+            -1.0222974108357041,
+            0.2867942751455288
+          ],
+          "position_world": [
+            0.07790736705384872,
+            -1.0222974108357041,
+            1.0467942751455288
+          ],
+          "stamp_ns": 1794962476226376073,
+          "velocity_world": [
+            4.37861879353827,
+            0.726995797378359,
+            2.6595702787126347
+          ]
+        }
+      ],
+      "samples": 612,
+      "shot_id": 25,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.004013467000000001,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.7142104864560213,
+          -0.370537325828066,
+          -0.7473779643054982
+        ],
+        "position_world": [
+          3.7142104864560213,
+          -0.370537325828066,
+          0.012622035694501807
+        ],
+        "stamp_ns": 1794962477554385424,
+        "velocity_world": [
+          1.280934668011788,
+          0.2552462169896335,
+          -4.587073750188221
+        ]
+      },
+      "trajectory_complete": true
+    },
+    {
+      "contact_pass": true,
+      "counter_jump": false,
+      "counter_monotonic": true,
+      "first_inactive_stamp_ns": 1794962478566378161,
+      "first_stamp_ns": 1794962476270379160,
+      "incoming_bounce_pass": true,
+      "incoming_net_events": [],
+      "incoming_table_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.0037437750000000004,
+          "position_table": [
+            0.7822714914261977,
+            -0.7125,
+            0.029858735029688277
+          ],
+          "position_world": [
+            0.7822714914261977,
+            -0.7125,
+            0.7898587350296883
+          ],
+          "stamp_ns": 1794962476874446059,
+          "velocity_world": [
+            -1.3766152542763253,
+            4.047846287766488e-47,
+            3.2412631414903537
+          ]
+        }
+      ],
+      "landing_censored": false,
+      "landing_event": {
+        "count": 2,
+        "edge_observation_lag_s": 0.004009752,
+        "position_table": [
+          2.056867537221771,
+          -0.7501949594795091,
+          0.025424643304874928
+        ],
+        "position_world": [
+          2.056867537221771,
+          -0.7501949594795091,
+          0.7854246433048749
+        ],
+        "stamp_ns": 1794962477878381694,
+        "velocity_world": [
+          2.402560682507754,
+          -0.01959498893166933,
+          2.656216798826436
+        ]
+      },
+      "landing_event_observed": true,
+      "landing_observation_status": "observed_event",
+      "landing_observed": true,
+      "landing_pass": true,
+      "last_stamp_ns": 1794962478566378161,
+      "max_sample_gap_s": 0.004747762,
+      "minimum_post_contact_landing_observation_s": 0.75,
+      "peak_racket_force_n": 16.027153067100862,
+      "post_contact_observation_s": 1.171995673,
+      "post_racket_net_events": [],
+      "post_racket_table_events": [
+        {
+          "count": 2,
+          "edge_observation_lag_s": 0.004009752,
+          "position_table": [
+            2.056867537221771,
+            -0.7501949594795091,
+            0.025424643304874928
+          ],
+          "position_world": [
+            2.056867537221771,
+            -0.7501949594795091,
+            0.7854246433048749
+          ],
+          "stamp_ns": 1794962477878381694,
+          "velocity_world": [
+            2.402560682507754,
+            -0.01959498893166933,
+            2.656216798826436
+          ]
+        }
+      ],
+      "racket_contact_count": 1,
+      "racket_events": [
+        {
+          "count": 1,
+          "edge_observation_lag_s": 0.004003299,
+          "position_table": [
+            0.07264384606504214,
+            -0.7126140336233185,
+            0.27335755743294987
+          ],
+          "position_world": [
+            0.07264384606504214,
+            -0.7126140336233185,
+            1.0333575574329499
+          ],
+          "stamp_ns": 1794962477394382488,
+          "velocity_world": [
+            4.6731437314898985,
+            -0.1102400623731206,
+            2.0461832617353917
+          ]
+        }
+      ],
+      "samples": 575,
+      "shot_id": 26,
+      "telemetry_complete": true,
+      "terminal_event": {
+        "count": 0,
+        "edge_observation_lag_s": 0.0038763810000000004,
+        "kind": "ground_crossing",
+        "position_table": [
+          3.5270528065099356,
+          -0.7525125681189725,
+          -0.7489301263862469
+        ],
+        "position_world": [
+          3.5270528065099356,
+          -0.7525125681189725,
+          0.011069873613753107
+        ],
+        "stamp_ns": 1794962478566378161,
+        "velocity_world": [
+          1.466547308435204,
+          0.012817656279040702,
+          -4.460224761124875
+        ]
+      },
+      "trajectory_complete": true
+    }
+  ],
+  "schema_version": 3,
+  "source": "mujoco_1khz_contact_edges",
+  "trajectory_complete_count": 26,
+  "trajectory_csv": "/tmp/pp_ball_trajectories.csv",
+  "trajectory_incomplete_shot_ids": [],
+  "unexpected_shot_ids": []
+}

@@ -249,3 +249,24 @@ def test_laptop_snapshot_keeps_main_natnet_and_selected_physics(tmp_path, monkey
     assert (output / 'configuration' / relative).read_bytes() == message.read_bytes()
     assert (output / 'configuration/selected_ball_physics.json').read_bytes() == selected.read_bytes()
     assert '/ball/point' in capture.ROS_TOPICS and '/planner/diagnostics' in capture.ROS_TOPICS
+
+
+def test_role_recording_retains_timing_evidence_without_remote_raw_mocap(tmp_path, monkeypatch):
+    monkeypatch.syspath_prepend(str(HELPER.parent))
+    capture = load(HELPER, 'capture_role_topics_test')
+    hdu = capture.recorder_command('hdu', tmp_path, tmp_path)
+    laptop = capture.recorder_command('laptop', tmp_path, tmp_path)
+    hdu_topics = hdu[hdu.index('--topics') + 1:]
+    laptop_topics = laptop[laptop.index('--topics') + 1:]
+    for topic in ['/UCB_P1/pose', '/UCB_P2/pose', '/poses', '/poses/planner_full',
+                  '/poses/operator_raw', '/ball/operator_raw_point', '/rigid_body_markers',
+                  '/vrpn_mocap/UCB_P1/timing', '/vrpn_mocap/UCB_P2/timing', '/vrpn_mocap/Ball/timing']:
+        assert topic in laptop_topics and topic not in hdu_topics
+    for topic in ['/ball/flight_packet', '/a3/base_pose_laptop_flat', '/a3/base_pose_flat',
+                  '/racket/command_flat', '/planner/diagnostics', '/hope/runner/state_hdu_flat']:
+        assert topic in hdu_topics and topic in laptop_topics
+    assert '/serve/ball_state_flat' in hdu_topics
+    assert len(hdu_topics) == len(set(hdu_topics))
+    assert len(laptop_topics) == len(set(laptop_topics))
+    with pytest.raises(ValueError):
+        capture.recording_topics('typo')

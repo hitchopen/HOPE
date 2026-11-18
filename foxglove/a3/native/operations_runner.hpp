@@ -12,7 +12,7 @@ class RunnerCommands {
     static const std::map<std::string,int> codes{{"SET_SERVER",1},{"SET_RECEIVER",2},
       {"ENTER_PD_STAND",3},{"ENTER_MOTION",4},{"EMERGENCY_PASSIVE",5},{"PREPARE_SERVE",7},
       {"CONFIRM_BALL_LOADED",8},{"READY_TO_SERVE",9},{"OPEN_GRIPPER",10},
-      {"CONFIRM_GRIP_SECURE",12},{"ENTER_TELEOP",13}};
+      {"CONFIRM_GRIP_SECURE",12},{"ENTER_TELEOP",13},{"ENTER_DOCK",14},{"ENTER_WALK_STAND",15}};
     const auto it=codes.find(action);
     if(it==codes.end())throw std::invalid_argument("unsupported Runner action");
     return it->second;

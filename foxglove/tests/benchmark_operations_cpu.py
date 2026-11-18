@@ -13,15 +13,14 @@ import subprocess
 import time
 
 from test_native_operations_ros import NativeOperationsTests
-from operations_processes import child_pids
 
 
 def ticks(pid):
     text = Path(f"/proc/{pid}/stat").read_text().rsplit(")",1)[1].split()
     total = int(text[11]) + int(text[12])
-    # Include descendants on A3 kernels both with and without task/children.
-    for child in child_pids(pid):
-        total += ticks(child)
+    # posix_spawn runs on the main thread; include all descendants recursively.
+    for child in Path(f"/proc/{pid}/task/{pid}/children").read_text().split():
+        total += ticks(int(child))
     return total
 
 

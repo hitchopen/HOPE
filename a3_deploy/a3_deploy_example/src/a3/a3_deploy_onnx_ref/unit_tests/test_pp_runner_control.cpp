@@ -20,6 +20,42 @@ void SetRole(PpRunnerControl& control, RunnerAction action,
   ASSERT_EQ(control.local_role(), expected);
 }
 
+TEST(PpRunnerControl, MocapOnlyPlayDoesNotRequireAnyOperatorEcho) {
+  PpRunnerControl control(RunnerMode::kPdStand, 42, "mocap-only");
+  control.RequireMocap(true);
+  SetRole(control, RunnerAction::kSetReceiver, LocalRole::kReceiver);
+  ASSERT_FALSE(control.ObserveMocap(true));
+  ASSERT_TRUE(control.Enqueue({2, RunnerAction::kEnterMotion, true}));
+  auto decisions = control.ProcessPending(false, false);
+  ASSERT_EQ(decisions.size(), 1U);
+  ASSERT_EQ(decisions.front().result, RunnerActionResult::kApplied);
+  for (int tick = 0; tick < 2000; ++tick) {
+    EXPECT_FALSE(control.ObserveOperatorHeartbeat(false, false));
+    EXPECT_FALSE(control.ObserveMocap(true));
+  }
+  EXPECT_EQ(control.mode(), RunnerMode::kMotion);
+  EXPECT_FALSE(control.PlayStopRequested());
+  EXPECT_EQ(control.EncodeMocapSafety()[10], 0.);
+  EXPECT_EQ(control.EncodeMocapSafety()[14], 0.);
+  EXPECT_TRUE(control.ObserveMocap(false));
+  EXPECT_EQ(control.mode(), RunnerMode::kPdStand);
+  EXPECT_EQ(control.EncodeMocapSafety()[6], 1.);
+}
+
+TEST(PpRunnerControl, MocapOnlyServeCompletionNeedsNoOperatorEcho) {
+  PpRunnerControl control(RunnerMode::kServe, 42, "mocap-only");
+  control.RequireMocap(true);
+  EXPECT_FALSE(control.ObserveMocap(true));
+  EXPECT_FALSE(control.ObserveOperatorHeartbeat(false, false));
+  EXPECT_TRUE(control.CompleteServe());
+  EXPECT_EQ(control.mode(), RunnerMode::kMotion);
+  control.SetRuntimeMode(RunnerMode::kServe);
+  EXPECT_TRUE(control.ObserveMocap(false));
+  EXPECT_TRUE(control.PlayStopRequested());
+  EXPECT_TRUE(control.CompleteServe());
+  EXPECT_EQ(control.mode(), RunnerMode::kPdStand);
+}
+
 TEST(PpRunnerControl, PureServeRejectsReceiveAndPolicyActions) {
   PpRunnerControl control(RunnerMode::kPdStand, 123, "session", 16, true);
   SetRole(control, RunnerAction::kSetServer, LocalRole::kServer);
@@ -307,3 +343,187 @@ TEST(PpRunnerControl, NormalAndPureServeKeepExistingCompletionModes) {
     EXPECT_EQ(control.mode(), pure ? RunnerMode::kPdStand : RunnerMode::kMotion);
   }
 }
+
+namespace {
+
+// ProcessPending(fault, serve_active, serve_capability, serve_state,
+//                gain_nominal, gripper, cleanup, teleop_capable, input_ready,
+//                dock_capable, dock_pose_ready, dock_start_near)
+std::vector<a3_pingpong::RunnerActionDecision> Walk(PpRunnerControl& control,
+                                                     RunnerAction action,
+                                                     bool capable = true,
+                                                     bool fault = false,
+                                                     bool input_ready = false) {
+  control.EnqueueLocalAction(action);
+  return control.ProcessPending(fault, false, true, 0, true, -1, false, capable, input_ready,
+                                true, true, true);
+}
+
+std::vector<a3_pingpong::RunnerActionDecision> Dock(PpRunnerControl& control, bool capable = true,
+                                                     bool pose = true, bool near = true) {
+  control.EnqueueLocalAction(RunnerAction::kEnterDock);
+  return control.ProcessPending(false, false, true, 0, true, -1, false, true, false,
+                                capable, pose, near);
+}
+
+TEST(PpRunnerWalkStand, StandIsTheHumanLikeStandFromEveryIdleMode) {
+  PpRunnerControl control(RunnerMode::kPassive, 42, "walk");
+  EXPECT_EQ(Walk(control, RunnerAction::kEnterWalkStand)[0].reason,
+            RunnerActionReason::kPdStandRequired);
+  // PASSIVE -> Stand goes straight to HumanLike.
+  const auto stand = Walk(control, RunnerAction::kEnterPdStand);
+  EXPECT_EQ(stand[0].result, RunnerActionResult::kApplied);
+  EXPECT_TRUE(stand[0].hold_reference);
+  EXPECT_EQ(control.mode(), RunnerMode::kWalkStand);
+  EXPECT_EQ(Walk(control, RunnerAction::kEnterPdStand)[0].result, RunnerActionResult::kAlreadySet);
+  for (auto mode : {RunnerMode::kPdStand, RunnerMode::kShadow, RunnerMode::kReferencePlayback}) {
+    control.SetRuntimeMode(mode);
+    EXPECT_EQ(Walk(control, RunnerAction::kEnterPdStand)[0].result, RunnerActionResult::kApplied);
+    EXPECT_EQ(control.mode(), RunnerMode::kWalkStand);
+  }
+  // Receive policy -> Stand goes straight to HumanLike as well.
+  control.SetRuntimeMode(RunnerMode::kMotion);
+  const auto from_motion = Walk(control, RunnerAction::kEnterPdStand);
+  EXPECT_EQ(from_motion[0].result, RunnerActionResult::kApplied);
+  EXPECT_TRUE(from_motion[0].hold_reference);
+  EXPECT_EQ(control.mode(), RunnerMode::kWalkStand);
+  // Without HumanLike, or with a latched command fault, Stand is the old PD stand.
+  PpRunnerControl legacy(RunnerMode::kPassive, 43, "walk");
+  EXPECT_EQ(Walk(legacy, RunnerAction::kEnterPdStand, false)[0].result, RunnerActionResult::kApplied);
+  EXPECT_EQ(legacy.mode(), RunnerMode::kPdStand);
+  PpRunnerControl faulted(RunnerMode::kPassive, 44, "walk");
+  Walk(faulted, RunnerAction::kEnterPdStand, true, true);
+  EXPECT_EQ(faulted.mode(), RunnerMode::kPdStand);
+  // The explicit walk-stand action still works from the stiff stand.
+  control.SetRuntimeMode(RunnerMode::kPdStand);
+  EXPECT_EQ(Walk(control, RunnerAction::kEnterWalkStand)[0].result, RunnerActionResult::kApplied);
+  EXPECT_EQ(Walk(control, RunnerAction::kEmergencyPassive)[0].result, RunnerActionResult::kApplied);
+  EXPECT_EQ(control.mode(), RunnerMode::kPassive);
+}
+
+TEST(PpRunnerWalkStand, ReadyAndServeFromWalkStandAreStagedThroughPdStand) {
+  PpRunnerControl receiver(RunnerMode::kWalkStand, 42, "walk");
+  // Roles can change in WALK_STAND.
+  SetRole(receiver, RunnerAction::kSetReceiver, LocalRole::kReceiver);
+  const auto ready = Walk(receiver, RunnerAction::kEnterMotion);
+  EXPECT_EQ(ready[0].result, RunnerActionResult::kAcceptedPending);
+  EXPECT_EQ(ready[0].reason, RunnerActionReason::kModeChanged);
+  EXPECT_EQ(receiver.mode(), RunnerMode::kWalkStand);
+  EXPECT_TRUE(receiver.TeleopStopRequested());
+  EXPECT_TRUE(receiver.StandHandoffPending());
+  // One staged action at a time; no role change while it settles.
+  EXPECT_EQ(Walk(receiver, RunnerAction::kEnterMotion)[0].reason,
+            RunnerActionReason::kPdStandRequired);
+  EXPECT_EQ(Walk(receiver, RunnerAction::kSetServer)[0].result, RunnerActionResult::kRejectedWrongMode);
+  EXPECT_EQ(Dock(receiver)[0].result, RunnerActionResult::kRejectedWrongMode);
+  // Command thread: HumanLike quiet -> PD_STAND keeps the staged action ...
+  receiver.SetRuntimeMode(RunnerMode::kPdStand);
+  EXPECT_TRUE(receiver.StandHandoffPending());
+  // ... and re-enqueues it once the stand blend settles.
+  const auto staged = receiver.TakeStandHandoff();
+  EXPECT_EQ(staged, RunnerAction::kEnterMotion);
+  EXPECT_FALSE(receiver.StandHandoffPending());
+  EXPECT_EQ(Walk(receiver, staged)[0].result, RunnerActionResult::kApplied);
+  EXPECT_EQ(receiver.mode(), RunnerMode::kMotion);
+
+  PpRunnerControl server(RunnerMode::kWalkStand, 43, "walk");
+  SetRole(server, RunnerAction::kSetServer, LocalRole::kServer);
+  const auto prepare = Walk(server, RunnerAction::kPrepareServe);
+  EXPECT_EQ(prepare[0].result, RunnerActionResult::kAcceptedPending);
+  EXPECT_EQ(prepare[0].reason, RunnerActionReason::kServePrepareRequested);
+  EXPECT_FALSE(server.ConsumeServePrepare());
+  // Stand cancels the staged serve and keeps WALK_STAND.
+  EXPECT_EQ(Walk(server, RunnerAction::kEnterPdStand)[0].result, RunnerActionResult::kAlreadySet);
+  EXPECT_FALSE(server.StandHandoffPending());
+  EXPECT_FALSE(server.TeleopStopRequested());
+  EXPECT_EQ(server.mode(), RunnerMode::kWalkStand);
+  // PASSIVE also clears a staged action.
+  Walk(server, RunnerAction::kPrepareServe);
+  Walk(server, RunnerAction::kEmergencyPassive);
+  EXPECT_FALSE(server.StandHandoffPending());
+}
+
+TEST(PpRunnerWalkStand, TeleopAndShadowFromWalkStand) {
+  PpRunnerControl control(RunnerMode::kWalkStand, 42, "walk");
+  EXPECT_EQ(Walk(control, RunnerAction::kEnterShadow)[0].result, RunnerActionResult::kRejectedWrongMode);
+  EXPECT_EQ(Walk(control, RunnerAction::kEnterTeleop)[0].reason, RunnerActionReason::kTeleopInputNotReady);
+  EXPECT_EQ(Walk(control, RunnerAction::kEnterTeleop, true, false, true)[0].result,
+            RunnerActionResult::kApplied);
+  EXPECT_EQ(control.mode(), RunnerMode::kTeleop);
+  // Stand in TELEOP settles the feet; the command thread then lands in WALK_STAND.
+  const auto stand = Walk(control, RunnerAction::kEnterPdStand);
+  EXPECT_EQ(stand[0].reason, RunnerActionReason::kTeleopStopRequested);
+  EXPECT_FALSE(control.StandHandoffPending());
+  control.SetRuntimeMode(RunnerMode::kWalkStand);
+  EXPECT_FALSE(control.TeleopStopRequested());
+}
+
+TEST(PpRunnerWalkStand, RemoteWireAcceptsWalkStandAndDock) {
+  PpRunnerControl control(RunnerMode::kPdStand, 42, "walk");
+  EXPECT_TRUE(control.EnqueueFlatRequest({2, 7, 15, 0}));
+  EXPECT_EQ(control.ProcessPending(false, false, true, 0, true, -1, false, true, false)[0].result,
+            RunnerActionResult::kApplied);
+  EXPECT_EQ(control.mode(), RunnerMode::kWalkStand);
+  EXPECT_TRUE(control.EnqueueFlatRequest({2, 8, 14, 0}));
+  EXPECT_EQ(control.ProcessPending(false, false, true, 0, true, -1, false, true, false,
+                                   true, true, true)[0].result,
+            RunnerActionResult::kApplied);
+  EXPECT_EQ(control.mode(), RunnerMode::kDock);
+  EXPECT_FALSE(control.EnqueueFlatRequest({2, 9, 16, 0}));
+  EXPECT_STREQ(a3_pingpong::RunnerModeName(RunnerMode::kDock), "DOCK");
+  EXPECT_STREQ(a3_pingpong::RunnerModeName(RunnerMode::kWalkStand), "WALK_STAND");
+  EXPECT_STREQ(a3_pingpong::RunnerActionName(RunnerAction::kEnterWalkStand), "ENTER_WALK_STAND");
+}
+
+TEST(PpRunnerDock, AdmissionFromStandWalkStandOrTeleop) {
+  PpRunnerControl control(RunnerMode::kPassive, 42, "dock");
+  EXPECT_EQ(Dock(control)[0].reason, RunnerActionReason::kPdStandRequired);
+  control.SetRuntimeMode(RunnerMode::kPdStand);
+  EXPECT_EQ(Dock(control, false)[0].reason, RunnerActionReason::kDockUnavailable);
+  EXPECT_EQ(Dock(control, true, false)[0].reason, RunnerActionReason::kDockMocapUnavailable);
+  EXPECT_EQ(Dock(control, true, true, false)[0].reason, RunnerActionReason::kDockStartTooFar);
+  EXPECT_EQ(control.mode(), RunnerMode::kPdStand);
+  EXPECT_EQ(Dock(control)[0].result, RunnerActionResult::kApplied);
+  EXPECT_EQ(control.mode(), RunnerMode::kDock);
+  EXPECT_EQ(Dock(control)[0].result, RunnerActionResult::kAlreadySet);
+  for (auto mode : {RunnerMode::kWalkStand, RunnerMode::kTeleop}) {
+    control.SetRuntimeMode(mode);
+    EXPECT_EQ(Dock(control)[0].result, RunnerActionResult::kApplied);
+    EXPECT_EQ(control.mode(), RunnerMode::kDock);
+  }
+  for (auto mode : {RunnerMode::kMotion, RunnerMode::kServe, RunnerMode::kPassive}) {
+    control.SetRuntimeMode(mode);
+    EXPECT_EQ(Dock(control)[0].reason, RunnerActionReason::kPdStandRequired);
+  }
+  // A Teleop that is already settling cannot start a walk.
+  control.SetRuntimeMode(RunnerMode::kTeleop);
+  Walk(control, RunnerAction::kEnterPdStand);
+  EXPECT_EQ(Dock(control)[0].reason, RunnerActionReason::kPdStandRequired);
+}
+
+TEST(PpRunnerDock, StandAbortsIntoWalkStand) {
+  PpRunnerControl control(RunnerMode::kPdStand, 42, "dock");
+  ASSERT_EQ(Dock(control)[0].result, RunnerActionResult::kApplied);
+  const auto stand = Walk(control, RunnerAction::kEnterPdStand);
+  EXPECT_EQ(stand[0].result, RunnerActionResult::kAcceptedPending);
+  EXPECT_EQ(stand[0].reason, RunnerActionReason::kDockStopRequested);
+  EXPECT_TRUE(control.TeleopStopRequested());
+  EXPECT_FALSE(control.StandHandoffPending());
+  EXPECT_EQ(control.mode(), RunnerMode::kDock);
+  // The command thread lands in WALK_STAND; Reposition can start again there.
+  control.SetRuntimeMode(RunnerMode::kWalkStand);
+  EXPECT_FALSE(control.TeleopStopRequested());
+  EXPECT_EQ(Dock(control)[0].result, RunnerActionResult::kApplied);
+  for (auto action : {RunnerAction::kEnterMotion, RunnerAction::kPrepareServe,
+                      RunnerAction::kEnterTeleop, RunnerAction::kEnterShadow,
+                      RunnerAction::kEnterWalkStand}) {
+    EXPECT_NE(Walk(control, action)[0].result, RunnerActionResult::kApplied)
+        << a3_pingpong::RunnerActionName(action);
+    EXPECT_EQ(control.mode(), RunnerMode::kDock);
+  }
+  EXPECT_EQ(Walk(control, RunnerAction::kEmergencyPassive)[0].result, RunnerActionResult::kApplied);
+  EXPECT_EQ(control.mode(), RunnerMode::kPassive);
+}
+
+}  // namespace
+

@@ -10,7 +10,7 @@
 
 namespace a3_pingpong {
 
-// receive policy always runs first. HumanLike then owns the selected lower-body
+// model_3440 always runs first. HumanLike then owns the selected lower-body
 // joints inside the same Runner and before the one RobotCommand publisher.
 enum class PpHybridLowerOwner {
   kLegs,
@@ -26,7 +26,7 @@ struct PpHybridLowerConfig {
   std::string backend{"ort_cpu"};
   PpHybridLowerOwner owner{PpHybridLowerOwner::kLegs};
 
-  // The shared Runner calls HumanLike at its native 100 Hz. receive policy is
+  // The shared Runner calls HumanLike at its native 100 Hz. model_3440 is
   // evaluated every other Runner tick and its upper-body command is held.
   double outer_policy_dt{0.01};
   double humanlike_policy_dt{0.01};
@@ -51,7 +51,7 @@ class PpHumanLikeOrtRuntime;
 //   input  "input"  [1, 66*55]
 //   output "output" [1, 15]
 // The 15 actions are L leg 6, R leg 6, waist yaw/roll/pitch. History and raw
-// previous-action state are private to this actor; receive policy keeps its own
+// previous-action state are private to this actor; model_3440 keeps its own
 // original 31-action feedback history.
 class PpHybridLowerPolicy {
  public:

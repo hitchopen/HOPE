@@ -1,6 +1,6 @@
 # Foxglove 动捕系统选择
 
-Lifecycle schema 6 提供三个选项：无动捕、Motive（NatNet）、
+Console 1.8.15 / lifecycle schema 5 提供三个选项：无动捕、Motive（NatNet）、
 青瞳 / CMTracker（VRPN）。后两者输出相同的 HOPE topics，但每次只能启动一套。
 地址、单位、资产导入不同，不能靠看到 `/poses` 自动判断来源。
 
@@ -15,8 +15,8 @@ Lifecycle schema 6 提供三个选项：无动捕、Motive（NatNet）、
    青瞳另选 V2/V4 裤子。Motive 使用实时 ModelDef，不套用 VRPN 裤子 JSON。
 3. 按 **CONFIRM CONFIG**。界面只按已确认配置生成启动命令；编辑中的草稿不
    生成命令。夹爪和裤子配置与动捕系统独立保存。
-4. 在所选 Laptop 环境的仓库根目录运行显示的命令。Linux 使用 HOST，Mac 使用已配置的 operator container。它调用
-   `foxglove/helpers/hope-lifecycle start-laptop`，Linux 在 hope distrobox 内、Mac 在 direct runtime 中启动所选链路。
+4. 在 Laptop HOST 的仓库根目录运行显示的命令。它调用
+   `foxglove/helpers/hope-lifecycle start-laptop`，在 hope distrobox 内启动所选链路。
    检测到已有 Motive/VRPN 进程时拒绝再启动第二套。只改变选项不会切换正在
    运行的进程；更换 setup 后需停止原链路并重新生成、执行命令。
 5. `START SYSTEM` 仍启动 Runner/HAL/Planner 流程；动捕保持单独启动。
@@ -39,7 +39,7 @@ Lifecycle schema 6 提供三个选项：无动捕、Motive（NatNet）、
 
 ## 青瞳 / CMTracker / VRPN
 
-- 按实物选择 V2（10 点）或 V4（17 孔壳体、P1/P2 各 12 点不同贴纸布局），导入
+- 按实物选择 V2（10 点）或 V4（17 点贴纸），导入
   `hope_ws/src/hope_bringup/config/pants_profiles/a3_<v2或v4>_<P1或P2>_ground_truth.json`。
   详细坐标约定见 [裤子与 CMTracker 设置](vrpn_pants_profiles.md)。
 - 名称仍为 `UCB_P1` / `UCB_P2` 与 `Ball`。保留 pelvis_link 原点及
@@ -48,19 +48,14 @@ Lifecycle schema 6 提供三个选项：无动捕、Motive（NatNet）、
   VRPN 不提供在线贴纸点数或 ModelDef，界面显示 `POSE ONLY` / `N/A`。
 - 接收端核对 Foxglove 原子快照中的系统、地址、端口和单位。选择错误、参数
   不匹配或快照超过 3 秒未更新时停止转发，等待修正并重启。
-- 默认不确认资产原点或世界坐标，base 输出 valid=0，flight packetizer 关闭。
-  完成实际导入和场地检查后，可在 Laptop 的
-  `~/.config/hope-foxglove/lifecycle.env` 中设置以下两项，再重新启动动捕：
-
-  ```bash
-  HOPE_VRPN_PELVIS_ASSET_CONFIRMED=true
-  HOPE_VRPN_WORLD_FRAME_CONFIRMED=true
-  ```
-
-  前者确认当前所选资产保留 pelvis 原点/轴向；后者确认 VRPN 世界为右手系、
-  Z向上、桌面 z=0、桌长 x=[0,2.74]、桌宽 y=[-1.525,0]。
-  世界确认还会开启 flight packetizer。换资产或场地后先恢复 false 并重新检查。
-  这两项是操作者确认，不是程序测得的校准结果。
+- 默认世界坐标未确认，base 输出 valid=0，flight packetizer 关闭。
+  核对 VRPN 世界为右手系、Z 向上、桌面 z=0、桌长 x=[0,2.74]、
+  桌宽 y=[-1.525,0] 后，在 Console 勾选世界坐标确认并保存。
+  机器人唯一配置源保存 `vrpn_world_frame_confirmed`；不再使用本机环境文件确认。
+  此确认还会开启 flight packetizer。更换动捕设置后需重新检查和确认。
+  骨盆原点／轴向不再单独设确认开关，接收链路继续校验所选资产及哈希。
+  P1 / P2 仅标识裤子刚体；按所选刚体实际桌端自动旋转机器人、球和姿态，
+  在新会话中锁定统一策略坐标。跨端须停止并重新启动以重建 HOME，不能热切换。
 
 ## 更新与旧配置
 
@@ -70,11 +65,20 @@ VRPN 需要 `vrpn_mocap`；完整球数据链还需 `hope_planner_cpp` / `hope_m
 
 schema 1–4 保留网络地址、桌边、夹爪和已存在的裤子配置；新增动捕系统默认
 **无动捕**，要求操作者明确选择。旧 `motive_ip` 曾被用来填 VRPN 地址，不能据此
-自动推断协议或搬入 VRPN 字段。首次 CONFIRM CONFIG 原子写入 schema 6 并增加
+自动推断协议或搬入 VRPN 字段。首次 CONFIRM CONFIG 原子写入 schema 5 并增加
 revision。只替换扩展而未更新 supervisor 会导致新配置请求被旧服务拒绝。
 
+## 本次验证与安装（2026-10-15）
 
-主线 schema 3/4 依靠 operator_profile 区分于现场 schema 3/4，保留 Mac/Linux 与夹爪；现场 schema 4/5 保留裤子和已有动捕选项。旧五、六、七字段客户端更新网络时保留新选项。不会自动安装、启用或重启服务。
+配置/启动分支等 55 项 Python 测试、2 项隔离 ROS 回调测试、11 项前端与命令
+参数测试通过；lint、生产构建、`hope_bringup` 构建通过。本机已安装 Console
+1.8.15，HDU 已更新两个 lifecycle Python 文件。回读为 STOPPED、revision 37、
+V2、new_20261015，新增来源为 none；原配置文件保留，首次确认时写入 schema 5。
+此次未启动 HAL、Elink、Runner 或真实动捕接收端，也未验证现场流。
+
+扩展检查 `test_foxglove_assets.py` 仍有 5 项旧静态断言失败：旧 Motive 专属
+界面文案、旧发球按钮文本、hybrid-lower 参数、Ultra ELink 路径和历史固定网络
+地址。这些断言涉及已有界面/部署变更，本次保留，不能把本次结果表述为全仓测试通过。
 
 可选的只读 `hope-mocap-config-transport.service` 已改为 C++ 可执行文件
 `/usr/local/libexec/hope-mocap-config-transport`，用于 HDU 网卡更换后重建

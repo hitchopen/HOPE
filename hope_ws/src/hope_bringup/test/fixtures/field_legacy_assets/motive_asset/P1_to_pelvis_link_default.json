@@ -1,0 +1,62 @@
+{
+  "schema": "HOPE_NOMINAL_ASSET_FRAME_DEFAULT",
+  "approved": false,
+  "status": "OFFLINE_EXPECTATION_ONLY_IMPORT_AND_LIVE_VALIDATION_REQUIRED",
+  "asset_name": "UCB_P1",
+  "asset_file": "A3_v3_17_stickers.motive",
+  "asset_sha256": "3f9f7feb6f4613108a2e38eb151556a8c07ed54d5e36520c3883d9ab05dca0b4",
+  "marker_layout": {
+    "id": "A3_marker_shell_v3_stickers_12mm",
+    "coordinate_source": "agibot/mocap_sticker_shell_v3/documents/marker_transforms_pelvis_link_stickers.csv",
+    "source_sha256": "5c0e9ed20497453026d07e877711ef2a184c7b27098525a2b6c3fc6468b150a0",
+    "asset_frame_revision": "pelvis_link_aligned_native_y_up_rear17_20261011",
+    "marker_mode": "12mm_round_reflective_stickers",
+    "point_definition": "nominal_sticker_surface_0.20mm",
+    "sticker_total_thickness_m": 0.0002,
+    "parent_frame": "pelvis_link",
+    "axes": {
+      "x": "forward",
+      "y": "left",
+      "z": "up"
+    },
+    "units": "metres",
+    "marker_names": [
+      "S04",
+      "S05",
+      "S06",
+      "S07",
+      "S08",
+      "S11",
+      "S12",
+      "S13",
+      "S14",
+      "S15",
+      "S16",
+      "S17",
+      "S18",
+      "S19",
+      "S20",
+      "S21",
+      "S22"
+    ],
+    "physical_status": "CAD_NOMINAL_REQUIRES_INSTALLED_LIVE_VALIDATION"
+  },
+  "p1_to_pelvis_link": {
+    "parent_frame": "UCB_P1",
+    "child_frame": "pelvis_link",
+    "xyz_m": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "quaternion_xyzw": [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  },
+  "required_motive_streaming_up_axis": "Z",
+  "modeldef_y_up_to_z_up": true,
+  "runtime_use": "Reference only. Do not copy into calibration/ucb_robot_to_pelvis.json or manually set approved=true. Generate a fresh 17-station live receipt; expected local correction is approximately identity."
+}

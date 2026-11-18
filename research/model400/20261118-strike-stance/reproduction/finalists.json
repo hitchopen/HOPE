@@ -1,0 +1,18 @@
+[
+  {
+    "label": "v5",
+    "path": "/home/user/Documents/Codex/2026-11-17/new-chat/outputs/model400-supergate-v5/policy"
+  },
+  {
+    "label": "foot2",
+    "path": "/home/user/Documents/Codex/2026-11-17/new-chat/work/opt400-stance/foot2"
+  },
+  {
+    "label": "home2",
+    "path": "/home/user/Documents/Codex/2026-11-17/new-chat/work/opt400-stance/home2"
+  },
+  {
+    "label": "width3",
+    "path": "/home/user/Documents/Codex/2026-11-17/new-chat/work/opt400-stance/width3"
+  }
+]

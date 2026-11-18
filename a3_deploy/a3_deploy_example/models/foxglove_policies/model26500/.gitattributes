@@ -1,0 +1,5 @@
+# Preserve exact runtime asset bytes as ordinary Git blobs.
+*.onnx binary -filter
+*.yaml -text -filter
+*.json -text -filter
+*.csv -text -filter whitespace=-blank-at-eol,-blank-at-eof,cr-at-eol

@@ -10,7 +10,7 @@ import subprocess
 import threading
 import time
 
-from hope_policy_models import MODELS, MOCAP_MODELS
+from hope_policy_models import MODELS, MOCAP_MODELS, PPQ004_MODELS
 from hope_field_assets import atomic_write, asset_name, calibration_metadata
 from hope_ball_models import PROFILES
 
@@ -350,6 +350,8 @@ class FieldOperations:
             csv = self._data["csv"]
             saved_model = self._data["policy_model"]
             ball_model = self._data["ball_model"]
+        # The installed HDU/MDU selections are authoritative, also for a fresh or
+        # migrated state file: START never trusts a saved name without both bundles.
         installed = []
         for host in ("hdu", "mdu"):
             try:
@@ -364,6 +366,7 @@ class FieldOperations:
         receive_only = False
         required_ball_model = None
         if any(absent):
+            # Only an explicit legacy installation (no catalog on either endpoint) runs the default bundle.
             if not all(absent) or saved_model is not None:
                 raise ValueError("policy catalog missing on an endpoint; restore both catalogs or the legacy selection")
         else:
@@ -379,11 +382,11 @@ class FieldOperations:
                     raise ValueError("Runner and Planner policy bundles differ")
             for key in ("receive_only", "required_ball_model"):
                 if verified[0].get(key) != verified[1].get(key):
-                    raise ValueError("policy bundle capabilities differ across endpoints")
+                    raise ValueError(f"{model} bundle capabilities differ across endpoints")
             receive_only = verified[0].get("receive_only") is True
             required_ball_model = verified[0].get("required_ball_model")
-            if model in {"model17400", "model12000"} and required_ball_model != "ppq004":
-                raise ValueError("selected model requires PPQ004 bundle capabilities")
+            if model in PPQ004_MODELS and required_ball_model != "ppq004":
+                raise ValueError(f"{model} requires PPQ004 bundle capabilities")
             if required_ball_model is not None and required_ball_model not in PROFILES:
                 raise ValueError("policy bundle requires an unsupported ball model")
             if mode == "KERNEL" and (model in MOCAP_MODELS or receive_only):

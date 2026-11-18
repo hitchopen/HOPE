@@ -14,7 +14,7 @@ Options:
   --policy-dir PATH    Unitree-style policy directory override containing
                        params/deploy.yaml and exported/policy.onnx.
   --teleop-policy-dir PATH  HumanLike directory override with humanlike.yaml,
-                       policy.onnx and lin_vel_encoder.onnx; defaults to the bundled assets.
+                       policy.onnx and lin_vel_encoder.onnx; optional, staged as teleop_humanlike.
   --without-teleop    Explicitly omit the HumanLike locomotion assets.
   --smpl-zmq-host HOST Override packaged smpl_zmq.host. By default x86_64 uses
                        localhost, while rockchip and thor use the fixed HDU
@@ -54,9 +54,9 @@ GEAR_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="${GEAR_ROOT}"
 
 ARCH=""
-RUNTIME_CFG="${GEAR_ROOT}/src/a3/a3_deploy_onnx_ref/config/a3_runtime_config.pingpong.hitter_pingpong.yaml"
-POLICY_DIR_OVERRIDE="${GEAR_ROOT}/models/model_21800/policy"
-TELEOP_POLICY_DIR="${GEAR_ROOT}/assets/a3_runtime/teleop_humanlike"
+RUNTIME_CFG="${GEAR_ROOT}/src/a3/a3_deploy_onnx_ref/config/a3_runtime_config.yaml"
+POLICY_DIR_OVERRIDE=""
+TELEOP_POLICY_DIR=""
 SMPL_ZMQ_HOST_OVERRIDE=""
 INSIDE_DOCKER=0
 BUILD_ONLY=0
@@ -738,7 +738,7 @@ def copy_into(src, rel_dir, dst_name=None):
     shutil.copy2(src, dst)
     return str(Path(rel_dir) / dst.name)
 
-# The public bundle is the default. Remove stale assets on --without-teleop rebuilds.
+# Teleop is opt-in for field packages. Remove stale assets when omitted.
 teleop_destination = pkg_dir / "teleop_humanlike"
 if teleop_policy_dir:
     source = resolve_path(teleop_policy_dir, "teleop-policy-dir", required=True)
@@ -754,6 +754,15 @@ if teleop_policy_dir:
         for name in names))
 elif teleop_destination.exists():
     shutil.rmtree(teleop_destination)
+
+# Reposition (auto-dock) ships with HumanLike; the lifecycle enables it when
+# dock/dock.yaml is present in the slot.
+dock_destination = pkg_dir / "dock"
+dock_yaml = gear_root / "assets" / "a3_runtime" / "dock" / "dock.yaml"
+if teleop_policy_dir and dock_yaml.is_file():
+    copy_into(dock_yaml, "dock")
+elif dock_destination.exists():
+    shutil.rmtree(dock_destination)
 
 def unique_existing(paths):
     seen = set()

@@ -1,4 +1,5 @@
 #include "hope_planner_cpp/planner_node.hpp"
+#include "hope_planner_cpp/flight_packet_qos.hpp"
 #include <gtest/gtest.h>
 #include <chrono>
 #include <thread>
@@ -19,7 +20,10 @@ class PlannerRuntimePlane : public ::testing::Test {
     state_dir = std::filesystem::temp_directory_path() / ("hope-scale-test-" + std::to_string(getpid()));
     std::filesystem::remove_all(state_dir);
     std::filesystem::create_directory(state_dir);
+    opts.arguments({"--ros-args", "--params-file",
+                    std::string(HOPE_PLANNER_CONFIG_DIR) + "/return_physics.yaml"});
     opts.append_parameter_override("hit_speed_scale_state_file", (state_dir / "scale.state").string());
+    opts.append_parameter_override("flight_time_state_file", (state_dir / "flight.state").string());
     opts.append_parameter_override("racket_flat_schema", 4);
     opts.append_parameter_override("session_home_input_topic", "/test/runtime_home");
     opts.append_parameter_override("base_pose_flat_input_topic", "/test/runtime_base");
@@ -32,7 +36,7 @@ class PlannerRuntimePlane : public ::testing::Test {
     io = std::make_shared<rclcpp::Node>("runtime_plane_test_io");
     base = io->create_publisher<std_msgs::msg::Float64MultiArray>("/test/runtime_base", 10);
     home = io->create_publisher<std_msgs::msg::Float64MultiArray>("/test/runtime_home", 10);
-    ball = io->create_publisher<hope_msgs::msg::BallFlightPacket>("/ball/flight_packet", rclcpp::QoS(10).best_effort());
+    ball = io->create_publisher<hope_msgs::msg::BallFlightPacket>("/ball/flight_packet", flight_packet_qos());
     commands = io->create_subscription<std_msgs::msg::Float64MultiArray>("/racket/command_flat", 10,
         [this](std_msgs::msg::Float64MultiArray::SharedPtr msg) { packets.push_back(msg->data); });
     typed_commands = io->create_subscription<hope_msgs::msg::RacketCommand>("/racket/command", 10,
@@ -42,6 +46,7 @@ class PlannerRuntimePlane : public ::testing::Test {
           for (const auto& status : msg->status) if (status.name == "hope_planner_cpp/realtime")
             for (const auto& field : status.values) telemetry[field.key] = field.value;
         });
+    flight_times = io->create_client<rcl_interfaces::srv::SetParametersAtomically>("/hope/planner/set_flight_time");
     scales = io->create_client<rcl_interfaces::srv::SetParametersAtomically>("/hope/planner/set_hit_speed_scale");
     modes = io->create_client<rcl_interfaces::srv::SetParametersAtomically>("/hope/planner/set_plane_mode");
     executor->add_node(io); executor->add_node(planner);
@@ -72,6 +77,16 @@ class PlannerRuntimePlane : public ::testing::Test {
     if(executor->spin_until_future_complete(future,2s)!=rclcpp::FutureReturnCode::SUCCESS) return false;
     return future.get()->result.successful;
   }
+  bool flight_time_request(const std::vector<rcl_interfaces::msg::Parameter>& parameters) {
+    auto request=std::make_shared<rcl_interfaces::srv::SetParametersAtomically::Request>();
+    request->parameters=parameters;
+    auto future=flight_times->async_send_request(request);
+    if(executor->spin_until_future_complete(future,2s)!=rclcpp::FutureReturnCode::SUCCESS) return false;
+    return future.get()->result.successful;
+  }
+  bool flight_time(double seconds) {
+    return flight_time_request({rclcpp::Parameter("flight_time_s", seconds).to_parameter_msg()});
+  }
   rclcpp::NodeOptions opts;
   std::filesystem::path state_dir;
   bool scale(double value) { return scale_request({rclcpp::Parameter("scale", value).to_parameter_msg()}); }
@@ -93,11 +108,7 @@ class PlannerRuntimePlane : public ::testing::Test {
     p.commit_exposure_unix_ns=start+133333333;p.freeze_wall_unix_ns=now();p.publish_wall_unix_ns=now();
     for(int i=0;i<60;++i) {
       hope_msgs::msg::BallFlightSample sample;sample.exposure_unix_stamp_ns=start+i*2777778LL;
-      // A ballistic arc stays above the table through every test plane;
-      // mode selection must not depend on field-specific bounce coefficients.
-      const double t=i*2777778e-9;
-      sample.position.x=1.55-3.2*t;sample.position.y=-.55+.0002*i;
-      sample.position.z=1.2+.4*t-4.905*t*t;
+      sample.position.x=1.55-.006*i;sample.position.y=-.55+.0002*i;sample.position.z=.45;
       sample.orientation.w=1.;sample.orientation_valid=true;p.samples.push_back(sample);
     }
     p.payload_hash=flight_packet_message_payload_hash(p);return p;
@@ -119,7 +130,7 @@ class PlannerRuntimePlane : public ::testing::Test {
   rclcpp::Publisher<hope_msgs::msg::BallFlightPacket>::SharedPtr ball;
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr commands;
   rclcpp::Client<rcl_interfaces::srv::SetParametersAtomically>::SharedPtr modes;
-  rclcpp::Client<rcl_interfaces::srv::SetParametersAtomically>::SharedPtr scales;
+  rclcpp::Client<rcl_interfaces::srv::SetParametersAtomically>::SharedPtr scales, flight_times;
   rclcpp::Subscription<hope_msgs::msg::RacketCommand>::SharedPtr typed_commands;
   rclcpp::Subscription<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diagnostics;
   std::vector<hope_msgs::msg::RacketCommand> typed_packets;
@@ -127,6 +138,65 @@ class PlannerRuntimePlane : public ::testing::Test {
   hope_msgs::msg::BallFlightPacket last_ball;
   std::vector<std::vector<double>> packets;std::uint64_t seq=0;
 };
+TEST_F(PlannerRuntimePlane, FlightTimeAppliesOnlyToNewTargetsAndRejectsInvalidRequests) {
+  const auto original=shoot(1,-.4,false);
+  ASSERT_EQ(original.size(),20u); ASSERT_EQ(original[1],1.);
+  ASSERT_TRUE(flight_time(.6));
+  for(int i=0;i<3;++i) {last_ball.transmit_index=i;ball->publish(last_ball);spin(10ms);}
+  ASSERT_EQ(packets.size(),1u); EXPECT_EQ(packets.front(),original);
+  spin(1100ms);
+  EXPECT_DOUBLE_EQ(std::stod(telemetry.at("flight_time_s")), .6);
+  EXPECT_DOUBLE_EQ(std::stod(telemetry.at("flight_time_last_requested_s")), .5);
+  const auto next=shoot(2,-.4,false);
+  ASSERT_EQ(next.size(),20u); ASSERT_EQ(next[1],1.);
+  for(int axis=0;axis<3;++axis) EXPECT_NEAR(next[3+axis],original[3+axis],1e-6);
+  EXPECT_GT(std::abs(next[6]-original[6])+std::abs(next[7]-original[7])+std::abs(next[8]-original[8]), 1e-4);
+  for (double value : std::vector<double>{0., -1., NAN, INFINITY, 100.}) EXPECT_FALSE(flight_time(value));
+  EXPECT_FALSE(flight_time_request({}));
+  const auto valid=rclcpp::Parameter("flight_time_s", .7).to_parameter_msg();
+  EXPECT_FALSE(flight_time_request({valid,valid}));
+  EXPECT_FALSE(flight_time_request({rclcpp::Parameter("flight_time_s",1).to_parameter_msg()}));
+  EXPECT_FALSE(flight_time_request({rclcpp::Parameter("unexpected",.7).to_parameter_msg()}));
+  spin(1100ms);
+  EXPECT_DOUBLE_EQ(std::stod(telemetry.at("flight_time_s")), .6);
+  EXPECT_DOUBLE_EQ(std::stod(telemetry.at("flight_time_fh_s")), .6);
+  EXPECT_DOUBLE_EQ(std::stod(telemetry.at("flight_time_bh_s")), .6);
+  EXPECT_DOUBLE_EQ(std::stod(telemetry.at("flight_time_last_requested_s")), .6);
+  EXPECT_GT(std::stod(telemetry.at("flight_time_last_command_s")), 0.);
+  EXPECT_DOUBLE_EQ(std::stod(telemetry.at("hit_speed_scale")), 1.);
+}
+
+TEST_F(PlannerRuntimePlane, FlightTimePreservesSideDefaultsUntilOverrideAndPersists) {
+  executor->remove_node(planner); planner.reset();
+  opts.append_parameter_override("delta_t_flight_fh", .41);
+  opts.append_parameter_override("delta_t_flight_bh", .63);
+  planner = std::make_shared<PlannerNode>(opts); executor->add_node(planner);
+  spin(1100ms);
+  EXPECT_DOUBLE_EQ(std::stod(telemetry.at("flight_time_fh_s")), .41);
+  EXPECT_DOUBLE_EQ(std::stod(telemetry.at("flight_time_bh_s")), .63);
+  ASSERT_TRUE(flight_time(.57));
+  executor->remove_node(planner); planner.reset();
+  planner = std::make_shared<PlannerNode>(opts); executor->add_node(planner);
+  spin(1100ms);
+  EXPECT_DOUBLE_EQ(std::stod(telemetry.at("flight_time_s")), .57);
+  EXPECT_DOUBLE_EQ(std::stod(telemetry.at("flight_time_fh_s")), .57);
+  EXPECT_DOUBLE_EQ(std::stod(telemetry.at("flight_time_bh_s")), .57);
+  EXPECT_EQ(telemetry.at("flight_time_persistent"), "true");
+  std::filesystem::remove_all(state_dir);
+  EXPECT_FALSE(flight_time(.8)); spin(1100ms);
+  EXPECT_DOUBLE_EQ(std::stod(telemetry.at("flight_time_s")), .57);
+}
+
+TEST_F(PlannerRuntimePlane, InvalidSavedFlightTimeFailsStartup) {
+  executor->remove_node(planner); planner.reset();
+  for (const auto* invalid : {"1 0\n", "1 -3\n", "1 nan\n", "1 100\n", "2 .5\n", "1 .5 extra\n"}) {
+    { std::ofstream file(state_dir / "flight.state"); file << invalid; }
+    EXPECT_THROW(std::make_shared<PlannerNode>(opts), std::exception);
+  }
+  std::filesystem::remove(state_dir / "flight.state");
+  planner = std::make_shared<PlannerNode>(opts); executor->add_node(planner);
+}
+
 TEST_F(PlannerRuntimePlane, ScaleSurvivesRestartAndWriteFailureKeepsActiveValue) {
   ASSERT_TRUE(scale(.73));
   executor->remove_node(planner); planner.reset();

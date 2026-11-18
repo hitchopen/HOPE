@@ -206,6 +206,51 @@ rclpy.shutdown()
             self.spin(.3)
             self.assertEqual(len(received), sequence - 40, 'source loss cannot trigger replay')
 
+    def test_base_drops_delayed_valid_pose_without_hiding_invalid_or_restamping(self):
+        from std_msgs.msg import Float64MultiArray, MultiArrayDimension
+        received = []
+        pub = self.node.create_publisher(Float64MultiArray, '/cpu_native_test/base_in', 10)
+        sub = self.node.create_subscription(Float64MultiArray, '/cpu_native_test/base_out',
+            lambda msg: received.append(wire_fields(msg)), 10)
+        proc = self.start('hope-base-pose-transport-relay', {
+            'input_topic': '/cpu_native_test/base_in', 'output_topic': '/cpu_native_test/base_out'})
+        self.discover([pub], proc)
+
+        def pose(age=0):
+            stamp = time.time_ns() - int(age * 1e9)
+            sec, nsec = divmod(stamp, 10**9)
+            msg = Float64MultiArray(data=[2., 1., 42., float(sec), float(nsec),
+                -0., -.5, 1., 1., 0., 0., 0., 1., 63., 123., 456.])
+            msg.layout.dim = [MultiArrayDimension(label='original', size=16, stride=16)]
+            return msg
+
+        fresh = pose()
+        pub.publish(fresh)
+        self.spin(.3)
+        self.assertEqual(received, [wire_fields(fresh)])
+        # Re-delivery must not convert a queued historical pose into fresh data.
+        pub.publish(fresh)
+        self.spin(.2)
+        pub.publish(pose(.6))
+        self.spin(.2)
+        self.assertEqual(received, [wire_fields(fresh)])
+        expected = [wire_fields(fresh)]
+        invalid = pose(.6)
+        invalid.data[1] = 0.
+        malformed = pose(.6)
+        malformed.data[8] = 0.  # Invalid quaternion must still reach the consumer.
+        for make_message in (lambda: invalid, lambda: malformed,
+                             lambda: pose(-1), pose):
+            msg = make_message()
+            expected.append(wire_fields(msg))
+            pub.publish(msg)
+            self.spin(.2)
+            self.assertEqual(received, expected)
+        self.spin(1.1)
+        self.assertEqual(received, expected, 'dropped poses must never be replayed')
+        log = Path(self.log_dir.name) / 'hope-base-pose-transport-relay-isolated-test.log'
+        self.assertIn('stale_dropped=2', log.read_text())
+
     def test_one_operations_consumer_is_healthy_without_base(self):
         from std_msgs.msg import Float64MultiArray
         received = []

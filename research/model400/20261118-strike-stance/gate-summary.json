@@ -1,0 +1,141 @@
+{
+  "v5": {
+    "policy_sha256": "2400bf0ef8e24204cc96d02a3d333004f6493cdfdea4566148c5c58ea48d2db6",
+    "scene_sha256": "0172d0ccc74d6c6c5e32a21dbb01dfecba0c03bbd324036b4b179a9c44a6bf87",
+    "legal": 26,
+    "contacts": 26,
+    "trajectories": 26,
+    "falls": 0,
+    "recovered": 6,
+    "raw_completed": 0,
+    "verified_completions": 26,
+    "support_final": {
+      "base_yaw_error_deg": 1.3720339613500674,
+      "fore_aft_stagger_m": 0.014324625107285695,
+      "left_foot_anchor_error_m": 0.02557276393493732,
+      "left_foot_heading_error_deg": 14.27426755981588,
+      "left_foot_tilt_deg": 0.029226465523054843,
+      "level2_width_authorized": false,
+      "right_foot_anchor_error_m": 0.08124493093377225,
+      "right_foot_heading_error_deg": 7.560020699161508,
+      "right_foot_tilt_deg": 0.052543978100099475,
+      "signed_width_excess_m": 0.04870460095777823,
+      "signed_width_limit_m": 0.31,
+      "signed_width_m": 0.35870460095777823,
+      "support_midpoint_error_m": 0.037352115465825036,
+      "support_yaw_error_deg": 2.0637362155203145
+    },
+    "support_failures": [
+      "support_midpoint_end",
+      "foot_anchor_end",
+      "foot_heading_end",
+      "signed_width_min",
+      "signed_width_max_authorized"
+    ],
+    "certification": false,
+    "robot_collisions": {
+      "contract": "robot_table_net_self_contact_v1",
+      "evidence_complete": true,
+      "failures": [],
+      "pass": true,
+      "robot_net_contact_rows": 0,
+      "robot_self_contact_rows": 0,
+      "robot_table_contact_rows": 0
+    },
+    "runner_gate_pass": false
+  },
+  "width3": {
+    "policy_sha256": "818e6620a06de77b20927ea7ee1f77960590b441ba94d9748a512487e24fa84c",
+    "scene_sha256": "0172d0ccc74d6c6c5e32a21dbb01dfecba0c03bbd324036b4b179a9c44a6bf87",
+    "legal": 26,
+    "contacts": 26,
+    "trajectories": 26,
+    "falls": 0,
+    "recovered": 7,
+    "raw_completed": 0,
+    "verified_completions": 26,
+    "support_final": {
+      "base_yaw_error_deg": 1.3972872339616074,
+      "fore_aft_stagger_m": 0.017636331473219385,
+      "left_foot_anchor_error_m": 0.017810343268060268,
+      "left_foot_heading_error_deg": 9.370502060648338,
+      "left_foot_tilt_deg": 0.017232356921192116,
+      "level2_width_authorized": false,
+      "right_foot_anchor_error_m": 0.08071781460070125,
+      "right_foot_heading_error_deg": 7.927911995408522,
+      "right_foot_tilt_deg": 10.720181934831214,
+      "signed_width_excess_m": 0.022548861732632985,
+      "signed_width_limit_m": 0.31,
+      "signed_width_m": 0.332548861732633,
+      "support_midpoint_error_m": 0.0470327226687088,
+      "support_yaw_error_deg": 2.8149160631319385
+    },
+    "support_failures": [
+      "support_midpoint_end",
+      "foot_anchor_end",
+      "foot_heading_peak",
+      "foot_heading_end",
+      "foot_tilt_peak",
+      "foot_tilt_end",
+      "signed_width_min",
+      "signed_width_max_authorized"
+    ],
+    "certification": false,
+    "robot_collisions": {
+      "contract": "robot_table_net_self_contact_v1",
+      "evidence_complete": true,
+      "failures": [],
+      "pass": true,
+      "robot_net_contact_rows": 0,
+      "robot_self_contact_rows": 0,
+      "robot_table_contact_rows": 0
+    },
+    "runner_gate_pass": false
+  },
+  "center3": {
+    "policy_sha256": "39074fd8c64b02be73a56b7ada9d0535885b213ac4f9f982bee66f50fb77ee31",
+    "scene_sha256": "0172d0ccc74d6c6c5e32a21dbb01dfecba0c03bbd324036b4b179a9c44a6bf87",
+    "legal": 26,
+    "contacts": 26,
+    "trajectories": 26,
+    "falls": 0,
+    "recovered": 8,
+    "raw_completed": 0,
+    "verified_completions": 26,
+    "support_final": {
+      "base_yaw_error_deg": 0.0885696309297865,
+      "fore_aft_stagger_m": 0.013310173786317244,
+      "left_foot_anchor_error_m": 0.024313502460851046,
+      "left_foot_heading_error_deg": 13.425694025170014,
+      "left_foot_tilt_deg": 0.11709159091735423,
+      "level2_width_authorized": false,
+      "right_foot_anchor_error_m": 0.05960092271541825,
+      "right_foot_heading_error_deg": 2.661478985951792,
+      "right_foot_tilt_deg": 6.669358505373036,
+      "signed_width_excess_m": 0.036246827892173095,
+      "signed_width_limit_m": 0.31,
+      "signed_width_m": 0.3462468278921731,
+      "support_midpoint_error_m": 0.019737537563607348,
+      "support_yaw_error_deg": 1.9797381791474127
+    },
+    "support_failures": [
+      "foot_anchor_end",
+      "foot_heading_peak",
+      "foot_heading_end",
+      "foot_tilt_end",
+      "signed_width_min",
+      "signed_width_max_authorized"
+    ],
+    "certification": false,
+    "robot_collisions": {
+      "contract": "robot_table_net_self_contact_v1",
+      "evidence_complete": true,
+      "failures": [],
+      "pass": true,
+      "robot_net_contact_rows": 0,
+      "robot_self_contact_rows": 0,
+      "robot_table_contact_rows": 0
+    },
+    "runner_gate_pass": false
+  }
+}

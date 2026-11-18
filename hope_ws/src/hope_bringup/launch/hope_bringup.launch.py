@@ -9,7 +9,7 @@ Examples::
 
     ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=vrpn
     ros2 launch hope_bringup hope_bringup.launch.py mocap_backend:=optitrack \
-        motive_hostname:=192.168.100.111
+        motive_hostname:=<MOTIVE_IP>
     ros2 launch hope_bringup hope_bringup.launch.py use_fake_ball:=true
 """
 
@@ -33,7 +33,10 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     # Written by the stopped-only Foxglove ball selector; late override wins.
     ball_profile = Path.home() / ".config/hope-foxglove/ball_physics.json"
-    ball_overrides = [str(ball_profile)] if ball_profile.exists() else []
+    ball_overrides = [str(ball_profile)] if ball_profile.exists() else [
+        PathJoinSubstitution([FindPackageShare("hope_planner_cpp"), "config",
+                              "ball_physics_ppq004_20261020.yaml"])
+    ]
     mocap_backend = LaunchConfiguration("mocap_backend")
     use_fake_ball = LaunchConfiguration("use_fake_ball")
     ball_pose_topic = LaunchConfiguration("ball_pose_topic")
@@ -72,7 +75,7 @@ def generate_launch_description():
         condition=vrpn_selected,
     )
 
-    # HOPE uses the hardened NamedPoseArrayV2 NatNet driver.  Disable
+    # Hope_v11 vendors the hardened NamedPoseArrayV2 NatNet driver.  Disable
     # the nested world/calibration/packetizer nodes because this top-level
     # launch owns the single packetizer and does not own a robot calibration.
     optitrack_bridge = IncludeLaunchDescription(
@@ -120,7 +123,8 @@ def generate_launch_description():
         executable="hope_planner_cpp_node",
         name="hope_planner",
         output="screen",
-        parameters=[str(planner_config), *ball_overrides],
+        parameters=[str(planner_config), str(planner_config.parent / "return_physics.yaml"),
+                    *ball_overrides],
     )
 
     return LaunchDescription(
@@ -143,7 +147,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "motive_hostname",
-                default_value="192.168.100.111",
+                default_value="",
                 description="OptiTrack Motive/NatNet server address.",
             ),
             DeclareLaunchArgument(

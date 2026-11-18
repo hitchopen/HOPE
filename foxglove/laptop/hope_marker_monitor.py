@@ -44,7 +44,7 @@ class HopeMarkerMonitor(Node):
         super().__init__("hope_marker_monitor", start_parameter_services=False)
         self.declare_parameter("source_topic", "/optitrack/rigid_body_markers")
         self.declare_parameter("asset_name", "UCB_P1")
-        self.declare_parameter("expected_count", 0)
+        self.declare_parameter("expected_count", EXPECTED_MARKERS)
         self.declare_parameter("stale_after_s", 0.25)
         self.declare_parameter("publish_period_s", 0.1)
 
@@ -70,7 +70,6 @@ class HopeMarkerMonitor(Node):
             UInt32, "/hope/mocap/marker_expected_count", 10
         )
         # Side-neutral topics are authoritative for either UCB robot.
-        self._pub_expected = self.create_publisher(UInt32, "/hope/mocap/marker_expected_count", 10)
         self._pub_counts = (
             self.create_publisher(UInt32, "/hope/mocap/marker_count", 10),
         )
@@ -122,7 +121,6 @@ class HopeMarkerMonitor(Node):
                 asset_name=self._asset_name,
             )
         )
-        self._pub_expected.publish(UInt32(data=self._expected_count))
         self._pub_asset.publish(String(data=self._asset_name))
         self._pub_expected_count.publish(UInt32(data=self._expected_count))
         for publisher in self._pub_counts:

@@ -1,5 +1,6 @@
 #include "a3_pingpong/pp_command_transition.hpp"
 #include <gtest/gtest.h>
+#include "a3_pingpong/pp_joint_limits.hpp"
 #include <limits>
 
 namespace {
@@ -113,6 +114,29 @@ TEST(PpCommandTransition, ImpedanceHandoffWithZeroGainsStaysFiniteAndContinuous)
   EXPECT_NEAR(target.dq_des[0], .05, 1e-12);
 }
 
+TEST(PpCommandTransition, PolicyToStandDoesNotAmplifyLowGainCompensation) {
+  auto source = Command(.3, 0., 50.);
+  auto stand = Command(0., 0., 1000.);
+  source.tau_ff.setZero();
+  stand.tau_ff.setZero();
+  a3_pingpong::PpCommandTransition transition;
+  transition.BeginImpedance(source, stand, .5);
+  for (double t : {0., .02, .1, .25, .4, .48, .5}) {
+    auto target = stand;
+    transition.Apply(t, target);
+    const double u = t / .5;
+    const double w = u*u*u * (10 + u*(-15 + 6*u));
+    // At the standing pose, the actor asks for 15 Nm of compensation.
+    // Independent midpoint q/kp mixing would instead request 78.75 Nm
+    // before the artificial blend-trajectory velocity term is applied.
+    EXPECT_NEAR(target.kp[0] * target.q_des[0], (1-w)*15., 1e-12);
+    EXPECT_DOUBLE_EQ(target.dq_des[0], 0.);
+    EXPECT_GE(target.kp[0], source.kp[0]);
+    EXPECT_LE(target.kp[0], stand.kp[0]);
+  }
+  EXPECT_FALSE(transition.active());
+}
+
 TEST(PpCommandTransition, LongPoseBlendSettlesEntryVelocityWithoutLongExtrapolation) {
   a3_pingpong::PpCommandTransition t;
   const auto source = Command(.2, 2., 40), target = Command(.2, 0., 200);
@@ -148,26 +172,26 @@ TEST(PpCommandTransition, RejectsNonFiniteOrMalformedInputs) {
   EXPECT_THROW(t.Apply(std::numeric_limits<double>::quiet_NaN(), target), std::invalid_argument);
 }
 
-TEST(PpCommandTransition, FieldStandRestoresHalfSecondPoseAndGainRamp) {
+TEST(PpCommandTransition, PassiveToStandRampsPoseAndGainsOverFiveSeconds) {
   const auto source = Command(1.2, 0., 0.);
   auto destination = Command(.2, 0., 2000.);
   destination.kd.setConstant(8.);
   destination.tau_ff.setZero();
   a3_pingpong::PpCommandTransition transition;
-  transition.Begin(source, destination, .5);
+  transition.Begin(source, destination, 5., .25);
   auto previous = source;
-  for (int tick = 0; tick <= 25; ++tick) {
+  for (int tick = 0; tick <= 250; ++tick) {
     auto command = destination;
     transition.Apply(tick * .02, command);
     EXPECT_GE(command.q_des[0], .2 - 1e-12);
     EXPECT_LE(command.q_des[0], previous.q_des[0] + 1e-12);
     EXPECT_GE(command.kp[0], previous.kp[0] - 1e-12);
-    EXPECT_LE(std::abs(command.q_des[0] - previous.q_des[0]), .075 + 1e-12);
-    EXPECT_LE(std::abs(command.dq_des[0]), 3.75 + 1e-12);
+    EXPECT_LE(std::abs(command.q_des[0] - previous.q_des[0]), .0075 + 1e-12);
+    EXPECT_LE(std::abs(command.dq_des[0]), .375 + 1e-12);
     if (tick == 25) {
-      EXPECT_FALSE(transition.active());
-      EXPECT_DOUBLE_EQ(command.q_des[0], destination.q_des[0]);
-      EXPECT_DOUBLE_EQ(command.kp[0], destination.kp[0]);
+      EXPECT_TRUE(transition.active());  // old 0.5 s entry already ended here
+      EXPECT_GT(command.q_des[0], 1.19);
+      EXPECT_LT(command.kp[0], 18.);
     }
     previous = command;
   }
@@ -178,3 +202,13 @@ TEST(PpCommandTransition, FieldStandRestoresHalfSecondPoseAndGainRamp) {
   EXPECT_TRUE(previous.dq_des.isZero());
 }
 } // namespace
+
+TEST(PpJointLimits, Gate3AuditOverrideDoesNotChangeHardwareDefault) {
+  for (bool contract : {false, true}) {
+    for (bool telemetry : {false, true}) {
+      EXPECT_TRUE(a3_pingpong::actual_q_hard_limit_audit_only(true, contract, telemetry));
+      EXPECT_EQ(a3_pingpong::actual_q_hard_limit_audit_only(false, contract, telemetry),
+                contract && telemetry);
+    }
+  }
+}

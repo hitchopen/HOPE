@@ -1,0 +1,20 @@
+# OFFLINE CANDIDATE ONLY. Not deployed or selected by any launcher.
+# See ball_physics_ppq003_20261016.candidate.receipt.json.
+hope_planner:
+  ros__parameters: &id001
+    drag_k: 0.12578796161747127
+    magnus_k: 0.0037874689056767883
+    restitution_v: 0.9533118292627528
+    table_tangential_gain: 0.41671118545156105
+    table_friction_cap_mu: 0.22496121635123217
+    restitution_h: 0.583288814548439
+    post_net_future_bounce_tangential_gain: 0.41671118545156105
+    post_net_future_bounce_restitution_v: 0.9533118292627528
+    future_contact_spin_enabled: true
+    future_contact_magnus_enabled: true
+    future_contact_spin_tangential_gain: 0.41671118545156105
+    future_contact_spin_omega_scale: 1.0
+    future_contact_spin_min_coherence: 0.4
+    spin_window_s: 0.18
+hope_ball_flight_packetizer:
+  ros__parameters: *id001

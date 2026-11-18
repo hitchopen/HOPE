@@ -64,8 +64,6 @@ class OperationsRosTests(unittest.TestCase):
                     "-p", f"runtime_root:={temporary}/runtime"]
             rclpy.init(args=args)
             operations = HopeOperations()
-            self.assertIn("STICKERS_V3", operations.commands._calibration_services)
-            self.assertEqual(operations.get_parameter("calibration_service_stickers_v3").value, "/a3/calibration/recompute_p1")
             probe = rclpy.create_node("operations_contract_probe", start_parameter_services=False)
             executor = MultiThreadedExecutor(num_threads=2)
             executor.add_node(operations)

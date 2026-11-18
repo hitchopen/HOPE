@@ -1,9 +1,12 @@
-#include "hope_planner_cpp/swing_side_support.hpp"
 #include "hope_planner_cpp/planner_node.hpp"
+#include "hope_planner_cpp/flight_packet_qos.hpp"
+#include "hope_planner_cpp/return_physics_parameters.hpp"
+#include "hope_planner_cpp/swing_side_support.hpp"
 #include "hope_planner_cpp/future_contact_parameters.hpp"
 #include "hope_planner_cpp/wire_identity_state.hpp"
-#include "hope_planner_cpp/hit_speed_scale_state.hpp"
 #include "hope_planner_cpp/ball_y_filter_state.hpp"
+#include "hope_planner_cpp/hit_speed_scale_state.hpp"
+#include "hope_planner_cpp/flight_time_state.hpp"
 #include "hope_planner_cpp/ball_y_filter_markers.hpp"
 
 #include <Eigen/Geometry>
@@ -130,14 +133,22 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       std::max(0.0, declare_parameter<double>("swing_side_hysteresis_y", 0.04));
   swing_side_fh_y_range_ = declare_parameter<std::vector<double>>("swing_side_fh_y_range", std::vector<double>{});
   swing_side_bh_y_range_ = declare_parameter<std::vector<double>>("swing_side_bh_y_range", std::vector<double>{});
-  if (!valid_swing_side_support_ranges(swing_side_fh_y_range_, swing_side_bh_y_range_))
-    throw std::invalid_argument("swing side support requires two ordered finite ranges or both empty");
-  swing_side_reference_mode_ = declare_parameter<std::string>(
-      "swing_side_reference_mode", "live_base_v1");
-  if (swing_side_reference_mode_ != "live_base_v1" &&
-      swing_side_reference_mode_ != "session_home_v1") {
+  if (!valid_swing_side_support_ranges(swing_side_fh_y_range_, swing_side_bh_y_range_)) {
+    throw std::invalid_argument("swing side support requires two finite ordered [min,max] bands or both empty");
+  }
+  swing_side_reference_mode_ = declare_parameter<std::string>("swing_side_reference_mode", "live_base_v1");
+  if (swing_side_reference_mode_ != "live_base_v1" && swing_side_reference_mode_ != "session_home_v1" &&
+      swing_side_reference_mode_ != "runner_home_v1") {
+    throw std::invalid_argument("unsupported swing_side_reference_mode");
+  }
+  x_hit_home_support_range_ = declare_parameter<std::vector<double>>(
+      "x_hit_home_support_range", std::vector<double>{});
+  if (!x_hit_home_support_range_.empty() &&
+      (swing_side_reference_mode_ != "runner_home_v1" || x_hit_follow_robot_ ||
+       x_hit_bh_delta_ != 0.0 ||
+       !std::isfinite(supported_home_x_hit(0., 0., x_hit_home_support_range_)))) {
     throw std::invalid_argument(
-        "swing_side_reference_mode must be live_base_v1 or session_home_v1");
+        "Home X support requires finite shared bounds, runner_home_v1, a fixed plane and zero BH delta");
   }
   if (x_hit_freeze_session_home_ &&
       swing_side_reference_mode_ != "session_home_v1") {
@@ -164,12 +175,12 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       declare_parameter<double>("table_tangential_gain", BallPhysics{}.table_tangential_gain);
   physics_.table_friction_cap_mu =
       declare_parameter<double>("table_friction_cap_mu", BallPhysics{}.table_friction_cap_mu);
-  planner_config_.restitution_racket =
-      declare_parameter<double>("restitution_racket", 0.654);
-  planner_config_.restitution_exp_g1 =
-      declare_parameter<double>("restitution_exp_g1", 0.759);
-  planner_config_.restitution_exp_g2 =
-      declare_parameter<double>("restitution_exp_g2", -0.0441);
+  read_return_physics(physics_, planner_config_,
+      [this](const char* key) {
+        return declare_parameter<double>(key, std::numeric_limits<double>::quiet_NaN());
+      },
+      [this](const char* key) { return declare_parameter<int>(key, 0); },
+      [this](const char* key) { return declare_parameter<std::vector<double>>(key, std::vector<double>{}); });
   planner_config_.x_hit = x_hit_fh_.load();
   planner_config_.target_land = Vec3(
       declare_parameter<double>("target_land_x", 2.055),
@@ -236,8 +247,10 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   estimator_config_.window_s =
       declare_parameter<double>("batch_estimator_window_s", 0.18);
   incoming_trajectory_config_.estimator_window_s = estimator_config_.window_s;
-  estimator_config_.max_sample_gap_s = declare_parameter<double>("batch_max_sample_gap_s", 0.0);
-  estimator_config_.single_flight_only = declare_parameter<bool>("batch_single_flight_only", false);
+  estimator_config_.max_sample_gap_s =
+      declare_parameter<double>("batch_max_sample_gap_s", 0.0);
+  estimator_config_.single_flight_only =
+      declare_parameter<bool>("batch_single_flight_only", false);
   incoming_trajectory_config_.estimator_max_sample_gap_s = estimator_config_.max_sample_gap_s;
   estimator_config_.min_span_s =
       declare_parameter<double>("batch_estimator_min_span_s", 0.08);
@@ -312,9 +325,9 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   ball_y_filter_.enabled = declare_parameter<bool>(
       "ball_y_filter_enabled", false, filter_defaults);
   ball_y_filter_.min_y = declare_parameter<double>(
-      "ball_y_filter_min_m", -1.525, filter_defaults);
+      "ball_y_filter_min_m", std::numeric_limits<double>::quiet_NaN(), filter_defaults);
   ball_y_filter_.max_y = declare_parameter<double>(
-      "ball_y_filter_max_m", 0.0, filter_defaults);
+      "ball_y_filter_max_m", std::numeric_limits<double>::quiet_NaN(), filter_defaults);
   if (ball_y_filter_.enabled && !ball_y_filter_.valid_bounds()) {
     throw std::invalid_argument(
         "ball_y_filter requires finite min_m < max_m in the Planner table frame");
@@ -371,6 +384,10 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       declare_parameter<int>("racket_flat_schema", 2));
   if (racket_flat_schema_ != 2 && racket_flat_schema_ != 3 && racket_flat_schema_ != 4) {
     throw std::invalid_argument("racket_flat_schema must be 2, 3, or 4");
+  }
+  if (racket_flat_schema_ == 4 &&
+      (swing_side_reference_mode_ == "runner_home_v1" || !x_hit_home_support_range_.empty())) {
+    throw std::invalid_argument("runner_home_v1 support uses the schema-2/3 Home protocol; schema4 requires its native session Home");
   }
   const auto home_topic = declare_parameter<std::string>("session_home_input_topic", "");
   session_home_max_age_s_ = declare_parameter<double>("session_home_max_age_s", 0.5);
@@ -554,7 +571,7 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
         }
         // Serialize acceptance with publication: after this acknowledgement,
         // a new output cannot publish a scale sampled before the request.
-        std::lock_guard<std::mutex> lock(hit_speed_scale_publish_mutex_);
+        std::lock_guard<std::mutex> lock(ball_y_filter_publish_mutex_);
         try {
           save_hit_speed_scale(hit_speed_scale_state_file_, request->parameters[0].value.double_value);
         } catch (const std::exception& error) {
@@ -565,6 +582,41 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
         hit_speed_scale_.store(request->parameters[0].value.double_value);
         response->result.successful = true;
         response->result.reason = "Applied to subsequent new targets; already published commands are unchanged";
+      });
+
+  rcl_interfaces::msg::ParameterDescriptor flight_descriptor;
+  flight_descriptor.read_only = true;
+  flight_descriptor.description = "Saved live return-flight-time override; use /hope/planner/set_flight_time";
+  flight_time_state_file_ = declare_parameter<std::string>("flight_time_state_file", "", flight_descriptor);
+  const double saved_flight_time = question_fixture_enabled_ ? NAN :
+      load_flight_time(flight_time_state_file_, NAN);
+  if (std::isfinite(saved_flight_time) && saved_flight_time > planner_config_.max_predict_time_s)
+    throw std::invalid_argument("Saved flight time exceeds max_predict_time_s");
+  flight_time_override_s_.store(saved_flight_time);
+  flight_time_service_ = create_service<rcl_interfaces::srv::SetParametersAtomically>(
+      "/hope/planner/set_flight_time",
+      [this](const std::shared_ptr<rcl_interfaces::srv::SetParametersAtomically::Request> request,
+             std::shared_ptr<rcl_interfaces::srv::SetParametersAtomically::Response> response) {
+        if (question_fixture_enabled_ || request->parameters.size() != 1 ||
+            request->parameters[0].name != "flight_time_s" || request->parameters[0].value.type != 3 ||
+            !std::isfinite(request->parameters[0].value.double_value) ||
+            request->parameters[0].value.double_value <= 0.0 ||
+            request->parameters[0].value.double_value > planner_config_.max_predict_time_s) {
+          response->result.successful = false;
+          response->result.reason = "Supply one flight_time_s(double) in (0, max_predict_time_s]; exact fixtures are locked";
+          return;
+        }
+        std::lock_guard<std::mutex> lock(flight_time_publish_mutex_);
+        try {
+          save_flight_time(flight_time_state_file_, request->parameters[0].value.double_value);
+        } catch (const std::exception& error) {
+          response->result.successful = false;
+          response->result.reason = error.what();
+          return;
+        }
+        flight_time_override_s_.store(request->parameters[0].value.double_value);
+        response->result.successful = true;
+        response->result.reason = "Applied to subsequent new forehand/backhand targets; committed flights unchanged";
       });
 
   const std::string base_flat_topic =
@@ -636,7 +688,7 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
       "base_source_age_at_receipt_ms,base_receive_gap_ms,base_source_gap_ms,"
       "base_received_total,base_invalid_total,base_max_receive_gap_ms,pose_age_limit_ms,"
       "target_turn_evaluations_total,base_receipt_stale_rejections_total,base_source_stale_rejections_total,"
-      "target_turn_reject_stale_pose,base_pose_age_exceeded_commands_total,session_home_epoch,plane_mode,plane_reference_x,plane_world_x,plane_selection_reason,hit_speed_scale");
+      "target_turn_reject_stale_pose,base_pose_age_exceeded_commands_total,session_home_epoch,plane_mode,plane_reference_x,plane_world_x,plane_selection_reason,hit_speed_scale,flight_time_requested_s,return_flight_time_s");
   std::string flight_packet_audit_path = declare_parameter<std::string>(
       "flight_packet_audit_csv_path", "");
   if (flight_packet_audit_path.empty() && !debug_path.empty()) {
@@ -697,11 +749,9 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
   rclcpp::SubscriptionOptions ball_options;
   ball_options.callback_group = ball_callback_group_;
   if (flight_packet_input_enabled_) {
-    const auto packet_qos = rclcpp::QoS(rclcpp::KeepLast(1))
-                                .best_effort().durability_volatile();
     flight_packet_subscription_ =
         create_subscription<hope_msgs::msg::BallFlightPacket>(
-            flight_packet_topic_, packet_qos,
+            flight_packet_topic_, flight_packet_qos(),
             std::bind(
                 &PlannerNode::flight_packet_callback, this,
                 std::placeholders::_1),
@@ -726,6 +776,26 @@ PlannerNode::PlannerNode(const rclcpp::NodeOptions& options)
 
   const std::string robot_pose_topic =
       declare_parameter<std::string>("robot_pose_topic", "");
+  if (swing_side_reference_mode_ == "runner_home_v1") {
+    rclcpp::SubscriptionOptions options;
+    options.callback_group = base_callback_group_;
+    runner_home_subscription_ = create_subscription<std_msgs::msg::Float64MultiArray>(
+        "/hope/runner/home_anchor_flat", command_qos,
+        [this](const std_msgs::msg::Float64MultiArray::SharedPtr message) {
+          const double y = runner_home_y_from_flat(message->data);
+          const double x = std::isfinite(y) ? message->data[2]
+              : std::numeric_limits<double>::quiet_NaN();
+          const double previous_x = runner_home_x_.exchange(x);
+          const double previous = runner_home_y_.exchange(y);
+          if (std::isfinite(y) && (!std::isfinite(previous) || y != previous))
+            RCLCPP_INFO(get_logger(), "Runner immutable Home y=%.9f", y);
+          if (std::isfinite(x) && (!std::isfinite(previous_x) || x != previous_x) &&
+              !x_hit_home_support_range_.empty())
+            RCLCPP_INFO(get_logger(),
+                "Runner immutable Home x=%.9f; requested interception x=%.9f, supported x=%.9f",
+                x, x_hit_fh_.load(), active_x_hit());
+        }, options);
+  }
   if (!robot_pose_topic.empty()) {
     rclcpp::SubscriptionOptions base_options;
     base_options.callback_group = base_callback_group_;
@@ -978,6 +1048,13 @@ void PlannerNode::flight_packet_callback(
       return;
     }
 
+    if (!flight_packet_transport_fresh(message->freeze_wall_unix_ns,
+            message->samples.back().exposure_unix_stamp_ns, receipt_wall_ns)) {
+      flight_packets_invalid_.fetch_add(1, std::memory_order_relaxed);
+      write_receive_audit("stale_transport", false, flight_packet_queue_depth());
+      return;
+    }
+
     TrajectorySnapshot snapshot;
     snapshot.sample_count = message->samples.size();
     snapshot.trajectory_epoch = message->trajectory_epoch;
@@ -1074,6 +1151,9 @@ void PlannerNode::flight_packet_callback(
             identity_key.c_str(), message->payload_hash.c_str());
         return;
       }
+      if (flight_packet_queue_.size() == kFlightPacketHistoryDepth) {
+        flight_packet_queue_.pop_front();
+      }
       flight_packet_queue_.push_back(std::move(snapshot));
       accepted_queue_depth = flight_packet_queue_.size();
     }
@@ -1107,10 +1187,19 @@ void PlannerNode::flight_packet_callback(
 bool PlannerNode::try_take_flight_packet(
     TrajectorySnapshot& snapshot) noexcept {
   std::lock_guard<std::mutex> lock(flight_packet_mutex_);
-  if (flight_packet_queue_.empty()) return false;
-  snapshot = std::move(flight_packet_queue_.front());
-  flight_packet_queue_.pop_front();
-  return true;
+  while (!flight_packet_queue_.empty()) {
+    snapshot = std::move(flight_packet_queue_.front());
+    flight_packet_queue_.pop_front();
+    const auto* last = snapshot.latest_sample();
+    if (last && flight_packet_transport_fresh(
+            snapshot.packet.freeze_wall_unix_ns, last->source_time_ns,
+            wall_now_ns())) return true;
+    flight_packets_invalid_.fetch_add(1, std::memory_order_relaxed);
+    RCLCPP_WARN(get_logger(), "stale_transport before solve: epoch=%llu flight=%llu",
+        static_cast<unsigned long long>(snapshot.trajectory_epoch),
+        static_cast<unsigned long long>(snapshot.snapshot_sequence));
+  }
+  return false;
 }
 
 bool PlannerNode::has_pending_flight_packet() const noexcept {
@@ -1127,8 +1216,8 @@ void PlannerNode::set_base_snapshot(const BaseSnapshot& snapshot) noexcept {
   std::lock_guard<std::mutex> lock(base_mutex_);
   // A valid base packet at process startup is not a HOME receipt.  Gate3 publishes an origin
   // sample before reset/placement; latching here classified both physical lanes as FH.  HOME is
-  // frozen at the first valid solve for legacy wire schemas. Schema 4 uses
-  // the Runner policy-entry receipt for both plane and side choice.
+  // frozen at the first valid solve for legacy wire schemas. Schema 4 instead uses
+  // the Runner's explicit policy-entry HOME receipt for both plane and side choice.
   BaseSnapshot next = snapshot;
   next.receipt_wall_ns = wall_now_ns();
   next.received = base_.received + 1;
@@ -1273,13 +1362,16 @@ double PlannerNode::active_x_hit() const noexcept {
       return std::clamp(snapshot.position.x() + x_hit_offset_, x_hit_min_, x_hit_max_);
     }
   }
-  return x_hit_fh_.load(std::memory_order_acquire);
+  return supported_home_x_hit(x_hit_fh_.load(std::memory_order_acquire),
+                              runner_home_x_.load(), x_hit_home_support_range_);
 }
 
 double PlannerNode::select_swing_sign(
     double intercept_y, double base_x, double base_y) noexcept {
   double reference_y = base_y;
-  if (swing_side_reference_mode_ == "session_home_v1" && racket_flat_schema_ == 4) {
+  if (swing_side_reference_mode_ == "runner_home_v1") {
+    reference_y = runner_home_y_.load();
+  } else if (swing_side_reference_mode_ == "session_home_v1" && racket_flat_schema_ == 4) {
     reference_y = solve_home_valid_ ? solve_home_.y : std::numeric_limits<double>::quiet_NaN();
   } else if (swing_side_reference_mode_ == "session_home_v1") {
     std::lock_guard<std::mutex> lock(base_mutex_);
@@ -1289,7 +1381,8 @@ double PlannerNode::select_swing_sign(
   last_swing_side_reference_y_.store(reference_y, std::memory_order_relaxed);
   const double selected = select_swing_sign_with_support(
       intercept_y, reference_y, swing_side_split_y_,
-      swing_side_hysteresis_y_, last_swing_sign_, swing_side_fh_y_range_, swing_side_bh_y_range_);
+      swing_side_hysteresis_y_, last_swing_sign_,
+      swing_side_fh_y_range_, swing_side_bh_y_range_);
   if (selected == -1.0 || selected == 1.0) {
     last_swing_sign_ = selected;
   }
@@ -1456,7 +1549,7 @@ void PlannerNode::solver_loop() noexcept {
               base.valid ? base.position.x()
                          : std::numeric_limits<double>::quiet_NaN(),
               base.valid ? base.position.y()
-                         : (swing_side_reference_mode_ == "session_home_v1"
+                         : (swing_side_reference_mode_ != "live_base_v1" || !swing_side_fh_y_range_.empty()
                                 ? std::numeric_limits<double>::quiet_NaN()
                                 : 0.0));
           if (!std::isfinite(swing_sign)) {
@@ -1495,6 +1588,7 @@ void PlannerNode::solver_loop() noexcept {
       }
       audit.stage2_ms = (steady_now_ns() - stage2_start) * 1.0e-6;
 
+      std::lock_guard<std::mutex> flight_time_lock(flight_time_publish_mutex_);
       Vec3 target_land = planner_config_.target_land;
       double flight_time = planner_config_.delta_t_flight;
       if (swing_sign > 0.0) {
@@ -1505,6 +1599,9 @@ void PlannerNode::solver_loop() noexcept {
         if (std::isfinite(delta_t_flight_bh_)) flight_time = delta_t_flight_bh_;
       }
 
+      const double flight_time_override = flight_time_override_s_.load();
+      if (std::isfinite(flight_time_override)) flight_time = flight_time_override;
+      solve_flight_time_s_ = flight_time;
       const auto stage3_start = steady_now_ns();
       RacketCommand command =
           target_planner_->plan(strike, target_land, flight_time);
@@ -1623,7 +1720,7 @@ void PlannerNode::publish_solve(
     const PostNetOneShotEvent& one_shot_event,
     std::int64_t solve_finished_steady_ns) noexcept {
   try {
-    std::scoped_lock filter_lock(hit_speed_scale_publish_mutex_, ball_y_filter_publish_mutex_);
+    std::lock_guard<std::mutex> filter_lock(ball_y_filter_publish_mutex_);
     const double hit_speed_scale = hit_speed_scale_.load();
     RacketCommand command = unscaled_command;
     command.velocity *= hit_speed_scale;
@@ -1828,6 +1925,8 @@ void PlannerNode::publish_solve(
     }
     if (packet_valid) {
       last_command_hit_speed_scale_.store(hit_speed_scale);
+      last_command_flight_time_requested_s_.store(solve_flight_time_s_);
+      last_command_flight_time_s_.store(command.return_flight_time_s > 0.0 ? command.return_flight_time_s : NAN);
       if (racket_flat_schema_ == 4) {
         auto published_plane = solve_plane_;
         published_plane.flight = identity.flight_id;
@@ -2064,7 +2163,7 @@ void PlannerNode::publish_solve(
           << ',' << (racket_flat_schema_ == 4 ? solve_home_.epoch : 0)
           << ',' << plane_mode_name(solve_plane_.mode) << ',' << solve_plane_.reference_x
           << ',' << solve_plane_.plane_x << ',' << solve_plane_.reason
-          << ',' << hit_speed_scale;
+          << ',' << hit_speed_scale << ',' << solve_flight_time_s_ << ',' << command.return_flight_time_s;
       audit_logger_->enqueue(row.str());
     }
   } catch (...) {
@@ -2104,7 +2203,10 @@ void PlannerNode::publish_diagnostics() noexcept {
         if (base_.valid) hit_plane.data[2] = std::max(hit_plane.data[2], base_.position.x() + home.value.plane_x);
       }
     }
-    if (racket_flat_schema_ != 4 || home_fresh) hit_plane_publisher_->publish(hit_plane);
+    if (swing_side_reference_mode_ == "runner_home_v1" &&
+        !x_hit_home_support_range_.empty()) hit_plane.data[2] = active_x_hit();
+    if ((racket_flat_schema_ != 4 || home_fresh) && std::isfinite(hit_plane.data[2]))
+      hit_plane_publisher_->publish(hit_plane);
     const auto now = steady_now_ns();
     const double elapsed = std::max(
         1.0e-6, (now - health_previous_steady_ns_) * 1.0e-9);
@@ -2158,6 +2260,20 @@ void PlannerNode::publish_diagnostics() noexcept {
     status.values.push_back(diagnostic_value("hit_speed_scale_configurable", question_fixture_enabled_ ? "false" : "true"));
     status.values.push_back(diagnostic_value("hit_speed_scale_persistent", !question_fixture_enabled_ && !hit_speed_scale_state_file_.empty() ? "true" : "false"));
     status.values.push_back(diagnostic_value("hit_speed_scale_last_command", scale_string(last_command_hit_speed_scale_.load())));
+    const double flight_override = flight_time_override_s_.load();
+    const double flight_default = std::isfinite(flight_override) ? flight_override : planner_config_.delta_t_flight;
+    const double flight_fh = std::isfinite(flight_override) ? flight_override :
+        (std::isfinite(delta_t_flight_fh_) ? delta_t_flight_fh_ : flight_default);
+    const double flight_bh = std::isfinite(flight_override) ? flight_override :
+        (std::isfinite(delta_t_flight_bh_) ? delta_t_flight_bh_ : flight_default);
+    status.values.push_back(diagnostic_value("flight_time_s", scale_string(flight_default)));
+    status.values.push_back(diagnostic_value("flight_time_fh_s", scale_string(flight_fh)));
+    status.values.push_back(diagnostic_value("flight_time_bh_s", scale_string(flight_bh)));
+    status.values.push_back(diagnostic_value("flight_time_max_s", scale_string(planner_config_.max_predict_time_s)));
+    status.values.push_back(diagnostic_value("flight_time_configurable", question_fixture_enabled_ ? "false" : "true"));
+    status.values.push_back(diagnostic_value("flight_time_persistent", !question_fixture_enabled_ && !flight_time_state_file_.empty() ? "true" : "false"));
+    status.values.push_back(diagnostic_value("flight_time_last_requested_s", scale_string(last_command_flight_time_requested_s_.load())));
+    status.values.push_back(diagnostic_value("flight_time_last_command_s", scale_string(last_command_flight_time_s_.load())));
     const auto selected_plane = runtime_plane_.last_selection();
     const auto command_plane = runtime_plane_.last_command();
     const bool current_plane = home_fresh && command_plane.valid && command_plane.epoch == home.value.epoch;

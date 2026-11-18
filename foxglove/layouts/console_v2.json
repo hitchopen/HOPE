@@ -1,0 +1,126 @@
+{
+  "configById": {
+    "3D!a3tf": {
+      "cameraState": {
+        "perspective": true,
+        "distance": 5.0,
+        "phi": 57,
+        "thetaOffset": 55,
+        "target": [
+          1.15,
+          -0.7625,
+          0.25
+        ],
+        "targetOffset": [
+          1.37,
+          -0.7625,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "fovy": 45,
+        "near": 0.05,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "followTf": "world",
+      "scene": {
+        "enableStats": false,
+        "transforms": {
+          "visible": false,
+          "showLabel": false,
+          "axisScale": 0.25,
+          "lineWidth": 2
+        },
+        "meshUpAxis": "z_up"
+      },
+      "transforms": {},
+      "topics": {
+        "/hope/live/scene": {
+          "visible": true
+        },
+        "/hope/live/robot": {
+          "visible": true
+        },
+        "/hope/live/target": {
+          "visible": true
+        },
+        "/hope/live/frozen": {
+          "visible": true
+        },
+        "/hope/planner/y_filter_markers": {
+          "visible": true
+        },
+        "/hope/pelvis/marker": {
+          "visible": true
+        },
+        "/hope/ball/marker": {
+          "visible": true
+        }
+      },
+      "layers": {
+        "grid-hope": {
+          "instanceId": "grid-hope",
+          "layerId": "foxglove.Grid",
+          "visible": true,
+          "label": "HOPE world (z=0 table surface)",
+          "frameId": "world",
+          "size": 4,
+          "divisions": 40,
+          "lineWidth": 1,
+          "color": "#248eff44",
+          "position": [
+            1.37,
+            -0.7625,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "order": 1
+        },
+        "urdf-table": {
+          "instanceId": "urdf-table",
+          "layerId": "foxglove.Urdf",
+          "visible": false,
+          "label": "Standard ping-pong table (HOPE world)",
+          "sourceType": "url",
+          "url": "http://localhost:8000/assets/hope_ping_pong_table.urdf",
+          "framePrefix": "",
+          "displayMode": "auto",
+          "fallbackColor": "#245c8a",
+          "order": 2
+        }
+      }
+    },
+    "hope-a3-console.HOPE Live Telemetry!telemetry": {
+      "ownsPreview": true
+    },
+    "hope-a3-console.HOPE A3 Console!operator": {
+      "liveStatusOwnsPreview": true
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1,
+    "messageOrder": "receiveTime"
+  },
+  "layout": {
+    "direction": "row",
+    "first": {
+      "direction": "column",
+      "first": "3D!a3tf",
+      "second": "hope-a3-console.HOPE Live Telemetry!telemetry",
+      "splitPercentage": 70
+    },
+    "second": "hope-a3-console.HOPE A3 Console!operator",
+    "splitPercentage": 62
+  }
+}

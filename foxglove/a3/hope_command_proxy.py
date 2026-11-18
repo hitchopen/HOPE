@@ -134,7 +134,6 @@ class CommandProxyModule(RosComponent):
         if self._runner_request_id == 0:
             self._runner_request_id = 1
         self._callback_group = ReentrantCallbackGroup()
-        self._declare_parameter("calibration_service_stickers_v3", "/a3/calibration/recompute_p1")
         self._calibration_clients = {
             profile: self.create_client(
                 Trigger,
@@ -142,7 +141,6 @@ class CommandProxyModule(RosComponent):
                 callback_group=self._callback_group,
             )
             for profile, parameter_name in (
-                ("STICKERS_V3", "calibration_service_stickers_v3"),
                 ("V2", "calibration_service_v2"),
                 ("V3", "calibration_service_v3"),
             )
@@ -197,7 +195,7 @@ class CommandProxyModule(RosComponent):
                 self._worker_callback(self._calibration_callback(profile), self._command_workers),
                 callback_group=self._callback_group,
             )
-            for profile in ("STICKERS_V3", "V2", "V3")
+            for profile in ("V2", "V3")
         }
         self._refresh_service = self.create_service(
             Trigger,
@@ -220,6 +218,8 @@ class CommandProxyModule(RosComponent):
                 ("enter_pd_stand", "ENTER_PD_STAND"),
                 ("enter_motion", "ENTER_MOTION"),
                 ("enter_teleop", "ENTER_TELEOP"),
+                ("enter_walk_stand", "ENTER_WALK_STAND"),
+                ("enter_dock", "ENTER_DOCK"),
                 ("emergency_passive", "EMERGENCY_PASSIVE"),
                 ("prepare_serve", "PREPARE_SERVE"),
                 ("confirm_ball_loaded", "CONFIRM_BALL_LOADED"),
@@ -229,7 +229,7 @@ class CommandProxyModule(RosComponent):
             )
         }
         self.get_logger().info(
-            "Runner command proxy started: ten fixed local-Runner actions plus "
+            "Runner command proxy started: thirteen fixed local-Runner actions plus "
             "separate V2/V3 world-to-pelvis calibration and Planner refresh_x_hit"
         )
 

@@ -1,0 +1,99 @@
+const assert = require('node:assert/strict');
+const test = require('node:test');
+const loadSource = require('./loadSource.cjs');
+const { confirmedRobotHost, configForSave, configUnchangedReply, sameMocapBinding, CONFIG_KEYS, decodeConfigRuntime, configRuntimeReady, savedConfigObserved } = loadSource('configRuntime');
+const { applyMessage, TOPICS, INITIAL_SNAPSHOT } = loadSource('HopeA3Console', '\nexport { applyMessage, TOPICS, INITIAL_SNAPSHOT };');
+function report(overrides = {}) {
+  return { schema_version: 1, source: '/var/lib/hope-lifecycle/config.json', revision: 54,
+    config_sha256: 'a'.repeat(64), applied: true, state: 'APPLIED', reason: 'match',
+    values: Object.fromEntries(CONFIG_KEYS.map(k => [k, k === 'hdu_wifi_ip' ? '192.168.8.182' : k === 'table_side' ? 'P1' : k.endsWith('_confirmed') ? 'false' : 'value'])),
+    services: [{service:'coordinator',matches:true,expected_peers:'192.168.8.150',actual_peers:'192.168.8.150'}], ...overrides };
+}
+const decode = r => decodeConfigRuntime(JSON.stringify(r));
+test('only a fresh complete applied report permits controls', () => {
+  const status=decode(report());
+  assert.equal(configRuntimeReady(status,100,101),true);
+  for (const time of [-1,1600]) assert.equal(configRuntimeReady(status,100,time),false);
+  assert.equal(configRuntimeReady(decode(report({applied:false})),100,101),false);
+  assert.equal(decode(report({values:{table_side:'P1'}})),undefined);
+  assert.equal(configRuntimeReady(decode(report({services:[]})),100,101),false);
+  assert.equal(configRuntimeReady(decode(report({services:[{service:'coordinator',matches:false,expected_peers:'192.168.8.150',actual_peers:'192.168.8.194'}]})),100,101),false);
+});
+test('service success alone cannot acknowledge a new saved generation', () => {
+  const request={revision:54,values:report().values};
+  assert.equal(savedConfigObserved(decode(report()),request),false);
+  assert.equal(savedConfigObserved(decode(report({revision:55})),request),true);
+  assert.equal(savedConfigObserved(decode(report({revision:55,values:{...request.values,table_side:'P2'}})),request),false);
+});
+test('actual Console reducer keeps fields and revision in the same snapshot', () => {
+  const state={...INITIAL_SNAPSHOT,lifecycleConfig:{},lastReceived:{}};
+  const receive=(topic,data,at=100)=>applyMessage(state,{topic,message:{data}},at);
+  receive(TOPICS.configRuntime,JSON.stringify(report()));
+  receive(TOPICS.tableSide,'P2',110);
+  receive(TOPICS.hduWifiIp,'192.168.8.196',110);
+  receive(TOPICS.lifecycleConfigRevision,99,110);
+  assert.equal(state.lifecycleConfig.table_side,'P1');
+  assert.equal(state.lifecycleConfig.hdu_wifi_ip,'192.168.8.182');
+  assert.equal(state.lifecycleConfigRevision,54);
+  assert.equal(state.lastReceived[TOPICS.hduWifiIp],100);
+  receive(TOPICS.configRuntime,'invalid',120);
+  assert.equal(state.configRuntime,undefined);
+  receive(TOPICS.tableSide,'P2',130);
+  assert.equal(state.lifecycleConfig.table_side,'P1');
+  assert.equal(configRuntimeReady(state.configRuntime,120,130),false);
+});
+
+test('changing the setup clears old attestations before sending and awaiting acknowledgement', () => {
+  const saved = {...report().values, mocap_source:'vrpn', vrpn_world_frame_confirmed:'true'};
+  for (const key of ['hdu_wifi_ip','vrpn_ip','vrpn_port','vrpn_units','pants_profile','table_side','motive_ip','mocap_source']) {
+    const draft = {...saved,[key]:'changed'};
+    assert.equal(sameMocapBinding(draft,saved),false);
+    const sent = configForSave(draft,saved);
+    assert.equal('vrpn_pelvis_asset_confirmed' in sent,false);
+    assert.equal(sent.vrpn_world_frame_confirmed,'false');
+    assert.equal(savedConfigObserved(decode(report({revision:55,values:sent})),{revision:54,values:sent}),true);
+  }
+  assert.equal(configForSave({...saved,laptop_wifi_ip:'192.168.8.151'},saved).vrpn_world_frame_confirmed,'true');
+  for (const value of [true,1,'yes','']) assert.equal(decode(report({values:{...saved,vrpn_world_frame_confirmed:value}})),undefined);
+});
+
+test('retired config fields cannot be sent back from an older snapshot', () => {
+  const saved = {...report().values, mocap_source:'vrpn', vrpn_world_frame_confirmed:'true', vrpn_pelvis_asset_confirmed:'false'};
+  const sent = configForSave(saved, saved);
+  assert.equal('vrpn_pelvis_asset_confirmed' in sent, false);
+  assert.equal(sent.vrpn_world_frame_confirmed, 'true');
+});
+
+test('Host connection identity does not depend on a direct browser socket', () => {
+ const r=report();r.values.hdu_wifi_ip='192.168.200.202';r.values.laptop_wifi_ip='192.168.100.89';
+ r.robot_identity={machine_id:'a'.repeat(32),boot_id:'b'.repeat(36),connection:null};
+ r.laptop={matches:true,receipt:{HOPE_LIFECYCLE_MACHINE_ID:'a'.repeat(32),HOPE_LIFECYCLE_HDU_IP:r.values.hdu_wifi_ip,HOPE_LIFECYCLE_LAPTOP_IP:r.values.laptop_wifi_ip}};
+ assert.equal(confirmedRobotHost(decode(r)),'192.168.200.202');
+ assert.equal(confirmedRobotHost(decode({...r,applied:false})),undefined);
+ assert.equal(confirmedRobotHost(decode({...r,laptop:{...r.laptop,matches:false}})),undefined);
+ for(const [key,value] of [['HOPE_LIFECYCLE_MACHINE_ID','c'.repeat(32)],['HOPE_LIFECYCLE_HDU_IP','192.168.200.203']]) {
+  assert.equal(confirmedRobotHost(decode({...r,laptop:{...r.laptop,receipt:{...r.laptop.receipt,[key]:value}}})),undefined);
+ }
+});
+
+test('missing laptop receiver processes are decoded for the operator message', () => {
+  const down=decode(report({applied:false,state:'PENDING',reason:"Laptop: {'missing_processes': ['base', 'motive', 'motive_relay']}",
+    laptop:{matches:false,mismatches:{missing_processes:['base','motive','motive_relay']},processes:[]}}));
+  assert.equal(JSON.stringify(down.laptopMissing),'["base","motive","motive_relay"]');
+  assert.equal(decode(report()).laptopMissing.length,0);
+  assert.equal(decode(report({laptop:{mismatches:{missing_processes:'motive'}}})).laptopMissing.length,0);
+});
+test('only a CONFIG_UNCHANGED reply from every parameter means no new revision to wait for', () => {
+  const ok='CONFIG_UNCHANGED: same values as revision 45; runtime re-checked on /hope/lifecycle/config/status';
+  assert.equal(configUnchangedReply([{reason:ok},{reason:ok}]),true);
+  assert.equal(configUnchangedReply([{reason:ok},{reason:'Configuration saved; awaiting runtime readback'}]),false);
+  assert.equal(configUnchangedReply([]),false);
+  assert.equal(configUnchangedReply([{reason:undefined}]),false);
+});
+test('hduApplied needs the robot flag and every listed HDU service matching', () => {
+  assert.equal(decode(report({applied:false,hdu_applied:true})).hduApplied,true);
+  assert.equal(decode(report({applied:false})).hduApplied,false);
+  assert.equal(decode(report({hdu_applied:true,services:[]})).hduApplied,false);
+  assert.equal(decode(report({hdu_applied:true,services:[{service:'coordinator',matches:false,expected_peers:'a',actual_peers:'b'}]})).hduApplied,false);
+  assert.equal(decode(report({hdu_applied:true,revision:0})).hduApplied,false);
+});
