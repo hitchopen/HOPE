@@ -513,6 +513,13 @@ bool A3AimrtBackend::RegisterPubSub_() {
       dock_state_publish_fn_ = [dock_proxy](const std::vector<double>& values) {
         std_msgs::msg::Float64MultiArray message; message.data = values; dock_proxy->Publish(message);
       };
+      if (dock_config_cb_) {
+        auto dock_sub = ch.GetSubscriber("/hope/runner/dock_config_flat");
+        if (!aimrt::channel::Subscribe<std_msgs::msg::Float64MultiArray>(dock_sub,
+            [this](const std::shared_ptr<const std_msgs::msg::Float64MultiArray>& msg) {
+              if (msg && dock_config_cb_) dock_config_cb_(msg->data);
+            })) throw std::runtime_error("subscribe dock config failed");
+      }
     }
 
     // ---- Subscribers ----
@@ -848,6 +855,9 @@ bool A3AimrtBackend::PublishRunnerState(const std::vector<double>& values) {
   return true;
 }
 
+void A3AimrtBackend::SetDockConfigCallback(FlatArrayCallback cb) {
+  dock_config_cb_ = std::move(cb);
+}
 void A3AimrtBackend::SetLocomotionInputCallback(FlatArrayCallback cb) {
   locomotion_input_cb_ = std::move(cb);
 }

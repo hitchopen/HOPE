@@ -11,7 +11,7 @@ J ack(std::uint64_t id,const char *action,const char *result="APPLIED") {
 int main(){try {
   const std::map<std::string,int> actions{{"SET_SERVER",1},{"SET_RECEIVER",2},{"ENTER_PD_STAND",3},
     {"ENTER_MOTION",4},{"EMERGENCY_PASSIVE",5},{"PREPARE_SERVE",7},{"CONFIRM_BALL_LOADED",8},
-    {"READY_TO_SERVE",9},{"OPEN_GRIPPER",10},{"CONFIRM_GRIP_SECURE",12},{"ENTER_TELEOP",13},{"ENTER_DOCK",14}};
+    {"READY_TO_SERVE",9},{"OPEN_GRIPPER",10},{"CONFIRM_GRIP_SECURE",12},{"ENTER_TELEOP",13},{"ENTER_DOCK",14},{"ENTER_WALK_STAND",15}};
   for(const auto &action:actions)for(const auto *result:{"APPLIED","ALREADY_SET","ACCEPTED_PENDING","REJECTED_WRONG_MODE"}) {
     RunnerCommands runner;runner.configure(2.,100);J reply;std::vector<double> wire;
     runner.start(action.first,10.,[&](const J &v){reply=v;},[&](const auto &v){wire=v;});

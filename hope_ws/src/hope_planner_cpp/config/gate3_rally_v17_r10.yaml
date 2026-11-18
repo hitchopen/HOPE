@@ -1,0 +1,36 @@
+# RallyV17 recipe-revision 10 Gate3 overlay for hope_planner_cpp.
+#
+# The station is captured once from the calibrated base while standing. The
+# virtual contact plane is then frozen at station_x + 0.58 m. The one-shot C++
+# Planner still commits exactly once at net crossing + 50 ms.
+hope_planner:
+  ros__parameters:
+    solve_period_s: 0.033
+    # This legacy V17 overlay deliberately retains the 19-double wire. It is
+    # layered after model21800_hardware.yaml, so it must also turn the Schema-3
+    # classifier off explicitly rather than inherit non-zero permissions.
+    racket_flat_schema: 2
+    reach_permission_enabled: false
+    reach_permission_contract: "disabled_zero_v1"
+
+    x_hit_follow_robot: false
+    require_x_hit_calibration: true
+    x_hit_calibration_offset: 0.58
+    x_hit_calibration_window_s: 0.50
+    x_hit_calibration_max_age_s: 0.20
+    x_hit_calibration_min_samples: 10
+    x_hit_calibration_max_span_m: 0.01
+    x_hit_bh_delta: 0.0
+    x_hit: 0.08
+
+    target_land_y: -0.7625
+    delta_t_flight: 0.50
+    swing_side_split_y: -0.265
+    swing_side_hysteresis_y: 0.04
+
+    spin_shadow_enabled: true
+    ball_orientation_topic: "/ball/pose"
+    spin_window_s: 0.10
+    spin_gate_rev_s: 3.0
+    spin_max_gap_s: 0.05
+    spin_max_rev_s: 20.0

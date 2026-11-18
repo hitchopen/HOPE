@@ -43,6 +43,31 @@ def valid_state() -> list[float]:
 
 
 class RunnerControlWireTests(unittest.TestCase):
+    def test_walk_stand_and_dock_codes(self):
+        self.assertEqual(
+            encode_runner_request(49, "ENTER_WALK_STAND"),
+            [2.0, 49.0, 15.0, 0.0],
+        )
+        self.assertEqual(
+            encode_runner_request(50, "ENTER_DOCK"),
+            [2.0, 50.0, 14.0, 0.0],
+        )
+        state = valid_state()
+        state[3] = 8.0
+        state[17] = 15.0
+        self.assertEqual(decode_runner_state(state).run_mode, "WALK_STAND")
+        self.assertEqual(decode_runner_state(state).last_action, "ENTER_WALK_STAND")
+        state[3] = 7.0
+        state[17], state[18], state[19] = 14.0, 16.0, 40.0
+        decoded = decode_runner_state(state)
+        self.assertEqual(
+            (decoded.run_mode, decoded.last_action, decoded.last_action_result,
+             decoded.last_action_reason),
+            ("DOCK", "ENTER_DOCK", "REJECTED_DOCK", "DOCK_START_TOO_FAR"))
+        state[3] = 9.0
+        with self.assertRaises(DecodeError):
+            decode_runner_state(state)
+
     def test_fixed_request_encoder_exposes_only_ten_actions(self):
         self.assertEqual(
             encode_runner_request(42, "ENTER_MOTION"),
@@ -68,10 +93,6 @@ class RunnerControlWireTests(unittest.TestCase):
             encode_runner_request(48, "CONFIRM_GRIP_SECURE"),
             [2.0, 48.0, 12.0, 0.0],
         )
-        self.assertEqual(
-            encode_runner_request(49, "ENTER_DOCK"),
-            [2.0, 49.0, 14.0, 0.0],
-        )
         for forbidden in (
             "CONFIRM_LOADING_ZONE_CLEAR",
             "ENTER_SHADOW",
@@ -95,18 +116,6 @@ class RunnerControlWireTests(unittest.TestCase):
         self.assertFalse(state.serve_cleanup_required)
         self.assertEqual(state.last_action_id, 99)
         self.assertEqual(state.last_action_result, "APPLIED")
-
-    def test_decodes_dock_mode_and_reasons(self):
-        values = valid_state()
-        values[3] = 7.0
-        values[17] = 14.0
-        values[18] = 16.0
-        values[19] = 41.0
-        state = decode_runner_state(values)
-        self.assertEqual(state.run_mode, "DOCK")
-        self.assertEqual(state.last_action, "ENTER_DOCK")
-        self.assertEqual(state.last_action_result, "REJECTED_DOCK")
-        self.assertEqual(state.last_action_reason, "DOCK_STOP_REQUESTED")
 
     def test_reports_serve_recovery_pending(self):
         values = valid_state()

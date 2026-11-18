@@ -1,6 +1,6 @@
 export const BALL_Y_FILTER_SERVICE = "/hope/planner/set_ball_y_filter";
 export const DEFAULT_BALL_Y_FILTER = {
-  enabled: false, min: -1.525, max: 0,
+  enabled: true, min: -1.30, max: -0.5543593239924284,
 };
 export type BallYFilterState = typeof DEFAULT_BALL_Y_FILTER & {
   configurable: boolean; persistent: boolean;

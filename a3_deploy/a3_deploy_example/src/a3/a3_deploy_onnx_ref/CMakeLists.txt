@@ -1161,10 +1161,6 @@ target_sources(run_tests PRIVATE ${ROBOT_IO_SOURCES})
 target_link_directories(run_tests PRIVATE ${CUDA_LINK_DIRS})
 target_link_libraries(run_tests PRIVATE GTest::GTest GTest::Main ${EXE_LIBS})
 target_include_directories(run_tests PUBLIC ${EXE_INCLUDES})
-if(A3_ROS_MSGS_AVAILABLE)
-  find_package(rclcpp REQUIRED)
-  target_link_libraries(run_tests PRIVATE rclcpp::rclcpp ${A3_ROS_MSGS_LIBS})
-endif()
 
 # A3 AimRT backend wiring (PR 7): only active when configure succeeded.
 if(A3_AIMRT_BACKEND_AVAILABLE)

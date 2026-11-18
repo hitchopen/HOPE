@@ -37,7 +37,7 @@ std::filesystem::path A3Root() {
 }
 
 std::filesystem::path TimelinePath() {
-  return A3Root() / "assets/a3_runtime/serve/motions" /
+  return A3Root() / "assets/a3_runtime/serve/archive" /
          "a3p_op3_serve025_photo_right30_advance20_v12.csv";
 }
 

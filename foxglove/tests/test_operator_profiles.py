@@ -128,9 +128,9 @@ class OperatorProfileTests(unittest.TestCase):
                     ssh_calls = [argv for argv in calls if argv[0] == "/usr/bin/ssh"]
                     host_index = 1 + len(namespace["SSH_OPTIONS"])
                     laptop_calls = [argv for argv in ssh_calls if argv[host_index] != "agi@10.42.10.12"]
-                    self.assertEqual(len(laptop_calls), 8)
+                    self.assertEqual(len(laptop_calls), 7)
                     self.assertEqual({argv[host_index + 2] for argv in laptop_calls},
-                                     {"preflight-laptop", "prepare-laptop", "reconnect-laptop", "stop-capture-laptop",
+                                     {"preflight-laptop", "prepare-laptop", "stop-capture-laptop",
                                       "collect", "record-control", "field-assets-laptop", "ball-model-laptop"})
                     for argv in laptop_calls:
                         if profile == "linux":
@@ -159,11 +159,7 @@ class OperatorProfileTests(unittest.TestCase):
                 for argv in calls:
                     if any(a in argv for a in ("ball-model-hdu", "ball-model-laptop")):
                         continue
-                    end = argv.index(mode) + 3 if "reconnect-laptop" in argv else len(argv)
-                    relevant = argv[:end]
-                    if relevant[-1:] == ["on"]:
-                        relevant = relevant[:-1]
-                    self.assertEqual(relevant[-3:], [mode, "DEFAULT", "new_20261015"])
+                    self.assertEqual(argv[-3:], [mode, "DEFAULT", "new_20261015"])
 
     def test_kernel_mode_never_contacts_either_operator(self):
         namespace = backend_namespace({})
@@ -172,10 +168,10 @@ class OperatorProfileTests(unittest.TestCase):
             run=lambda argv, **kwargs: calls.append(argv) or SimpleNamespace(returncode=0, stdout=json.dumps({"configured_model": "berkeley", "runtime": "VERIFIED"}), stderr=""))
         for profile in ("mac", "linux"):
             config = LifecycleConfig(laptop_wifi_ip="10.0.0.2", mdu_internal_ip="10.42.10.12",
-                                     operator_profile=profile, auto_dock="off")
+                                     operator_profile=profile)
             backend.start(config, "model21800_20261018T050406Z", lambda event: None, "KERNEL")
             backend.kill_all_and_collect(config, "model21800_20261018T050406Z", lambda event: None, "KERNEL")
-        self.assertEqual(len(calls), 22)  # explicit mutating background phase, including vendor restore
+        self.assertEqual(len(calls), 20)  # explicit mutating background phase
         self.assertFalse(any("preflight-laptop" in argv or "collect" in argv for argv in calls))
 
     def test_invalid_mac_account_and_helper_fail_before_any_connection(self):

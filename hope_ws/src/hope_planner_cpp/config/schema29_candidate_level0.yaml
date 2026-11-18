@@ -1,0 +1,9 @@
+# Schema29 candidate-bank overlay.  The policy keeps the Schema-3 / 112-D ABI, but the v4
+# receipt has no certified support trajectory.  Planner therefore publishes the only admissible
+# tuple, (reach_level, swing_foot_sign)=(0, 0), until an independently certified bank replaces
+# this profile.  No plant state, contact force, or privileged simulator signal is used.
+hope_planner:
+  ros__parameters:
+    racket_flat_schema: 3
+    reach_permission_enabled: false
+    reach_permission_contract: "disabled_zero_v1"

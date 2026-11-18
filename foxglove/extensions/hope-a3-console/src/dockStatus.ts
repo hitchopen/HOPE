@@ -1,59 +1,57 @@
 import { defaultTranslator, Translator } from "./i18n";
 
-// Foxglove's CDR decoder delivers Float64MultiArray.data as a typed array.
-// JSON data sources deliver an ordinary array; support both representations.
-// Phases where PpServeController::active() is false. The runner accepts
-// ENTER_DOCK from PD_STAND during these, including after abort, fault, and cleanup.
-const SERVE_QUIET = new Set([
-  "UNAVAILABLE", "IDLE", "WAIT_BALL_LOAD", "GRIP_CLOSING", "COMPLETE",
-  "ABORT_WAIT_HUMAN_CLEAR", "ABORT_RETURN", "ABORTED", "FAULT",
-  "CLEANUP_OPENING", "WAIT_GRIP_SECURE",
-]);
-
-export function serveBlocksReposition(serveState: string | undefined, serving: boolean | undefined): boolean {
-  if (serving === true) { return true; }
-  return serveState != undefined && !SERVE_QUIET.has(serveState);
-}
-
-const PHASES = ["IDLE", "ENTRY", "ALIGN", "SETTLE", "VERIFY", "DONE", "FAILED"];
-const RESULTS = ["NONE", "RUNNING", "DONE", "FAILED"];
+// Reposition (auto-dock) telemetry: /hope/runner/dock_state_hdu_flat, schema 1,
+// 15 doubles: schema, boot, phase, attempt, error x/y/yaw, distance, elapsed,
+// result, reason, target x/y/yaw, pose age. Published only when the Runner
+// loaded --auto-dock, so fresh telemetry also means Reposition is available.
+const PHASES = ["IDLE", "ENTRY", "ALIGN", "SETTLE", "VERIFY", "DONE", "FAILED"] as const;
+const RESULTS = ["NONE", "RUNNING", "DONE", "FAILED"] as const;
 const REASONS = [
   "NONE", "TIMEOUT", "MOCAP_STALE", "MOCAP_INVALID", "WRONG_FRAME",
   "START_TOO_FAR", "ATTEMPTS_EXHAUSTED", "STOPPED",
-];
+] as const;
 
+// Foxglove's CDR decoder delivers Float64MultiArray.data as a typed array;
+// JSON data sources deliver an ordinary array.
 export function decodeDockState(value: unknown): number[] | undefined {
   const values: unknown[] | undefined = Array.isArray(value)
     ? value
     : ArrayBuffer.isView(value) && !(value instanceof DataView)
       ? Array.from(value as unknown as ArrayLike<unknown>)
       : undefined;
-  if (values?.length !== 15 || values[0] !== 1 ||
+  // Schema 1: 15 doubles. Schema 2 appends tuning seq/result and 7 limits (24).
+  if (!((values?.length === 15 && values[0] === 1) || (values?.length === 24 && values[0] === 2)) ||
       !values.every((item): item is number => typeof item === "number" && Number.isFinite(item))) {
     return undefined;
   }
   return values;
 }
 
-export function dockRepositionReason({ autoDock, runnerFresh, runnerFault, mode, baseFresh,
-  serveActive, pending }: {
-  autoDock: string | undefined;
+export function dockRepositionReason({ runnerFresh, runnerFault, mode, telemetryFresh, baseFresh,
+  serving, pending, estop }: {
   runnerFresh: boolean;
   runnerFault: boolean;
   mode: string | undefined;
+  telemetryFresh: boolean;
   baseFresh: boolean;
-  serveActive: boolean;
+  serving: boolean;
   pending: boolean;
+  estop: boolean;
 }, t: Translator = defaultTranslator): string | undefined {
-  if (autoDock !== "on") { return t("dockStatus.autoDockIsOff"); }
   if (!runnerFresh) { return t("dockStatus.startTheSystemAndWaitForRunnerStatus"); }
   if (runnerFault) { return t("dockStatus.runnerReportsACommandFault"); }
+  if (estop) { return t("dockStatus.resetTheSoftwareEStopFirst"); }
+  if (!telemetryFresh) { return t("dockStatus.runnerHasNoRepositionLoaded"); }
   if (mode === "DOCK") { return t("dockStatus.repositionIsInProgressStandStopsIt"); }
-  if (serveActive) { return t("dockStatus.finishOrAbortTheServeBeforeReposition"); }
-  if (mode !== "PD_STAND") { return t("dockStatus.selectStandBeforeReposition"); }
+  if (serving) { return t("dockStatus.finishOrAbortTheServeBeforeReposition"); }
+  if (mode !== "PD_STAND" && mode !== "WALK_STAND" && mode !== "TELEOP") { return t("dockStatus.selectStandBeforeReposition"); }
   if (!baseFresh) { return t("dockStatus.waitForAFreshBasePose"); }
   if (pending) { return t("dockStatus.modeRequestPending"); }
   return undefined;
+}
+
+export function dockPhaseName(state: number[] | undefined): string | undefined {
+  return state == undefined ? undefined : PHASES[state[2] ?? -1] ?? "UNKNOWN";
 }
 
 export function formatDockStatus(state: number[] | undefined, t: Translator = defaultTranslator): string {

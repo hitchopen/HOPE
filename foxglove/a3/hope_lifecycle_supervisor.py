@@ -28,6 +28,8 @@ from rclpy.qos import qos_profile_sensor_data
 from std_msgs.msg import Bool, Float64MultiArray, String, UInt32
 from std_srvs.srv import Trigger
 
+from hope_config_runtime import owner_status, read_status, require_applied
+from hope_connection_identity import validate_network_migration
 from hope_field_operations import FieldOperations
 from hope_distributed_recording import DistributedRecorder
 from hope_elink_health import ElinkHealthLatch, ProbeError, run_passive_probe
@@ -36,6 +38,7 @@ from hope_elink_clock import ClockQualificationGuard
 from hope_elink_telemetry import ElinkTelemetryTracker, load_telemetry_contract
 from hope_elink_telemetry_ros import ElinkTelemetrySubscriptions
 from hope_player_positions import PlayerPositions
+from hope_mocap_recovery import MocapRecoveryMixin
 from hope_operations_recovery import SessionReceipt
 
 from hope_lifecycle_core import (
@@ -200,8 +203,7 @@ class LifecycleBackend:
         commands = (
             ("PREFLIGHT", self._ssh(laptop, laptop_helper, "preflight-laptop", *common), 15.0),
             ("PREFLIGHT", [LIFECYCLE_HELPER, "preflight-hdu", *common], 15.0),
-            ("PREFLIGHT", self._ssh(mdu, LIFECYCLE_HELPER, "preflight-mdu", *common,
-                                    *( [config.auto_dock] if config.auto_dock == "on" else [] )), 15.0),
+            ("PREFLIGHT", self._ssh(mdu, LIFECYCLE_HELPER, "preflight-mdu", *common), 15.0),
             # Explicit mutating boundary: vendor camera cleanup is NOT a
             # read-only preflight. Track it so failures retain cleanup context.
             ("BACKGROUND", [LIFECYCLE_HELPER, "prepare-background-hdu", *common], 180.0),
@@ -209,22 +211,25 @@ class LifecycleBackend:
             # The independently connected receiver may carry an old debug session.
             # Rebind it through the managed helper before HAL/Runner so role-2
             # echoes use this START's fingerprint; never learn it from DDS.
-            ("MOCAP", self._ssh(laptop, laptop_helper, "reconnect-laptop", *common,
+            ("MOCAP", self._ssh(laptop, "/usr/bin/env",
+                                      "HOPE_LIFECYCLE_MACHINE_ID=" + Path("/etc/machine-id").read_text().strip(),
+                                      laptop_helper, "reconnect-laptop", *common,
                                config.mocap_source, config.vrpn_ip or "NONE",
-                               config.vrpn_port, config.vrpn_units, config.pants_profile), 25.0),
+                               config.vrpn_port, config.vrpn_units, config.pants_profile,
+                               # stop (<=5 s) + retire the old receiver (13 s of stages + polling) + start
+                               config.vrpn_world_frame_confirmed), 40.0),
             ("SESSION", [LIFECYCLE_HELPER, "prepare-hdu", *common], 15.0),
             ("SESSION", self._ssh(mdu, LIFECYCLE_HELPER, "prepare-mdu", *common), 15.0),
-            # START has verified raw end occupancy. The receiver above is now
-            # bound to the same session as the Runner heartbeat.
+            # The receiver above is bound to the same session as the Runner
+            # heartbeat; live player visibility is not required for PASSIVE.
             # Keep placement telemetry independent of slow/failed Runner bring-up.
-            ("BASE_RELAY", [LIFECYCLE_HELPER, "start-base", *common], 20.0),
+            ("BASE_RELAY", [LIFECYCLE_HELPER, "start-base", *common], 10.0),
             ("PLANNER", [LIFECYCLE_HELPER, "start-planner", *common], 20.0),
             # agibot_pm has a 90 s systemd stop timeout on the MDU. Field
             # shutdown commonly takes 40-60 s, so do not orphan a successful
             # remote HAL transition behind an undersized SSH timeout.
             ("HAL", self._ssh(mdu, LIFECYCLE_HELPER, "start-hal", *common), 120.0),
-            ("RUNNER", self._ssh(mdu, LIFECYCLE_HELPER, "start-runner", *common,
-                                  *( [config.auto_dock] if config.auto_dock == "on" else [] )), 60.0),
+            ("RUNNER", self._ssh(mdu, LIFECYCLE_HELPER, "start-runner", *common), 60.0),
             # The MDU AimRT participant must exist before this explicit-peer
             # HDU participant.  Reversing these two steps reproduces the field
             # failure where Runner DATA reaches the HDU UDP socket but the old
@@ -237,18 +242,9 @@ class LifecycleBackend:
             ),
         )
         if mode == "KERNEL":
-            # Auto-dock still skips the Planner. It keeps the laptop mocap
-            # receiver and the HDU base-pose relay so the Runner can read pelvis pose.
-            dock = config.auto_dock == "on"
-            kept = []
-            for item in commands:
-                step, argv = item[0], item[1]
-                if step == "PLANNER" or (step == "BASE_RELAY" and not dock):
-                    continue
-                if argv[0] == "/usr/bin/ssh" and laptop in argv and not (dock and step == "MOCAP"):
-                    continue
-                kept.append(item)
-            commands = tuple(kept)
+            commands = tuple(item for item in commands
+                             if not (item[1][0] == "/usr/bin/ssh" and laptop in item[1])
+                             and item[0] not in {"BASE_RELAY", "PLANNER"})
         mutation_started = False
         for step, argv, timeout_s in commands:
             if step != "PREFLIGHT" and not mutation_started:
@@ -292,11 +288,7 @@ class LifecycleBackend:
             ("COLLECT", self._ssh(laptop, laptop_helper, "collect", *common), 1800.0),
         )
         if mode == "KERNEL":
-            commands = tuple(
-                item for item in commands
-                if item[0] != "COLLECT" or (
-                    config.auto_dock == "on" and "stop-capture-laptop" in item[1])
-            )
+            commands = tuple(item for item in commands if item[0] != "COLLECT")
         errors: list[str] = []
         collection_reason = "COLLECTION_RESULT_MISSING"
         for step, argv, timeout_s in commands:
@@ -311,6 +303,30 @@ class LifecycleBackend:
                         if event is not None and event.step == "COLLECT":
                             collection_reason = event.reason
             except (LifecycleFailure, subprocess.TimeoutExpired) as exc:
+                if step == "VENDOR_RESTORE" and any(
+                        reason in str(exc) for reason in ("VENDOR_SM_NOT_READY", "VENDOR_SM_FAILED")):
+                    # One bounded automatic repair (2026-11-18): an HDU vendor module that
+                    # stopped reporting kept the restarted MDU state machine out of Ready.
+                    # Restart only the silent allowlisted HDU modules and the MDU vendor
+                    # stack, then verify again; otherwise a paired reboot is required.
+                    repair_error = None
+                    for repair_step, repair_argv, repair_timeout_s in (
+                        ("VENDOR_REPAIR", [LIFECYCLE_HELPER, "repair-vendor-hdu", *common], 60.0),
+                        ("VENDOR_REPAIR", self._ssh(mdu, LIFECYCLE_HELPER, "restart-vendor-mdu", *common), 90.0),
+                        ("VENDOR_RESTORE", self._ssh(mdu, LIFECYCLE_HELPER, "verify-vendor-mdu", *common), 135.0),
+                    ):
+                        event_callback(HelperEvent(step=repair_step, state="KILLING", reason="REQUESTED"))
+                        try:
+                            self._invoke(list(repair_argv), timeout_s=repair_timeout_s,
+                                         event_callback=event_callback)
+                        except (LifecycleFailure, subprocess.TimeoutExpired) as repair_exc:
+                            repair_error = f"{repair_step}: {repair_exc}"
+                            break
+                    if repair_error is None:
+                        continue
+                    errors.append(f"{step}: {exc}; automatic vendor repair failed ({repair_error}); "
+                                  "PAIRED_REBOOT_REQUIRED")
+                    continue
                 errors.append(f"{step}: {exc}")
         if errors:
             raise LifecycleFailure("; ".join(errors))
@@ -333,9 +349,13 @@ class LifecycleBackend:
         common = [session_id, config.laptop_wifi_ip, config.hdu_wifi_ip,
                   config.mdu_internal_ip, config.motive_ip or "NONE", config.table_side,
                   "OPTITRACK", "DEFAULT", config.gripper_profile, config.mocap_source,
-                  config.vrpn_ip or "NONE", config.vrpn_port, config.vrpn_units, config.pants_profile]
-        self._invoke(self._ssh(target, helper, "reconnect-laptop", *common),
-                     timeout_s=25.0, event_callback=lambda _event: None)
+                  config.vrpn_ip or "NONE", config.vrpn_port, config.vrpn_units, config.pants_profile,
+                  config.vrpn_world_frame_confirmed]
+        self._invoke(self._ssh(target, "/usr/bin/env",
+                                    "HOPE_LIFECYCLE_MACHINE_ID=" + Path("/etc/machine-id").read_text().strip(),
+                                    helper, "reconnect-laptop", *common),
+                     # stop (<=5 s) + retire the old receiver (13 s of stages + polling) + start (~3 s)
+                     timeout_s=40.0, event_callback=lambda _event: None)
 
     def exchange_recording(self, host: str, config: LifecycleConfig, request: dict) -> dict:
         if config.revision < 1:
@@ -377,7 +397,7 @@ class LifecycleBackend:
         return json.loads(result.stdout)
 
 
-class LifecycleModule(RosComponent):
+class LifecycleModule(MocapRecoveryMixin, RosComponent):
     def __init__(self, node, *, shared_state=None):
         RosComponent.__init__(self, node)
         self._shared_state = shared_state
@@ -466,6 +486,7 @@ class LifecycleModule(RosComponent):
             "result": self.create_publisher(String, "/hope/lifecycle/last_result", 10),
             "busy": self.create_publisher(Bool, "/hope/lifecycle/busy", 10),
             "revision": self.create_publisher(UInt32, "/hope/lifecycle/config/revision", 10),
+            "config_status": self.create_publisher(String, "/hope/lifecycle/config/status", 10),
         }
         self._config_publishers = {
             name: self.create_publisher(
@@ -527,6 +548,7 @@ class LifecycleModule(RosComponent):
         self._publish_timer = self.create_timer(0.5, self._publish)
         self._refresh_timer = self.create_timer(15.0, self._refresh_ball_models)
         self._elink_timer = self.create_timer(1.0, self._observe_elink)
+        self._init_mocap_recovery()
         self._recovery_receipt = None
         self._session_receipt = SessionReceipt(CONFIG_PATH.parent / "operations_session.json", self._elink_clock_boot_id)
         try:
@@ -560,17 +582,23 @@ class LifecycleModule(RosComponent):
             draining = self._stopping
             self._elink_sequence += 1
             elink = self._elink_status_locked(time.monotonic())
+        try:
+            owner_status(config, state, busy or self._field_busy or draining)
+        except OSError as exc:
+            self.get_logger().warning(f"Configuration owner heartbeat unavailable: {exc}")
+        self._lifecycle_publishers["config_status"].publish(
+            self._string(json.dumps(read_status(config), sort_keys=True)))
         self._elink_publisher.publish(self._string(json.dumps(elink, sort_keys=True)))
         field_status = dict(self._field_snapshot.poll())
         if self._field_snapshot.error:
             field_status["error"] = self._field_snapshot.error
-        field_status["auto_record_on_start"] = os.environ.get("HOPE_AUTO_RECORD_ON_START", "0") == "1"
         field_status["busy"] = self._field_busy
         field_status["draining"] = draining
         # Native reads are IPC round trips, never lifecycle-lock critical
         # sections. The Python cache still shares its lock with pose updates.
         with (nullcontext() if getattr(self._player_positions, "status_threadsafe", False) is True else self._lock):
             field_status["player_positions"] = self._player_positions.status(time.monotonic())
+        field_status["mocap_recovery"] = self._mocap_recovery_status()
         field_status["elink_observation"] = elink
         field_status["ball_model_verification"] = (getattr(self._backend, "ball_model_verification", None)
                                                      if state == "RUNNING" else None)
@@ -778,6 +806,12 @@ class LifecycleModule(RosComponent):
             if len(raw.encode()) > 9 * 1024 * 1024:
                 raise ValueError("field request exceeds 9 MiB")
             payload = json.loads(raw)
+            if payload.get("op") == "reconnect_mocap":
+                if set(payload) != {"op"}:
+                    raise ValueError("reconnect_mocap accepts no configuration overrides")
+                result = self._request_mocap_reconnect(automatic=False)
+                response.results = [SetParametersResult(successful=True, reason=json.dumps(result))]
+                return response
             if payload.get("op") in {"record_on", "record_off"}:
                 # OFF must never wait behind a laptop SSH refresh or CSV upload.
                 with self._lock:
@@ -830,11 +864,22 @@ class LifecycleModule(RosComponent):
             updates.append((parameter.name, parameter.value.string_value))
         operation_lock = None
         saved = False
+        unchanged = False
+        reconnect = False
         claimed = False
         try:
-            updated = apply_config_updates(current, updates)
-            if current.hdu_wifi_ip and updated.hdu_wifi_ip != current.hdu_wifi_ip:
-                raise ValueError("Robot IP selects a new Foxglove connection; current robot configuration is unchanged")
+            proofs = [value for name, value in updates if name == "connection_identity"]
+            if len(proofs) > 1:
+                raise ValueError("duplicate connection identity")
+            updated = apply_config_updates(current, [(name, value) for name, value in updates
+                                                     if name != "connection_identity"])
+            # Confirming the saved values again is a runtime repair (e.g. restart a missing
+            # mocap receiver), not a new configuration: keep the revision, do not rewrite it.
+            unchanged = current.revision > 0 and updated.values() == current.values()
+            if unchanged:
+                updated = current
+            migrating = current.revision > 0 and any(getattr(current, key) != getattr(updated, key)
+                                                     for key in ("hdu_wifi_ip", "laptop_wifi_ip"))
             with self._lock:
                 if self._config is not current or self._busy or self._field_busy or self._state not in {"STOPPED", "CONFIG_ERROR"}:
                     raise ValueError("state changed while confirming configuration; retry")
@@ -844,23 +889,33 @@ class LifecycleModule(RosComponent):
                 self._field_busy = True
                 claimed = True
                 reconnect = any(getattr(current, name) != getattr(updated, name) for name in (
-                    "operator_profile", "laptop_wifi_ip", "motive_ip", "vrpn_ip", "mocap_source", "vrpn_port",
-                    "vrpn_units", "pants_profile", "table_side")) or "MOCAP_FAILED" in self._last_result
-            save_config_atomic(CONFIG_PATH, updated)
-            saved = True
+                    "operator_profile", "hdu_wifi_ip", "laptop_wifi_ip", "motive_ip", "vrpn_ip", "mocap_source", "vrpn_port",
+                    "vrpn_units", "pants_profile", "table_side",
+                    "vrpn_world_frame_confirmed")) or "MOCAP_FAILED" in self._last_result or not read_status(current)["applied"]
+            if migrating:
+                validate_network_migration(current, updated, proofs[0] if proofs else "")
+            if not unchanged:
+                save_config_atomic(CONFIG_PATH, updated)
+                saved = True
             with self._lock:
                 self._config = updated
                 self._state = "STOPPED"
-                self._last_result = f"CONFIG_SAVED_REVISION_{updated.revision}"
+                self._last_result = (f"CONFIG_UNCHANGED_REVISION_{updated.revision}" if unchanged
+                                     else f"CONFIG_SAVED_REVISION_{updated.revision}")
             if reconnect:
                 self._field_pool.submit(self._backend.reconnect_mocap, updated).result()
             with self._lock:
-                self._last_result = f"CONFIG_CONFIRMED_REVISION_{updated.revision}"
-            reason = "Saved configuration; mocap receiver reconnected, check fresh pose data" if reconnect else "Saved configuration"
+                self._last_result = (f"CONFIG_UNCHANGED_REVISION_{updated.revision}" if unchanged
+                                     else f"CONFIG_SAVED_PENDING_RUNTIME_REVISION_{updated.revision}")
+            reason = ("CONFIG_UNCHANGED: same values as revision "
+                      f"{updated.revision}; runtime re-checked on /hope/lifecycle/config/status" if unchanged
+                      else "Configuration saved; awaiting runtime readback on /hope/lifecycle/config/status")
             response.results = [SetParametersResult(successful=True, reason=reason) for _ in request.parameters]
         except (OSError, ValueError, LifecycleFailure, subprocess.SubprocessError) as exc:
-            reason = f"Configuration saved; mocap connection failed: {exc}" if saved else str(exc)
-            if saved:
+            reason = (f"Configuration saved; mocap connection failed: {exc}" if saved
+                      else f"CONFIG_UNCHANGED: mocap connection failed: {exc}" if unchanged and reconnect
+                      else str(exc))
+            if saved or (unchanged and reconnect):
                 with self._lock:
                     self._last_result = f"CONFIG_SAVED_MOCAP_FAILED: {exc}"
             response.results = [SetParametersResult(successful=False, reason=reason) for _ in request.parameters]
@@ -942,6 +997,11 @@ class LifecycleModule(RosComponent):
             response.success = False
             response.message = "MANAGED_RECOVERY_REQUIRED: use explicit cleanup; START was not replayed"
             return response
+        # A Kernel session never contacts the operator computer, so its START is admitted on the HDU
+        # audit alone (a missing laptop mocap receiver must not block it). _run_start re-checks the
+        # full audit if the mode is no longer KERNEL when the session is actually selected.
+        field = getattr(self, "_field", None)
+        kernel_admission = field is not None and field.status().get("mode") == "KERNEL"
         with self._lock:
             if self._busy or self._field_busy or self._state not in {"STOPPED", "FAILED"}:
                 response.success = False
@@ -952,6 +1012,16 @@ class LifecycleModule(RosComponent):
                 response.message = (
                     "confirm the three Runner IPv4 fields and table side before starting"
                 )
+                return response
+            # A FAILED START first cleans up the old session, which may contact the laptop:
+            # only a failed Kernel session's cleanup may be admitted without the laptop audit.
+            kernel_admission = kernel_admission and (
+                self._state == "STOPPED" or self._session_mode == "KERNEL")
+            try:
+                require_applied(self._config, laptop=not kernel_admission)
+            except ValueError as exc:
+                response.success = False
+                response.message = str(exc)
                 return response
             previous_state = self._state
             previous_session = self._session_id
@@ -976,6 +1046,14 @@ class LifecycleModule(RosComponent):
                     "another lifecycle or time-calibration operation owns the interlock"
                 )
                 return response
+            try:
+                require_applied(self._config, laptop=not kernel_admission)
+            except ValueError as exc:
+                if self._hardware_operation_lock is None:
+                    release_hardware_operation_lock(operation_lock)
+                response.success = False
+                response.message = str(exc)
+                return response
             config = self._config
             session_id = datetime.now(timezone.utc).strftime("model21800_%Y%m%dT%H%M%SZ")
             self._busy = True
@@ -985,7 +1063,8 @@ class LifecycleModule(RosComponent):
             self._last_result = "START_RECOVERY_ACCEPTED" if cleanup_session else "START_ACCEPTED"
             self._hardware_operation_lock = operation_lock
         try:
-            self._pool.submit(self._run_start, config, session_id, cleanup_session, previous_mode)
+            self._pool.submit(self._run_start, config, session_id, cleanup_session, previous_mode,
+                              kernel_admission)
         except Exception as exc:  # noqa: BLE001 - hardware has not changed yet
             with self._lock:
                 self._busy = False
@@ -1004,7 +1083,8 @@ class LifecycleModule(RosComponent):
         return response
 
     def _run_start(self, config: LifecycleConfig, session_id: str,
-                   cleanup_session: str | None = None, cleanup_mode: str = "OPTITRACK") -> None:
+                   cleanup_session: str | None = None, cleanup_mode: str = "OPTITRACK",
+                   kernel_admission: bool = False) -> None:
         recovering = cleanup_session is not None
         mutation_started = False
 
@@ -1038,12 +1118,13 @@ class LifecycleModule(RosComponent):
                 self._session_id = session_id
                 self._step = "PREFLIGHT"
                 self._elink_audit = {}
-            # Check only during START; moving players during a rally cannot
-            # change the session's side. Recovery cleanup above stays available.
-            if self._field.status().get("mode") != "KERNEL":
-                with (nullcontext() if getattr(self._player_positions, "status_threadsafe", False) is True else self._lock):
-                    self._player_positions.require(config.table_side, time.monotonic())
+            # START establishes a PASSIVE session using the saved table side.
+            # Live player visibility is diagnostic, not a startup prerequisite;
+            # Runner motion admission and localization checks remain authoritative.
             mode, csv_sha = self._field.runner_selection(config)
+            if kernel_admission and mode != "KERNEL":
+                # Admitted as Kernel, but the selected mode changed: apply the complete audit.
+                require_applied(config)
             self._session_mode = mode
             self._backend.start(config, session_id, self._on_event, mode, csv_sha,
                                 ball_model=self._field.status().get("ball_model"),
@@ -1144,9 +1225,10 @@ class LifecycleModule(RosComponent):
                 self._busy = False
             return
         with self._lock:
-            # Main keeps manual recording. Field sites may explicitly opt in;
-            # only a completed START does this, never a supervisor restart.
-            if os.environ.get("HOPE_AUTO_RECORD_ON_START", "0") == "1":
+            # Preserve the comparison evidence for each normal hardware session.
+            # Record OFF remains an explicit operator override for this session;
+            # a supervisor restart alone must never start capture or hardware.
+            if os.environ.get("HOPE_AUTO_RECORD_ON_START", "1") == "1":
                 try:
                     self._field.recorder.start()
                 except Exception as exc:  # capture must not change control state
@@ -1258,6 +1340,8 @@ class LifecycleModule(RosComponent):
         self._field_snapshot.stop_refreshing()
         self._refresh_timer.cancel()
         self._elink_timer.cancel()
+        if hasattr(self, "_mocap_recovery_timer"):
+            self._mocap_recovery_timer.cancel()
 
     def close(self) -> None:
         with self._lock:

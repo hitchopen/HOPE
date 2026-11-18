@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include "a3_pingpong/pp_command_transition.hpp"
 #include "a3_pingpong/pp_humanlike_policy.hpp"
 
@@ -10,11 +11,18 @@ class PpTeleopEntry {
  public:
   static constexpr double kSupportSeconds = .5;
   static constexpr double kSeconds = 2.;
+  // From the receive policy's ready pose HumanLike lunged ~15 cm forward
+  // when it took the legs in 0.5 s (MuJoCo, deployed 14200best + HumanLike);
+  // a 2.5 s leg handover keeps it at ~2-5 cm, like PD_STAND -> HumanLike.
+  static constexpr double kFromReceiveSeconds = 2.5;
   void Begin(const robot_io::RobotCommand& source,
-             const robot_io::RobotCommand& /*stand*/) {
+             const robot_io::RobotCommand& /*stand*/,
+             double support_s = kSupportSeconds, double arms_s = kSeconds) {
     source_ = source;
     started_ = false;
     active_ = true;
+    support_s_ = support_s;
+    arms_s_ = std::max(arms_s, support_s);
   }
   bool active() const { return active_; }
   robot_io::RobotCommand Step(double elapsed, const robot_io::RobotState& state,
@@ -22,8 +30,8 @@ class PpTeleopEntry {
     if (!started_) {
       actor.Reset(state, source_);
       auto target = actor.Step(state, Eigen::Vector3d::Zero());
-      support_.Begin(source_, target, kSupportSeconds, .15);
-      arms_.Begin(source_, target, kSeconds, .25);
+      support_.Begin(source_, target, support_s_, .15);
+      arms_.Begin(source_, target, arms_s_, .25);
       started_ = true;
       start_s_ = elapsed;
       return source_;
@@ -45,5 +53,6 @@ class PpTeleopEntry {
   robot_io::RobotCommand source_;
   double start_s_{0};
   bool active_{false}, started_{false};
+  double support_s_{kSupportSeconds}, arms_s_{kSeconds};
 };
 } // namespace a3_pingpong

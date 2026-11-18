@@ -13,7 +13,7 @@ import tempfile
 from typing import IO, Mapping, Sequence
 
 
-CONFIG_SCHEMA_VERSION = 7
+CONFIG_SCHEMA_VERSION = 8
 NETWORK_CONFIG_FIELDS = (
     "laptop_wifi_ip",
     "hdu_wifi_ip",
@@ -27,11 +27,13 @@ OPERATOR_CONFIG_FIELDS = (*LEGACY_CONFIG_FIELDS, "operator_profile")
 MAIN_CONFIG_FIELDS = (*OPERATOR_CONFIG_FIELDS, "gripper_profile")
 FIELD_CONFIG_FIELDS = (*NETWORK_CONFIG_FIELDS, "table_side", "gripper_profile", "pants_profile",
                        "mocap_source", "vrpn_port", "vrpn_units")
-SCHEMA6_CONFIG_FIELDS = (*FIELD_CONFIG_FIELDS, "operator_profile")
-CONFIG_FIELDS = (*SCHEMA6_CONFIG_FIELDS, "auto_dock")
+V6_CONFIG_FIELDS = (*FIELD_CONFIG_FIELDS, "operator_profile")
+MOCAP_CONFIRMATION_FIELDS = ("vrpn_world_frame_confirmed",)
+MOCAP_BINDING_FIELDS = ("hdu_wifi_ip", "mocap_source", "motive_ip", "vrpn_ip", "vrpn_port",
+                       "vrpn_units", "pants_profile", "table_side")
+CONFIG_FIELDS = (*V6_CONFIG_FIELDS, *MOCAP_CONFIRMATION_FIELDS)
 REQUEST_FIELD_SETS = tuple(map(frozenset, (LEGACY_CONFIG_FIELDS, OPERATOR_CONFIG_FIELDS,
-                                        MAIN_CONFIG_FIELDS, FIELD_CONFIG_FIELDS,
-                                        SCHEMA6_CONFIG_FIELDS, CONFIG_FIELDS)))
+                                        MAIN_CONFIG_FIELDS, FIELD_CONFIG_FIELDS, V6_CONFIG_FIELDS, CONFIG_FIELDS)))
 PRIVATE_NETWORKS = tuple(
     ipaddress.IPv4Network(cidr) for cidr in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
 )
@@ -62,7 +64,7 @@ class LifecycleConfig:
     operator_profile: str = "linux"
     gripper_profile: str = "legacy"
     pants_profile: str = "v2"
-    auto_dock: str = "on"
+    vrpn_world_frame_confirmed: str = "false"
     revision: int = 0
 
     def values(self) -> dict[str, str]:
@@ -134,6 +136,10 @@ def validate_table_side(value: object) -> str:
 
 
 def validate_config_value(name: str, value: object) -> str:
+    if name in MOCAP_CONFIRMATION_FIELDS:
+        if value not in ("true", "false") or not isinstance(value, str):
+            raise ValueError(f"{name} must be the string true or false")
+        return value
     if name == "operator_profile":
         if not isinstance(value, str) or value not in {"linux", "mac"}:
             raise ValueError("operator_profile must be exactly linux or mac")
@@ -158,10 +164,6 @@ def validate_config_value(name: str, value: object) -> str:
         choices = {"none", "motive", "vrpn"} if name == "mocap_source" else {"mm", "m"}
         if not isinstance(value, str) or value not in choices:
             raise ValueError(f"{name} must be one of {', '.join(sorted(choices))}")
-        return value
-    if name == "auto_dock":
-        if not isinstance(value, str) or value not in {"off", "on"}:
-            raise ValueError("auto_dock must be exactly off or on")
         return value
     if name == "vrpn_port":
         if (not isinstance(value, str) or re.fullmatch(r"[1-9][0-9]{0,4}", value) is None
@@ -205,6 +207,14 @@ def apply_config_updates(
     for name, value in current.values().items():
         validated.setdefault(name, value)
     validate_mocap_setup(validated)
+    # A saved attestation belongs to a specific robot/source/profile/side.
+    # First save a changed setup, then attest the saved setup explicitly.
+    if any(validated[name] != getattr(current, name) for name in MOCAP_BINDING_FIELDS):
+        for name in MOCAP_CONFIRMATION_FIELDS:
+            validated[name] = "false"
+    if validated["mocap_source"] != "vrpn":
+        for name in MOCAP_CONFIRMATION_FIELDS:
+            validated[name] = "false"
     return LifecycleConfig(**validated, revision=current.revision + 1)
 
 
@@ -214,7 +224,7 @@ def config_to_document(config: LifecycleConfig) -> dict[str, object]:
 
 def config_from_document(document: Mapping[str, object]) -> LifecycleConfig:
     schema_version = document.get("schema_version")
-    if schema_version not in {1, 2, 3, 4, 5, 6, CONFIG_SCHEMA_VERSION}:
+    if schema_version not in {1, 2, 3, 4, 5, 6, 7, CONFIG_SCHEMA_VERSION}:
         raise ValueError("unsupported lifecycle configuration schema")
     revision = document.get("revision")
     if not isinstance(revision, int) or isinstance(revision, bool) or revision < 1:
@@ -251,9 +261,8 @@ def config_from_document(document: Mapping[str, object]) -> LifecycleConfig:
     }.items():
         values[name] = (default if schema_version < 5
                         else validate_config_value(name, document.get(name)))
-    values["auto_dock"] = (
-        "on" if schema_version < 7
-        else validate_config_value("auto_dock", document.get("auto_dock")))
+    for name in MOCAP_CONFIRMATION_FIELDS:
+        values[name] = ("false" if schema_version < 7 else validate_config_value(name, document.get(name)))
     validate_mocap_setup(values)
     return LifecycleConfig(**values, revision=revision)
 

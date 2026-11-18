@@ -6,9 +6,13 @@
 #include <Eigen/Core>
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <fstream>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace a3_pingpong {
 
@@ -168,6 +172,12 @@ class PpDockController {
   explicit PpDockController(DockConfig config) : cfg_(std::move(config)) { DockValidate(cfg_); }
 
   const DockConfig& config() const { return cfg_; }
+  // Operator tuning. The Runner applies it only outside DOCK, on the action
+  // worker that also admits ENTER_DOCK, so no walk ever sees a half update.
+  void SetConfig(const DockConfig& config) {
+    DockValidate(config);
+    cfg_ = config;
+  }
 
   void Begin(double now) {
     begin_s_ = now;
@@ -344,5 +354,104 @@ class PpDockController {
   int attempt_{0};
   bool start_checked_{false};
 };
+
+// Console tuning wire, /hope/runner/dock_config_flat schema 1, 13 doubles:
+// [1, runner boot, request seq, target x, target y, target yaw (rad),
+//  done tolerance m, done tolerance rad, forward m/s, backward m/s,
+//  lateral m/s, yaw rad/s, max start distance m].
+// Capture/reopen bands and minimum speeds follow the tolerances and limits.
+inline constexpr std::size_t kDockConfigWireSize = 13;
+
+enum class DockConfigResult : int {
+  kNone = 0,
+  kApplied = 1,
+  kRejectedInvalid = 2,
+  kRejectedBusy = 3,
+  kAppliedNotSaved = 4,
+};
+
+inline std::optional<DockConfig> DockConfigFromWire(const DockConfig& base,
+                                                    const std::vector<double>& v,
+                                                    std::string* error = nullptr) {
+  auto fail = [&](const char* why) -> std::optional<DockConfig> {
+    if (error) *error = why;
+    return std::nullopt;
+  };
+  if (v.size() != kDockConfigWireSize || v[0] != 1.0) return fail("schema");
+  for (double x : v) if (!std::isfinite(x)) return fail("non-finite");
+  auto in = [](double x, double lo, double hi) { return x >= lo && x <= hi; };
+  constexpr double kDeg = 0.017453292519943295;
+  DockConfig c = base;
+  c.target_x = v[3];
+  c.target_y = v[4];
+  c.target_yaw = DockWrap(v[5]);
+  c.position_tolerance_m = v[6];
+  c.yaw_tolerance_rad = v[7];
+  c.forward_m_s = v[8];
+  c.backward_m_s = v[9];
+  c.lateral_m_s = v[10];
+  c.yaw_rad_s = v[11];
+  c.max_start_distance_m = v[12];
+  // Hard envelope for field tuning; anything wider needs a reviewed dock.yaml.
+  if (!in(c.target_x, -5.0, 5.0) || !in(c.target_y, -5.0, 5.0)) return fail("target outside 5 m");
+  if (!in(c.position_tolerance_m, 0.02, 0.30)) return fail("position tolerance 2-30 cm");
+  if (!in(c.yaw_tolerance_rad, 0.5 * kDeg, 20.0 * kDeg)) return fail("yaw tolerance 0.5-20 deg");
+  if (!in(c.forward_m_s, 0.05, 0.40) || !in(c.backward_m_s, 0.05, 0.25) ||
+      !in(c.lateral_m_s, 0.05, 0.25)) return fail("speed outside limits");
+  if (!in(c.yaw_rad_s, 5.0 * kDeg, 60.0 * kDeg)) return fail("yaw rate 5-60 deg/s");
+  if (!in(c.max_start_distance_m, 0.1, 3.0)) return fail("start distance 0.1-3 m");
+  c.capture_position_m = std::min(base.capture_position_m, c.position_tolerance_m);
+  c.capture_yaw_rad = std::min(base.capture_yaw_rad, c.yaw_tolerance_rad);
+  c.reopen_position_m = std::max(base.reopen_position_m, 1.5 * c.position_tolerance_m);
+  c.reopen_yaw_rad = std::max(base.reopen_yaw_rad, 1.5 * c.yaw_tolerance_rad);
+  c.min_linear_m_s = std::min({base.min_linear_m_s, c.forward_m_s, c.lateral_m_s, c.backward_m_s});
+  c.min_yaw_rad_s = std::min(base.min_yaw_rad_s, c.yaw_rad_s);
+  try {
+    DockValidate(c);
+  } catch (const std::exception&) {
+    return fail("inconsistent limits");
+  }
+  return c;
+}
+
+inline std::string DockConfigYaml(const DockConfig& c) {
+  std::ostringstream o;
+  o.precision(6);
+  o << "# Auto-dock (Reposition) target and limits for PpDockController.\n"
+       "# Written by the Runner after Console tuning; see docs/operations.\n"
+    << "target:\n  x: " << c.target_x << "\n  y: " << c.target_y << "\n  yaw: " << c.target_yaw << "\n"
+    << "capture:\n  position_m: " << c.capture_position_m << "\n  yaw_rad: " << c.capture_yaw_rad << "\n"
+    << "tolerance:\n  position_m: " << c.position_tolerance_m << "\n  yaw_rad: " << c.yaw_tolerance_rad << "\n"
+    << "reopen:\n  position_m: " << c.reopen_position_m << "\n  yaw_rad: " << c.reopen_yaw_rad << "\n"
+    << "gains:\n  xy: " << c.gain_xy << "\n  yaw: " << c.gain_yaw << "\n"
+    << "limits:\n  forward_m_s: " << c.forward_m_s << "\n  backward_m_s: " << c.backward_m_s
+    << "\n  lateral_m_s: " << c.lateral_m_s << "\n  yaw_rad_s: " << c.yaw_rad_s
+    << "\n  min_linear_m_s: " << c.min_linear_m_s << "\n  min_yaw_rad_s: " << c.min_yaw_rad_s << "\n"
+    << "yaw_priority_rad: " << c.yaw_priority_rad << "\n"
+    << "approach_distance_m: " << c.approach_distance_m << "\n"
+    << "timing:\n  timeout_s: " << c.timeout_s << "\n  mocap_max_age_s: " << c.mocap_max_age_s
+    << "\n  settle_hold_s: " << c.settle_hold_s << "\n  max_attempts: " << c.max_attempts
+    << "\n  max_start_distance_m: " << c.max_start_distance_m << "\n";
+  return o.str();
+}
+
+// Atomic replace: the lifecycle reads dock.yaml at the next START. Keeps the
+// first pre-tuning file as dock.yaml.orig.
+inline bool SaveDockConfig(const std::string& path, const DockConfig& c) {
+  const std::string orig = path + ".orig";
+  if (!std::ifstream(orig).good()) {
+    std::ifstream src(path, std::ios::binary);
+    std::ofstream dst(orig, std::ios::binary);
+    if (src && dst) dst << src.rdbuf();
+  }
+  const std::string tmp = path + ".tmp";
+  {
+    std::ofstream out(tmp, std::ios::trunc);
+    if (!out) return false;
+    out << DockConfigYaml(c);
+    if (!out.flush()) return false;
+  }
+  return std::rename(tmp.c_str(), path.c_str()) == 0;
+}
 
 }  // namespace a3_pingpong

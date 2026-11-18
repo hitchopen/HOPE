@@ -32,7 +32,8 @@ def test_source_roundtrip_and_separate_endpoints(source):
 def test_legacy_upgrade_preserves_settings_without_guessing_vrpn(version, motive_ip):
     document = config_to_document(configured(motive_ip=motive_ip))
     document["schema_version"] = version
-    for name in ("operator_profile", "mocap_source", "vrpn_ip", "vrpn_port", "vrpn_units"):
+    document.pop("operator_profile")  # historical field lineage, not main schema 3/4
+    for name in ("mocap_source", "vrpn_ip", "vrpn_port", "vrpn_units"):
         document.pop(name)
     migrated = config_from_document(document)
     assert migrated.mocap_source == "none"
@@ -55,7 +56,7 @@ def test_invalid_or_incomplete_setup_rejected(changes):
 def test_helper_dispatch_keeps_selected_setup_and_rejects_second_stack():
     helper = (FOXGLOVE / "helpers/hope-lifecycle").read_text()
     parser = helper[helper.index("valid_ipv4() {"):helper.index("require_user() {")]
-    starter = helper[helper.index("validate_laptop_mocap() {"):helper.index("run_base() {")]
+    starter = helper[helper.index("validate_laptop_mocap() {"):helper.index("run_transport_gateway() {")]
     stubs = '''
 LAPTOP_USER=unused LAPTOP_SESSION=hope-optitrack SELF=helper
 require_user() { :; }
@@ -72,7 +73,7 @@ emit() { :; }
     code = "set -eu\n" + parser + starter + stubs + '\nparse_common "$@"; start_laptop'
     result = subprocess.run(["bash", "-c", code, "test", *common], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
-    assert result.stdout.splitlines()[-5:] == common[-5:]
+    assert result.stdout.splitlines()[-6:] == common[-5:] + ["false"]
     result = subprocess.run(["bash", "-c", code, "test", *common], capture_output=True,
                             text=True, env={**os.environ, "EXISTING_STACK": "0"})
     assert result.returncode != 0 and "UNMANAGED_BRIDGE_PRESENT" in result.stdout
@@ -124,33 +125,6 @@ HOPE_LIFECYCLE_TABLE_SIDE=P2
     args = capture.read_text().splitlines()
     assert args[:3] == ["launch", "hope_bringup", "avatar_pro_hope_bridge.launch.py"]
     for arg in ("server:=192.168.100.99", "port:=3884", f"position_scale:={scale}",
-                "pants_profile:=v4", "table_side:=P2", "pelvis_asset_confirmed:=false",
+                "pants_profile:=v4", "table_side:=P2",
                 "world_frame_confirmed:=false", "follow_lifecycle_config:=true"):
         assert arg in args
-
-@pytest.mark.parametrize('version', [3, 4])
-def test_main_schema_migration_preserves_mac_natnet_and_gripper(version):
-    document = dict(schema_version=version, revision=7, laptop_wifi_ip='10.42.20.1',
-                    hdu_wifi_ip='10.42.20.10', mdu_internal_ip='10.42.10.12',
-                    motive_ip='169.254.10.221', table_side='P2', operator_profile='mac')
-    if version == 4:
-        document['gripper_profile'] = 'new_20261015'
-    config = config_from_document(document)
-    assert config.operator_profile == 'mac' and config.table_side == 'P2'
-    assert config.motive_ip == '169.254.10.221' and config.mocap_source == 'none'
-    assert config.gripper_profile == ('legacy' if version == 3 else 'new_20261015')
-    assert config.pants_profile == 'v2'
-
-
-def test_field_schema_five_and_old_mac_request_keep_new_choices():
-    from hope_lifecycle_core import OPERATOR_CONFIG_FIELDS
-    config = configured(operator_profile='mac', mocap_source='vrpn', vrpn_ip='192.168.100.99')
-    doc = config_to_document(config)
-    doc['schema_version'] = 5
-    del doc['operator_profile']
-    migrated = config_from_document(doc)
-    assert migrated.operator_profile == 'linux' and migrated.pants_profile == 'v4'
-    assert migrated.mocap_source == 'vrpn'
-    old = [(name, config.values()[name]) for name in OPERATOR_CONFIG_FIELDS]
-    changed = apply_config_updates(config, old)
-    assert changed.values() == config.values()

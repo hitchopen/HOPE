@@ -286,7 +286,7 @@ bool PpHybridLowerPolicy::Initialize() {
     return false;
   }
   Reset();
-  std::cout << "[hybrid-lower] READY: receive policy + HumanLike3630x15 "
+  std::cout << "[hybrid-lower] READY: model_3440 + HumanLike3630x15 "
             << PpHybridLowerOwnerName(config_.owner)
             << " | outer=" << (1.0 / config_.outer_policy_dt)
             << "Hz history=" << (1.0 / config_.humanlike_policy_dt)
@@ -371,7 +371,7 @@ double PpHybridLowerPolicy::UpdatePhase(const robot_io::RobotState& state,
   // Exact HumanLike SMART_WALK state machine. onEnter seeds phase_index=96
   // and low_speed_count=41. Therefore a level, feet-aligned zero-command
   // entry resets the very first actor observation to phase 0; it does not
-  // execute a gratuitous gait cycle first. receive policy is an external upper
+  // execute a gratuitous gait cycle first. model_3440 is an external upper
   // command, selecting the vendor swing thresholds below.
   if (!config_.smart_walk_zero_settled || command_norm >= 0.05) {
     low_speed_count_ = 0;

@@ -36,9 +36,6 @@ TODO before running on hardware (see docs/operations/run_mocap.md):
     'Ball' or 'ball', canonical downstream name 'Ball').
     The selected ``tracked_marker_frame`` overrides the marker aggregate's
     default UCB_P1 asset so P2 calibration receives UCB_P2 marker messages.
-  * after verifying/importing the pelvis-aligned 17-station sticker asset, name it for
-    the selected UCB frame, restart NatNet to refresh MODELDEF, and generate a
-    fresh calibration/ucb_robot_to_pelvis.json receipt before policy entry.
 """
 
 import ipaddress
@@ -54,7 +51,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
-from launch_ros.substitutions import FindPackageShare
+from launch_ros.substitutions import ExecutableInPackage, FindPackageShare
 
 
 def validate_mocap_interface(context):
@@ -62,6 +59,13 @@ def validate_mocap_interface(context):
         return []
     if LaunchConfiguration("mocap_type").perform(context) != "optitrack":
         return []
+    hostname = LaunchConfiguration("hostname").perform(context)
+    try:
+        server = ipaddress.IPv4Address(hostname)
+        if server.is_unspecified or server.is_multicast or server.is_loopback or int(server) == 0xffffffff:
+            raise ValueError("expected a server unicast IPv4 address")
+    except ValueError as exc:
+        raise RuntimeError("Motive hostname must be explicitly supplied from the active configuration") from exc
     value = LaunchConfiguration("interface_ip").perform(context)
     if value:
         try:
@@ -76,7 +80,10 @@ def validate_mocap_interface(context):
 def generate_launch_description():
     # Written by the stopped-only Foxglove ball selector; late override wins.
     ball_profile = Path.home() / ".config/hope-foxglove/ball_physics.json"
-    ball_overrides = [str(ball_profile)] if ball_profile.exists() else []
+    ball_overrides = [str(ball_profile)] if ball_profile.exists() else [
+        PathJoinSubstitution([FindPackageShare("hope_planner_cpp"), "config",
+                              "ball_physics_ppq004_20261020.yaml"])
+    ]
     launch_dir = Path(__file__).resolve().parent
     mct_config_path = launch_dir.parent / "config" / "optitrack_mct.yaml"
     relay_config_path = launch_dir.parent / "config" / "optitrack_relay.yaml"
@@ -123,6 +130,7 @@ def generate_launch_description():
             description="Local Motive NIC IPv4; empty or 0.0.0.0 selects the "
                         "source address of the route to the Motive server.",
         ),
+
         DeclareLaunchArgument(
             "hostname",
             description="REQUIRED (no default by operator policy — venue values are "
@@ -236,7 +244,6 @@ def generate_launch_description():
             ),
         ),
 
-        # Reject invalid configuration before any nodes or respawn loops start.
         OpaqueFunction(function=validate_mocap_interface),
 
         # Static HOPE world frame: table landmarks + mocap->base_link offsets.
@@ -262,17 +269,17 @@ def generate_launch_description():
         Node(
             package="hope_bringup",
             executable="p1_marker_cad_calibration_server",
-            name="ucb_robot_cad_calibration_server_stickers_v3",
+            name="ucb_robot_cad_calibration_server_v2",
             output="screen",
             condition=IfCondition(start_calibration),
             parameters=[
                 {
                     "calibration_file": ucb_calibration_file,
                     "asset_name": tracked_marker_frame,
-                    "marker_layout": "stickers_v3",
-                    "marker_names": ",".join(f"S{i:02d}" for i in range(1,25)),
-                    "allow_nominal_markers": False,
-                    "service_name": "/a3/calibration/recompute_p1",
+                    "marker_layout": "v2",
+                    "marker_names": "f1,f2,f3,f4,f5,b1,b2,b3,b4,b5",
+                    "allow_nominal_markers": True,
+                    "service_name": "/a3/calibration/recompute_ucb_robot_v2",
                     "table_side": table_side,
                     "table_length_m": ParameterValue(
                         table_length_m, value_type=float
@@ -283,7 +290,9 @@ def generate_launch_description():
                     "max_live_max_mm": ParameterValue(
                         ucb_max_live_max_mm, value_type=float
                     ),
-                    "max_registration_rms_mm": 3.0,
+                    "max_registration_rms_mm": ParameterValue(
+                        ucb_v2_max_registration_rms_mm, value_type=float
+                    ),
                 }
             ],
         ),
@@ -317,38 +326,6 @@ def generate_launch_description():
                 }
             ],
         ),
-
-        Node(
-            package="hope_bringup",
-            executable="p1_marker_cad_calibration_server",
-            name="ucb_robot_cad_calibration_server_v2",
-            output="screen",
-            condition=IfCondition(start_calibration),
-            parameters=[
-                {
-                    "calibration_file": ucb_calibration_file,
-                    "asset_name": tracked_marker_frame,
-                    "marker_layout": "v2",
-                    "marker_names": "f1,f2,f3,f4,f5,b1,b2,b3,b4,b5",
-                    "allow_nominal_markers": True,
-                    "service_name": "/a3/calibration/recompute_ucb_robot_v2",
-                    "table_side": table_side,
-                    "table_length_m": ParameterValue(
-                        table_length_m, value_type=float
-                    ),
-                    "table_width_m": ParameterValue(
-                        table_width_m, value_type=float
-                    ),
-                    "max_live_max_mm": ParameterValue(
-                        ucb_max_live_max_mm, value_type=float
-                    ),
-                    "max_registration_rms_mm": ParameterValue(
-                        ucb_v2_max_registration_rms_mm, value_type=float
-                    ),
-                }
-            ],
-        ),
-
 
         # Vendored NatNet driver: Motive -> /optitrack/poses (NamedPoseArrayV2),
         # /optitrack/tf, /optitrack/pointCloud. Motive-native rigid bodies
@@ -431,6 +408,8 @@ def generate_launch_description():
         Node(
             package="hope_planner_cpp",
             executable="hope_ball_flight_packetizer",
+            prefix=[ExecutableInPackage("with_flight_packet_qos.sh", package="hope_bringup"),
+                    " ", flight_packet_topic, " --"],
             name="hope_ball_flight_packetizer",
             output="screen",
             condition=IfCondition(start_flight_packetizer),

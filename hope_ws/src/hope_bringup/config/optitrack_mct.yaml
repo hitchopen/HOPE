@@ -38,7 +38,7 @@
     # one of "optitrack" (open-source NatNet depacketizer, all platforms) or
     # "mock" (bench testing without Motive; streams rigid_bodies statically).
     # The other libmotioncapture backends are trimmed from the HOPE vendor
-    # copy (see hope_ws/src/motion_capture_tracking/PIN.md).
+    # copy (see NatNet2ROS2/src/motion_capture_tracking/PIN.md).
     type: "optitrack"
     # Both field spellings are accepted at the Motive boundary. Everything
     # downstream still receives the single canonical name `Ball`, so the
@@ -62,14 +62,13 @@
 
     topics:
       frame_id: "world"
-      output_rate_hz: 200.0
       # NatNet CameraMidExposureTimestamp is Motive QPC time, not Unix. The
       # adapter uses NAT_ECHOREQUEST/RESPONSE to map it into this Laptop's
       # CLOCK_REALTIME epoch. The relay preserves this header through /poses.
       # Mapping quality is logged below and never becomes a Planner/runner gate.
       header_time: "camera_utc"
-      max_clock_sync_uncertainty_ms: 2.0
-      max_capture_age_ms: 100.0
+      clock_sync_uncertainty_warn_ms: 2.0
+      capture_age_warn_ms: 100.0
       poses:
         version: 2        # NamedPoseArrayV2: camera timestamp + latency trace
         qos:

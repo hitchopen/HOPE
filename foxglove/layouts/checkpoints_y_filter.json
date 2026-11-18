@@ -1,0 +1,114 @@
+{
+  "configById": {
+    "3D!a3tf": {
+      "cameraState": {
+        "perspective": true,
+        "distance": 4.986149584486159,
+        "phi": 68.7386363636468,
+        "thetaOffset": 89.04545454546219,
+        "targetOffset": [
+          -0.8746450195613529,
+          -1.0489653367875826,
+          1.255812941025165
+        ],
+        "target": [
+          1.37,
+          -0.7625,
+          -0.1
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "fovy": 45,
+        "near": 0.05,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "followTf": "world",
+      "scene": {
+        "enableStats": false,
+        "transforms": {
+          "showLabel": true,
+          "lineWidth": 2,
+          "axisSize": 0.05
+        },
+        "meshUpAxis": "z_up"
+      },
+      "transforms": {},
+      "topics": {
+        "/hope/pelvis/marker": {
+          "visible": true
+        },
+        "/hope/ball/marker": {
+          "visible": true
+        },
+        "/hope/planner/y_filter_markers": {
+          "visible": true
+        }
+      },
+      "layers": {
+        "grid-hope": {
+          "instanceId": "grid-hope",
+          "layerId": "foxglove.Grid",
+          "visible": true,
+          "label": "HOPE world (z=0 table surface)",
+          "frameId": "world",
+          "size": 4,
+          "divisions": 40,
+          "lineWidth": 1,
+          "color": "#248eff44",
+          "position": [
+            1.37,
+            -0.7625,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ],
+          "order": 1
+        },
+        "urdf-table": {
+          "instanceId": "urdf-table",
+          "layerId": "foxglove.Urdf",
+          "visible": true,
+          "label": "Standard ping-pong table (HOPE world)",
+          "sourceType": "url",
+          "url": "http://localhost:8000/assets/hope_ping_pong_table.urdf",
+          "framePrefix": "",
+          "displayMode": "auto",
+          "fallbackColor": "#245c8a",
+          "order": 2
+        }
+      },
+      "publish": {
+        "type": "point",
+        "poseTopic": "/move_base_simple/goal",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "synchronize": false,
+      "imageMode": {}
+    },
+    "hope-a3-console.HOPE A3 Console!operator": {}
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1,
+    "messageOrder": "receiveTime"
+  },
+  "layout": {
+    "direction": "row",
+    "first": "3D!a3tf",
+    "second": "hope-a3-console.HOPE A3 Console!operator",
+    "splitPercentage": 47.155448717948715
+  }
+}

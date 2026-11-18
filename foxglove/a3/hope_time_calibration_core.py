@@ -22,6 +22,72 @@ from hope_lifecycle_core import LifecycleConfig
 from hope_monitor_core import NtpProbeResult, probe_ntp
 
 
+def read_calibration_network():
+    """Include link state: a down/up cycle can invalidate DDS with the same IP."""
+    try:
+        result = subprocess.run(
+            ["ip", "-j", "-4", "address", "show"], capture_output=True,
+            text=True, timeout=0.3, check=True,
+        )
+        return tuple(sorted(
+            (item["ifindex"], item["ifname"], "UP" in item.get("flags", [])
+             and "LOWER_UP" in item.get("flags", []), address["local"])
+            for item in json.loads(result.stdout) if item["ifname"] != "lo"
+            for address in item.get("addr_info", [])
+            if address.get("family") == "inet" and address.get("scope") == "global"
+        ))
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
+        return None
+
+
+def calibration_address_ready(signature, address):
+    return signature is not None and any(up and ip == address for _, _, up, ip in signature)
+
+
+def wait_for_calibration_network(address, *, timeout_s=30.0, read=None,
+                                 clock=None, sleep=None):
+    """Wait for the saved local IP before DDS snapshots available interfaces.
+
+    Bound the wait so local diagnostics and interrupted-operation recovery stay
+    available even when the venue network is absent. The watcher handles a
+    later address arrival. No remote reachability or clock operation is needed.
+    """
+    read = read or read_calibration_network
+    clock, sleep = clock or time.monotonic, sleep or time.sleep
+    deadline = clock() + timeout_s
+    while True:
+        signature = read()
+        if not address or calibration_address_ready(signature, address) or clock() >= deadline:
+            return signature
+        sleep(0.5)
+
+
+class CalibrationNetworkWatch:
+    def __init__(self, baseline):
+        self.observed = baseline
+        self.dirty = False
+        self.changed_at = 0.0
+
+    def needs_reconnect(self, current, now):
+        if current is None:
+            return False  # Failed probes never become evidence of a change.
+        if current != self.observed:
+            self.observed, self.changed_at, self.dirty = current, now, True
+        # Latch changes even if an interface returns with its original address.
+        return self.dirty and now - self.changed_at >= 3.0 and any(row[2] for row in current)
+
+
+def calibration_owner_stopped(path, boot_id, now):
+    """Local owner evidence remains usable when this node's DDS is stranded."""
+    try:
+        owner = json.loads(Path(path).read_text())
+        age = now - float(owner["monotonic_s"])
+        return (owner["boot_id"] == boot_id and owner["state"] == "STOPPED"
+                and owner["busy"] is False and 0.0 <= age <= 1.5)
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
 STATUS_SCHEMA_VERSION = 1
 OPERATION_PATTERN = re.compile(r"timecal_[0-9]{8}T[0-9]{6}Z")
 SAFE_ACCOUNT_PATTERN = re.compile(r"[a-z_][a-z0-9_-]{0,31}")
@@ -93,7 +159,6 @@ ENV = "/usr/bin/env"
 REMOTE_SUDO = "/usr/bin/sudo"
 LIFECYCLE_HELPER = "/usr/local/libexec/hope-lifecycle"
 CHRONYC = "/usr/bin/chronyc"
-GUARDED_CLOCK = "/usr/local/libexec/hope-guarded-clock"
 CHRONY_BURST_UNIT = "hope-chrony-burst.service"
 TEST = "/usr/bin/test"
 SS = "/usr/bin/ss"
@@ -297,7 +362,6 @@ class TimeCalibrationBackend:
             robot_home = pwd.getpwnam(robot_user).pw_dir
         if not robot_home.startswith("/") or any(character.isspace() for character in robot_home):
             raise ValueError("robot account home must be an absolute path without whitespace")
-        self._guarded_restore = False
         self._robot_user = robot_user
         self._robot_home = robot_home
         self._run = run
@@ -622,7 +686,6 @@ class TimeCalibrationBackend:
                 raise CalibrationFailure(f"HDU_CLOCK_PROCESS_REMAINS: {process}")
 
     def preflight(self, config: LifecycleConfig) -> tuple[str, ...]:
-        self._guarded_restore = False
         if config.revision < 1:
             raise CalibrationRejected("CONFIG_NOT_CONFIRMED")
         if not self._is_active("chrony.service"):
@@ -643,18 +706,9 @@ class TimeCalibrationBackend:
             except OSError as exc:
                 raise CalibrationRejected("HDU_VENDOR_LAUNCHER_UNREADABLE") from exc
             if "system/timesync_guard.py" in launcher:
-                # Original BSPs still fail before any MDU mutation. The pinned
-                # adapter permits only a receipt-bound, post-step restoration.
-                try:
-                    adapter = self._checked([GUARDED_CLOCK, "--check"], timeout_s=5.0,
-                                            label="verify guarded BSP restoration adapter")
-                    if adapter.strip() != "GUARDED_CLOCK_ADAPTER_V1":
-                        raise CalibrationFailure("guarded BSP adapter protocol mismatch")
-                except CalibrationFailure as exc:
-                    raise CalibrationRejected(
-                        f"GUARDED_BSP_REQUIRES_PAIRED_REBOOT: {exc}"
-                    ) from exc
-                self._guarded_restore = True
+                # This BSP restores vendor PTP only after a paired cold boot.
+                # Reject before even receipt-based MDU recovery can mutate it.
+                raise CalibrationRejected("GUARDED_BSP_REQUIRES_PAIRED_REBOOT")
         missing_ptp = [
             process
             for process in PTP_PROCESSES
@@ -743,12 +797,6 @@ class TimeCalibrationBackend:
         """Best-effort safe stop: keep robot services down, restore diagnostics."""
 
         errors: list[str] = []
-        if self._guarded_restore:
-            try:
-                self._checked([GUARDED_CLOCK, "--revoke"], timeout_s=5.0,
-                              label="revoke guarded BSP restoration receipt")
-            except Exception as exc:
-                errors.append(f"GUARDED_RECEIPT_REVOKE={exc}")
         try:
             self._remote_mdu(config, "time-calibration-stop-mdu", timeout_s=120.0)
         except Exception as exc:  # noqa: BLE001 - collect every recovery failure
@@ -914,11 +962,6 @@ class TimeCalibrationBackend:
                 raise CalibrationFailure(f"CLOCK_NOT_QUALIFIED_AFTER_HARD_STEP: {detail}")
 
             report("HDU_RESTORE", "RESTORING_HDU_VENDOR_PTP_CHAIN")
-            if self._guarded_restore:
-                self._checked(
-                    [GUARDED_CLOCK, "--arm", config.mdu_internal_ip, self._robot_user],
-                    timeout_s=30.0, label="arm one-use guarded BSP PTP restoration",
-                )
             if active_ptp:
                 self._start_units(active_ptp, label="restore HDU PTP services")
                 self._wait_units_active(active_ptp, timeout_s=30.0)
@@ -928,11 +971,6 @@ class TimeCalibrationBackend:
             if active_ptp:
                 self._start_units(active_vendor, label="restore HDU vendor services")
 
-            if self._guarded_restore:
-                self._checked([GUARDED_CLOCK, "--verify"], timeout_s=10.0,
-                              label="verify guarded BSP restoration acknowledgement")
-                self._checked([GUARDED_CLOCK, "--revoke"], timeout_s=5.0,
-                              label="clear guarded BSP restoration receipt")
             report("MDU_RESTORE", "RESTORING_MDU_PTP_AND_VENDOR_SERVICES")
             self._remote_mdu(config, "time-calibration-restore-mdu", timeout_s=180.0)
 

@@ -1,7 +1,7 @@
 """ROS-free codec for the local Runner's fixed operator contract.
 
 The browser never publishes this wire directly.  ``hope_command_proxy``
-maps eleven exact Trigger services to the fixed request array and waits for the
+maps thirteen exact Trigger services to the fixed request array and waits for the
 authoritative Runner state response.
 """
 
@@ -32,6 +32,7 @@ ACTION_CODES = {
     "CONFIRM_GRIP_SECURE": 12,
     "ENTER_TELEOP": 13,
     "ENTER_DOCK": 14,
+    "ENTER_WALK_STAND": 15,
 }
 ACTION_NAMES = {value: key for key, value in ACTION_CODES.items()}
 ACTION_NAMES[0] = "NONE"
@@ -46,6 +47,7 @@ MODE_NAMES = {
     5: "SERVE",
     6: "TELEOP",
     7: "DOCK",
+    8: "WALK_STAND",
 }
 ROLE_NAMES = {0: "UNASSIGNED", 1: "SERVER", 2: "RECEIVER"}
 RESULT_NAMES = {

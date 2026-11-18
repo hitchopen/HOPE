@@ -14,9 +14,10 @@
 //   a     = max_i ||sole_i xy - HOME anchor_i xy||        [m]   (leg FK + mocap pose)
 //   L0: a < 0.04, L1: a < 0.08, L2: a < 0.12, L3 otherwise.
 // It is OPTIONAL by contract: NaN means "not computed" and does not change the
-// level (the three pelvis inputs keep their fail-closed semantics).
-// Sole displacement can detect stance drift even while pelvis measurements
-// remain inside their thresholds.
+// level (the three pelvis inputs keep their fail-closed semantics).  Gate3
+// torture on the Schema32 model_5580 (2026-09-03) fell after 51 balls whose
+// pelvis channels never left L0/L1 while the stance ratcheted 26 -> 45 cm and the
+// right sole drifted 16.5 cm from its anchor -- exactly this channel.
 // with hysteresis: the level may rise immediately but may only fall after the
 // lower level's conditions have held for 0.30 s continuously.
 //

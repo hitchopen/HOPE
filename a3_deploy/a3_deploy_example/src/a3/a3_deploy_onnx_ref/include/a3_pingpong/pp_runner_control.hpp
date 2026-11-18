@@ -29,6 +29,7 @@ enum class RunnerMode : int {
   kServe = 5,
   kTeleop = 6,
   kDock = 7,
+  kWalkStand = 8,
 };
 
 inline const char* RunnerModeName(RunnerMode mode) {
@@ -41,6 +42,7 @@ inline const char* RunnerModeName(RunnerMode mode) {
     case RunnerMode::kServe: return "SERVE";
     case RunnerMode::kTeleop: return "TELEOP";
     case RunnerMode::kDock: return "DOCK";
+    case RunnerMode::kWalkStand: return "WALK_STAND";
   }
   return "UNKNOWN";
 }
@@ -77,6 +79,7 @@ enum class RunnerAction : int {
   kConfirmGripSecure = 12,
   kEnterTeleop = 13,
   kEnterDock = 14,
+  kEnterWalkStand = 15,
 };
 
 inline const char* RunnerActionName(RunnerAction action) {
@@ -99,6 +102,7 @@ inline const char* RunnerActionName(RunnerAction action) {
       return "CONFIRM_GRIP_SECURE";
     case RunnerAction::kEnterTeleop: return "ENTER_TELEOP";
     case RunnerAction::kEnterDock: return "ENTER_DOCK";
+    case RunnerAction::kEnterWalkStand: return "ENTER_WALK_STAND";
   }
   return "UNKNOWN";
 }
@@ -290,6 +294,12 @@ struct RunnerActionDecision {
   bool request_teleop_stop{false};
 };
 
+// Modes whose command comes from the HumanLike locomotion policy.
+inline bool IsLocomotionMode(RunnerMode mode) noexcept {
+  return mode == RunnerMode::kTeleop || mode == RunnerMode::kWalkStand ||
+         mode == RunnerMode::kDock;
+}
+
 inline bool IsRemoteRunnerAction(RunnerAction action) noexcept {
   switch (action) {
     case RunnerAction::kSetServer:
@@ -305,6 +315,7 @@ inline bool IsRemoteRunnerAction(RunnerAction action) noexcept {
     case RunnerAction::kConfirmGripSecure:
     case RunnerAction::kEnterTeleop:
     case RunnerAction::kEnterDock:
+    case RunnerAction::kEnterWalkStand:
       return true;
     case RunnerAction::kNone:
     case RunnerAction::kEnterShadow:
@@ -364,7 +375,8 @@ class PpRunnerControl {
     const RunnerMode current = mode();
     return !command_fault_latched &&
            (current == RunnerMode::kPassive ||
-            current == RunnerMode::kPdStand);
+            current == RunnerMode::kPdStand ||
+            current == RunnerMode::kWalkStand);
   }
 
   bool serve_only() const noexcept { return serve_only_; }
@@ -430,7 +442,15 @@ class PpRunnerControl {
     return false;
   }
   bool TeleopStopRequested() const noexcept { return teleop_stop_requested_.load(); }
-  bool DockStopRequested() const noexcept { return dock_stop_requested_.load(); }
+  // WALK_STAND is the operator Stand. ENTER_MOTION / PREPARE_SERVE from it are
+  // staged: HumanLike settles, the Runner passes through the stiff PD_STAND,
+  // then the command thread re-enqueues the action as a local request.
+  bool StandHandoffPending() const noexcept {
+    return stand_handoff_.load() != static_cast<int>(RunnerAction::kNone);
+  }
+  RunnerAction TakeStandHandoff() noexcept {
+    return static_cast<RunnerAction>(stand_handoff_.exchange(static_cast<int>(RunnerAction::kNone)));
+  }
   // Consumed by the command thread, after observing SERVE. Keep this separate
   // from mode edges: COMPLETE -> MOTION -> SERVE can occur between callbacks.
   bool ConsumeServePrepare() noexcept { return serve_prepare_pending_.exchange(false); }
@@ -501,10 +521,13 @@ class PpRunnerControl {
       mocap_interrupted_ = false;
       operator_interrupted_ = RunnerActionReason::kNone;
     }
-    if (next == RunnerMode::kTeleop && mode() != next)
+    // One HumanLike session spans TELEOP, WALK_STAND and DOCK. A stop request
+    // is cleared only when the session starts, never on DOCK -> WALK_STAND.
+    if ((IsLocomotionMode(next) && !IsLocomotionMode(mode())) || next == RunnerMode::kWalkStand)
       teleop_stop_requested_.store(false);
-    if (next == RunnerMode::kDock && mode() != next)
-      dock_stop_requested_.store(false);
+    // A staged Ready/Serve survives only the WALK_STAND -> PD_STAND handoff.
+    if (next != RunnerMode::kPdStand && next != RunnerMode::kWalkStand)
+      stand_handoff_.store(static_cast<int>(RunnerAction::kNone));
     if (mode_.exchange(next, std::memory_order_acq_rel) != next) Touch_();
     return true;
   }
@@ -522,7 +545,7 @@ class PpRunnerControl {
         IsExactFloatInteger(
             values[2], 1,
             static_cast<std::uint64_t>(
-                RunnerAction::kEnterDock),
+                RunnerAction::kEnterWalkStand),
             &action_code);
     const bool valid =
         values.size() == kRunnerControlRequestSize &&
@@ -554,7 +577,7 @@ class PpRunnerControl {
         request.action == RunnerAction::kNone ||
         static_cast<int>(request.action) >
             static_cast<int>(
-                RunnerAction::kEnterDock) ||
+                RunnerAction::kEnterWalkStand) ||
         (request.remote && !IsRemoteRunnerAction(request.action))) {
       RecordResult_(request, RunnerActionResult::kInvalidRequest,
                     RunnerActionReason::kMalformedRequest);
@@ -735,6 +758,27 @@ class PpRunnerControl {
     Touch_();
   }
 
+  // Ready / Serve from the operator Stand (WALK_STAND): settle HumanLike, pass
+  // through the stiff PD_STAND, then the command thread re-enqueues the action
+  // with the normal admission. Stand or PASSIVE cancels it.
+  // Reuses frozen wire reasons (HDU decoders reject unknown codes): pending
+  // Ready is ACCEPTED_PENDING/MODE_CHANGED, pending Serve is
+  // ACCEPTED_PENDING/SERVE_PREPARE_REQUESTED, a second request while one
+  // settles is REJECTED_WRONG_MODE/PD_STAND_REQUIRED.
+  void StageFromWalkStand_(RunnerAction action, RunnerActionDecision& decision) {
+    if (StandHandoffPending()) {
+      decision.result = RunnerActionResult::kRejectedWrongMode;
+      decision.reason = RunnerActionReason::kPdStandRequired;
+      return;
+    }
+    stand_handoff_.store(static_cast<int>(action));
+    teleop_stop_requested_.store(true);
+    decision.result = RunnerActionResult::kAcceptedPending;
+    decision.reason = action == RunnerAction::kPrepareServe
+        ? RunnerActionReason::kServePrepareRequested
+        : RunnerActionReason::kModeChanged;
+  }
+
   RunnerActionDecision Apply_(
       const RunnerActionRequest& request, bool command_fault_latched,
       bool serve_active, bool serve_capability, int serve_state,
@@ -800,8 +844,10 @@ class PpRunnerControl {
         } else if (serve_active) {
           decision.result = RunnerActionResult::kRejectedWrongMode;
           decision.reason = RunnerActionReason::kServeOwnsCommand;
-        } else if (current_mode != RunnerMode::kPassive &&
-                   current_mode != RunnerMode::kPdStand) {
+        } else if ((current_mode != RunnerMode::kPassive &&
+                    current_mode != RunnerMode::kPdStand &&
+                    current_mode != RunnerMode::kWalkStand) ||
+                   StandHandoffPending()) {
           decision.result = RunnerActionResult::kRejectedWrongMode;
           decision.reason =
               RunnerActionReason::kRoleChangeRequiresPassiveOrStand;
@@ -835,20 +881,37 @@ class PpRunnerControl {
           // retains the existing validated recovery path.
           decision.result = RunnerActionResult::kAcceptedPending;
           decision.reason = RunnerActionReason::kServeRecoveryPending;
-        } else if (current_mode == RunnerMode::kTeleop) {
+        } else if (current_mode == RunnerMode::kWalkStand) {
+          // Already the operator Stand. Stand also cancels a staged Ready/Serve.
+          stand_handoff_.store(static_cast<int>(RunnerAction::kNone));
+          teleop_stop_requested_.store(false);
+          decision.result = RunnerActionResult::kAlreadySet;
+          decision.reason = RunnerActionReason::kModeUnchanged;
+        } else if (IsLocomotionMode(current_mode)) {
+          // TELEOP / DOCK settle their feet and stay on HumanLike in WALK_STAND.
           teleop_stop_requested_.store(true);
           decision.result = RunnerActionResult::kAcceptedPending;
-          decision.reason = RunnerActionReason::kTeleopStopRequested;
-          decision.request_teleop_stop = true;
-        } else if (current_mode == RunnerMode::kDock) {
-          dock_stop_requested_.store(true);
-          decision.result = RunnerActionResult::kAcceptedPending;
-          decision.reason = RunnerActionReason::kDockStopRequested;
+          decision.reason = current_mode == RunnerMode::kDock
+              ? RunnerActionReason::kDockStopRequested
+              : RunnerActionReason::kTeleopStopRequested;
           decision.request_teleop_stop = true;
         } else if (current_mode == RunnerMode::kServe && serve_active) {
           decision.result = RunnerActionResult::kAcceptedPending;
           decision.reason = RunnerActionReason::kServeAbortRequested;
           decision.request_serve_abort = true;
+        } else if (teleop_capable && !command_fault_latched &&
+                   (current_mode == RunnerMode::kPassive || current_mode == RunnerMode::kPdStand ||
+                    current_mode == RunnerMode::kMotion || current_mode == RunnerMode::kShadow ||
+                    current_mode == RunnerMode::kReferencePlayback)) {
+          // The operator Stand is the HumanLike stand (WALK_STAND), straight
+          // from PASSIVE and from the receive policy too. The entry blend
+          // raises the leg gains in 0.5 s; from MOTION it cross-fades the PD
+          // torque laws. Serve recovery keeps its own PD_STAND path.
+          stand_handoff_.store(static_cast<int>(RunnerAction::kNone));
+          SetRuntimeMode(RunnerMode::kWalkStand);
+          decision.result = RunnerActionResult::kApplied;
+          decision.reason = RunnerActionReason::kModeChanged;
+          decision.hold_reference = true;
         } else if (current_mode == RunnerMode::kPdStand) {
           decision.result = RunnerActionResult::kAlreadySet;
           decision.reason = RunnerActionReason::kModeUnchanged;
@@ -869,7 +932,9 @@ class PpRunnerControl {
         } else if (current_mode == RunnerMode::kTeleop) {
           decision.result = RunnerActionResult::kAlreadySet;
           decision.reason = RunnerActionReason::kModeUnchanged;
-        } else if (current_mode != RunnerMode::kPdStand || serve_active) {
+        } else if ((current_mode != RunnerMode::kPdStand &&
+                    current_mode != RunnerMode::kWalkStand) ||
+                   serve_active || StandHandoffPending()) {
           decision.result = RunnerActionResult::kRejectedWrongMode;
           decision.reason = RunnerActionReason::kPdStandRequired;
         } else if (!teleop_input_ready) {
@@ -883,6 +948,8 @@ class PpRunnerControl {
         break;
 
       case RunnerAction::kEnterDock:
+        // Reposition: HumanLike walks to dock.yaml's pelvis pose from the
+        // stiff Stand or an idle Walk stand, then holds Walk stand.
         if (command_fault_latched) {
           reject_fault();
         } else if (!dock_capable) {
@@ -891,7 +958,12 @@ class PpRunnerControl {
         } else if (current_mode == RunnerMode::kDock) {
           decision.result = RunnerActionResult::kAlreadySet;
           decision.reason = RunnerActionReason::kModeUnchanged;
-        } else if (current_mode != RunnerMode::kPdStand || serve_active) {
+        } else if ((current_mode != RunnerMode::kPdStand &&
+                    current_mode != RunnerMode::kWalkStand &&
+                    current_mode != RunnerMode::kTeleop) ||
+                   serve_active || StandHandoffPending() ||
+                   // A HumanLike mode already settling stays stopped.
+                   (IsLocomotionMode(current_mode) && teleop_stop_requested_.load())) {
           decision.result = RunnerActionResult::kRejectedWrongMode;
           decision.reason = RunnerActionReason::kPdStandRequired;
         } else if (!dock_pose_ready) {
@@ -902,6 +974,28 @@ class PpRunnerControl {
           decision.reason = RunnerActionReason::kDockStartTooFar;
         } else {
           SetRuntimeMode(RunnerMode::kDock);
+          decision.result = RunnerActionResult::kApplied;
+          decision.reason = RunnerActionReason::kModeChanged;
+        }
+        break;
+
+      case RunnerAction::kEnterWalkStand:
+        // HumanLike at zero velocity. Entered only from the stiff Stand, so a
+        // hoisted PASSIVE -> Stand start never begins stepping. Ready, Serve,
+        // Teleop and role changes still require PD_STAND.
+        if (command_fault_latched) {
+          reject_fault();
+        } else if (!teleop_capable) {
+          decision.result = RunnerActionResult::kRejectedTeleop;
+          decision.reason = RunnerActionReason::kTeleopUnavailable;
+        } else if (current_mode == RunnerMode::kWalkStand) {
+          decision.result = RunnerActionResult::kAlreadySet;
+          decision.reason = RunnerActionReason::kModeUnchanged;
+        } else if (current_mode != RunnerMode::kPdStand || serve_active) {
+          decision.result = RunnerActionResult::kRejectedWrongMode;
+          decision.reason = RunnerActionReason::kPdStandRequired;
+        } else {
+          SetRuntimeMode(RunnerMode::kWalkStand);
           decision.result = RunnerActionResult::kApplied;
           decision.reason = RunnerActionReason::kModeChanged;
         }
@@ -918,6 +1012,8 @@ class PpRunnerControl {
         } else if (current_mode == RunnerMode::kMotion) {
           decision.result = RunnerActionResult::kAlreadySet;
           decision.reason = RunnerActionReason::kModeUnchanged;
+        } else if (current_mode == RunnerMode::kWalkStand) {
+          StageFromWalkStand_(request.action, decision);
         } else if (current_mode != RunnerMode::kPdStand) {
           decision.result = RunnerActionResult::kRejectedWrongMode;
           decision.reason = RunnerActionReason::kPdStandRequired;
@@ -944,7 +1040,7 @@ class PpRunnerControl {
         break;
 
       case RunnerAction::kEnterShadow:
-        if (current_mode == RunnerMode::kTeleop || current_mode == RunnerMode::kDock) {
+        if (IsLocomotionMode(current_mode)) {
           decision.result = RunnerActionResult::kRejectedWrongMode;
           decision.reason = RunnerActionReason::kPdStandRequired;
         } else if (serve_active) {
@@ -974,7 +1070,8 @@ class PpRunnerControl {
           decision.result = RunnerActionResult::kRejectedServeActive;
           decision.reason = RunnerActionReason::kServeOwnsCommand;
         } else if (current_mode != RunnerMode::kPdStand &&
-                   current_mode != RunnerMode::kMotion) {
+                   current_mode != RunnerMode::kMotion &&
+                   current_mode != RunnerMode::kWalkStand) {
           decision.result = RunnerActionResult::kRejectedWrongMode;
           decision.reason = RunnerActionReason::kPdStandRequired;
         } else if (serve_state != kServeIdle &&
@@ -983,6 +1080,8 @@ class PpRunnerControl {
           decision.result =
               RunnerActionResult::kRejectedServeNotReady;
           decision.reason = RunnerActionReason::kServePhaseMismatch;
+        } else if (current_mode == RunnerMode::kWalkStand) {
+          StageFromWalkStand_(request.action, decision);
         } else {
           if (SetRuntimeMode(RunnerMode::kServe, true, &decision.reason)) {
             decision.result = RunnerActionResult::kApplied;
@@ -1061,7 +1160,8 @@ class PpRunnerControl {
         if (!serve_capability) {
           reject_unavailable();
         } else if (!require_server()) {
-        } else if (current_mode != RunnerMode::kPdStand || serve_active) {
+        } else if ((current_mode != RunnerMode::kPdStand &&
+                    current_mode != RunnerMode::kWalkStand) || serve_active) {
           decision.result = RunnerActionResult::kRejectedWrongMode;
           decision.reason = RunnerActionReason::kPdStandRequired;
         } else {
@@ -1103,7 +1203,7 @@ class PpRunnerControl {
   bool mocap_interrupted_{false};
   std::uint64_t mocap_stop_count_{0};
   std::atomic<bool> teleop_stop_requested_{false};
-  std::atomic<bool> dock_stop_requested_{false};
+  std::atomic<int> stand_handoff_{0};
   std::atomic<bool> serve_prepare_pending_{false};
   const std::uint64_t boot_id_;
   const std::uint64_t session_fingerprint_;

@@ -7,6 +7,7 @@
     port: 8766
     address: "0.0.0.0"
     tls: false
+    # Host-generated scenes stay on the Host endpoint (127.0.0.1:8767).
     topic_whitelist:
       - "^/planner/diagnostics$"
       - "^/hope/field/status$"
@@ -25,12 +26,12 @@
     # refresh, and the assert-only emergency path. No wildcard service,
     # parameters, or command-topic publishing. Only liveness echoes are writable.
     service_whitelist:
+      - "^/hope/planner/set_ball_y_filter$"
       - "^/hope/planner/set_plane_mode$"
       - "^/hope/planner/set_hit_speed_scale$"
-      - "^/hope/planner/set_ball_y_filter$"
+      - "^/hope/planner/set_flight_time$"
       - "^/hope/safety/trigger_estop$"
       - "^/hope/safety/reset_software_estop$"
-      - "^/hope/calibrate_stickers_v3$"
       - "^/hope/calibrate_v2$"
       - "^/hope/calibrate_v3$"
       - "^/hope/refresh_x_hit$"
@@ -39,6 +40,7 @@
       - "^/hope/runner/enter_pd_stand$"
       - "^/hope/runner/enter_motion$"
       - "^/hope/runner/enter_teleop$"
+      - "^/hope/runner/enter_walk_stand$"
       - "^/hope/runner/enter_dock$"
       - "^/hope/runner/emergency_passive$"
       - "^/hope/runner/prepare_serve$"
@@ -48,7 +50,7 @@
       - "^/hope/runner/open_gripper$"
       # Fixed lifecycle orchestration. apply_config is a dedicated, exact
       # SetParameters-shaped service that accepts only four validated IPv4
-      # strings plus the exact P1/P2 table-side enum; the node's generic
+      # strings, the exact P1/P2 table-side enum, and an allowlisted gripper profile; the node's generic
       # parameter services remain disabled.
       - "^/hope/lifecycle/apply_config$"
       - "^/hope/lifecycle/start$"
@@ -60,13 +62,15 @@
       - "^/hope/lifecycle/time_calibration$"
     param_whitelist: ["(?!)"]
     # Only read-only liveness echoes; motor commands and requests stay denied.
-    client_topic_whitelist: ["^/hope/runner/operator_echo_hdu_flat$"]
+    client_topic_whitelist: ["^/hope/runner/operator_echo_hdu_flat$", "^/hope/runner/dock_config_hdu_flat$"]
     send_buffer_limit: 12000000
     # Bounded executor budget on the eight-core HDU. Service callbacks remain
     # independent of subscription work; the bridge is already native C++.
     num_threads: 2
+    # Display subscriptions have their own worker; operator challenge stays normal.
+    display_subscription_nice: 10
+    display_ball_marker_hz: 10.0
     use_compression: false
     capabilities:
       - clientPublish
       - services
-      - connectionGraph

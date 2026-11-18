@@ -3,6 +3,8 @@
 #include "hope_planner_cpp/racket_target_planner.hpp"
 #include "hope_planner_cpp/spin_estimator.hpp"
 #include "hope_planner_cpp/trajectory_predictor.hpp"
+#include "hope_planner_cpp/return_physics_yaml.hpp"
+#include <ament_index_cpp/get_package_share_directory.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -45,12 +47,15 @@ using hope_planner_cpp::Vec3;
 struct Arguments {
   std::string input;
   std::string output;
+  std::string ball_physics_yaml;
+  std::string return_physics_yaml;
+  std::string planner_settings_yaml;
   double x_hit = 0.15;
   double x_hit_bh_delta = 0.0;
   double solve_period_s = 0.033;
   bool post_net_one_shot = false;
   double post_net_delay_s = 0.05;
-  double post_net_future_bounce_tangential_gain = 0.348260;
+  double post_net_future_bounce_tangential_gain = std::numeric_limits<double>::quiet_NaN();
   double post_net_future_bounce_restitution_v = std::numeric_limits<double>::quiet_NaN();
   double net_x = 1.37;
   double incoming_opponent_side_margin_m = 0.05;
@@ -68,9 +73,9 @@ struct Arguments {
   int estimator_iterations = 3;
   bool adaptive_horizon = false;
   double max_predict_time_cap_s = 3.0;
-  double drag_k = 0.119006;
-  double restitution_h = 0.651740;
-  double restitution_v = 0.916598;
+  double drag_k = std::numeric_limits<double>::quiet_NaN();
+  double restitution_h = std::numeric_limits<double>::quiet_NaN();
+  double restitution_v = std::numeric_limits<double>::quiet_NaN();
   double bounce_min_reversal_m = 0.00005;
   double bounce_min_excursion_m = 0.001;
   int bounce_confirmation_samples = 5;
@@ -78,17 +83,17 @@ struct Arguments {
   double bounce_sparse_confirmation_min_span_s = 0.012;
   double bounce_sparse_confirmation_excursion_m = 0.005;
   double bounce_refractory_s = 0.12;
-  std::string spin_mode = "legacy";
+  std::string spin_mode = "venue-grip-magnus";
   bool control_zero_spin = false;
   double spin_window_s = 0.10;
   double spin_min_span_s = 0.05;
   double spin_max_gap_s = 0.05;
   double spin_max_rev_s = 20.0;
   double spin_huber_delta_rev_s = 2.0;
-  double magnus_k = 0.00327844;
+  double magnus_k = std::numeric_limits<double>::quiet_NaN();
   double nakashima_friction_mu = 0.25;
-  double table_tangential_gain = 0.369;
-  double table_friction_cap_mu = 2.0;
+  double table_tangential_gain = std::numeric_limits<double>::quiet_NaN();
+  double table_friction_cap_mu = std::numeric_limits<double>::quiet_NaN();
 };
 
 SpinPhysicsMode parse_spin_mode(const std::string& value) {
@@ -190,6 +195,12 @@ Arguments parse_arguments(int argc, char** argv) {
       args.input = next();
     } else if (option == "--output" || option == "--output-csv") {
       args.output = next();
+    } else if (option == "--ball-physics-yaml") {
+      args.ball_physics_yaml = next();
+    } else if (option == "--return-physics-yaml") {
+      args.return_physics_yaml = next();
+    } else if (option == "--planner-settings-yaml") {
+      args.planner_settings_yaml = next();
     } else if (option == "--x-hit") {
       args.x_hit = std::stod(next());
     } else if (option == "--x-hit-bh-delta") {
@@ -283,9 +294,11 @@ Arguments parse_arguments(int argc, char** argv) {
     } else if (option == "--help" || option == "-h") {
       std::cout
           << "usage: hope_planner_cpp_replay --input mocap_raw.csv --output replay.csv "
+             "[--ball-physics-yaml PPQ004.yaml] [--return-physics-yaml return_physics.yaml] "
+             "[--planner-settings-yaml model21800_hardware.yaml] "
              "[--x-hit 0.15] [--x-hit-bh-delta 0] [--solve-period 0.033] "
              "[--post-net-one-shot] [--post-net-delay 0.05] "
-             "[--post-net-future-bounce-tangential-gain 0.348260] [--net-x 1.37] "
+             "[--post-net-future-bounce-tangential-gain PROFILE_VALUE] [--net-x 1.37] "
              "[--incoming-opponent-side-margin 0.05] "
              "[--incoming-speed-threshold 0.25] "
              "[--outgoing-speed-threshold 0.25] "
@@ -296,8 +309,7 @@ Arguments parse_arguments(int argc, char** argv) {
              "[--window 0.18] [--min-span 0.08] [--min-samples 12] "
              "[--huber-delta 0.003] [--recency-half-life 0] [--iterations 3] "
              "[--adaptive-horizon] [--max-predict-time-cap 3.0] "
-             "[--drag-k 0.119006] [--restitution-h 0.651740] "
-             "[--restitution-v 0.916598] "
+             "[--drag-k override] [--restitution-h override] [--restitution-v override] "
              "[--bounce-min-reversal 0.00005] [--bounce-min-excursion 0.001] "
              "[--bounce-confirmation-samples 5] "
              "[--bounce-confirmation-max-span 0.05] "
@@ -308,10 +320,9 @@ Arguments parse_arguments(int argc, char** argv) {
              "[--control-zero-spin] "
              "[--spin-window 0.10] [--spin-min-span 0.05] "
              "[--spin-max-gap 0.05] [--spin-max-rev 20] "
-             "[--spin-huber-delta-rev 2] [--magnus-k 0.00327844] "
+             "[--spin-huber-delta-rev 2] [--magnus-k override] "
              "[--nakashima-friction-mu 0.25] "
-             "[--table-tangential-gain 0.369] "
-             "[--table-friction-cap-mu 2.0]\n";
+             "[--table-tangential-gain override] [--table-friction-cap-mu override]\n";
       std::exit(0);
     } else {
       throw std::invalid_argument("unknown option: " + option);
@@ -327,7 +338,7 @@ Arguments parse_arguments(int argc, char** argv) {
 
 int main(int argc, char** argv) {
   try {
-    const Arguments args = parse_arguments(argc, argv);
+    Arguments args = parse_arguments(argc, argv);
     std::ifstream input(args.input);
     if (!input) throw std::runtime_error("cannot open input: " + args.input);
     std::ofstream output(args.output, std::ios::out | std::ios::trunc);
@@ -345,23 +356,39 @@ int main(int argc, char** argv) {
         throw std::runtime_error(std::string("missing input column: ") + required);
       }
     }
-    if (args.spin_mode != "legacy") {
-      for (const char* required : {"qx", "qy", "qz", "qw"}) {
-        if (column.find(required) == column.end()) {
-          throw std::runtime_error(std::string("missing spin column: ") + required);
-        }
-      }
-    }
+    // Missing/invalid orientation uses the zero-spin prior; the full contact
+    // law still carries any spin created by a subsequent table bounce.
 
+    const auto config_path = [](const std::string& specified, const char* filename) {
+      return specified.empty()
+          ? ament_index_cpp::get_package_share_directory("hope_planner_cpp") + "/config/" + filename
+          : specified;
+    };
     BallPhysics physics;
-    physics.drag_k = args.drag_k;
-    physics.magnus_k = args.magnus_k;
-    physics.restitution_h = args.restitution_h;
-    physics.restitution_v = args.restitution_v;
-    physics.nakashima_friction_mu = args.nakashima_friction_mu;
-    physics.table_tangential_gain = args.table_tangential_gain;
-    physics.table_friction_cap_mu = args.table_friction_cap_mu;
     PlannerConfig planner_config;
+    hope_planner_cpp::load_ball_profile_yaml(config_path(args.ball_physics_yaml,
+        "ball_physics_ppq004_20261020.yaml"), physics);
+    hope_planner_cpp::load_return_physics_yaml(config_path(args.return_physics_yaml,
+        "return_physics.yaml"), physics, planner_config);
+    hope_planner_cpp::load_return_timing_yaml(config_path(args.planner_settings_yaml,
+        "model21800_hardware.yaml"), planner_config);
+    if (std::isfinite(args.drag_k)) physics.drag_k = args.drag_k;
+    if (std::isfinite(args.magnus_k)) physics.magnus_k = args.magnus_k;
+    if (std::isfinite(args.restitution_h)) physics.restitution_h = args.restitution_h;
+    if (std::isfinite(args.restitution_v)) physics.restitution_v = args.restitution_v;
+    physics.nakashima_friction_mu = args.nakashima_friction_mu;
+    if (std::isfinite(args.table_tangential_gain)) physics.table_tangential_gain = args.table_tangential_gain;
+    if (std::isfinite(args.table_friction_cap_mu)) physics.table_friction_cap_mu = args.table_friction_cap_mu;
+    // Audit the effective YAML-plus-CLI model, not the NaN "unspecified" flags.
+    args.drag_k = physics.drag_k;
+    args.magnus_k = physics.magnus_k;
+    args.restitution_h = physics.restitution_h;
+    args.restitution_v = physics.restitution_v;
+    args.table_tangential_gain = physics.table_tangential_gain;
+    args.table_friction_cap_mu = physics.table_friction_cap_mu;
+    if (!std::isfinite(args.post_net_future_bounce_tangential_gain)) {
+      args.post_net_future_bounce_tangential_gain = physics.table_tangential_gain;
+    }
     planner_config.x_hit = args.x_hit;
     planner_config.adaptive_predict_horizon = args.adaptive_horizon;
     planner_config.max_predict_time_cap_s = args.max_predict_time_cap_s;
@@ -613,8 +640,8 @@ int main(int argc, char** argv) {
       strike.reason = state.reason;
       const auto stage2_start = std::chrono::steady_clock::now();
       if (state.valid) {
-        // Match the hardware node exactly when requested: the venue contact
-        // law remains active, while orientation-derived omega is audit only.
+        // Preserve an explicit zero-prior opt-out, while the default carries
+        // available orientation-derived spin through Stage 2 into Stage 3.
         const Vec3 control_omega = args.control_zero_spin
             ? Vec3::Zero()
             : (spin.valid ? spin.omega_rad_s : Vec3::Zero());

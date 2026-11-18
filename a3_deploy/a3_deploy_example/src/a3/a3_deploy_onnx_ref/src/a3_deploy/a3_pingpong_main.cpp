@@ -56,7 +56,6 @@
 #include "a3_pingpong/pp_policy.hpp"
 #include "a3_pingpong/pp_reference_playback.hpp"
 #include "a3_pingpong/pp_runner_control.hpp"
-#include "a3_pingpong/pp_operator_heartbeat.hpp"
 #include "a3_pingpong/pp_serve_recovery.hpp"
 #include "a3_pingpong/pp_serve_controller.hpp"
 #include "robot_io/a3_aimrt_backend.hpp"
@@ -449,6 +448,8 @@ int main(int argc, char** argv) {
           << YAML::Key << "policy_abi" << YAML::Value << policy.policy_abi()
           << YAML::Key << "observation_dim" << YAML::Value << policy.obs_dim()
           << YAML::Key << "action_dim" << YAML::Value << 31
+          << YAML::Key << "recurrent_explicit_state" << YAML::Value << policy.is_recurrent()
+          << YAML::Key << "recurrent_advances_during_inspection" << YAML::Value << policy.recurrent_advances()
           << YAML::Key << "step_dt" << YAML::Value << deploy.step_dt
           << YAML::Key << "runtime_contract" << YAML::Value << policy.runtime_contract()
           << YAML::Key << "training_recipe" << YAML::Value << policy.training_recipe()
@@ -529,7 +530,7 @@ int main(int argc, char** argv) {
                  " [--gain-scale F] [--swing-speed F] [--stand-kp K --stand-kd D]\n"
                  "       [--reference-playback|--mode reference-playback]"
                  " [--no-publish|--dry-run] [--warmup-sec S]\n"
-                 "       [--planner] [--shared-session-home] [--operator-watchdog] (LIVE planner: racket <- /racket/command_flat, base <- /a3/base_pose_flat over ros2;"
+                 "       [--planner] [--shared-session-home] (LIVE planner: racket <- /racket/command_flat, base <- /a3/base_pose_flat over ros2;"
                  " [--engage-min-tts S] [--cmd-timeout S] [--invalid-grace S] [--vel-gate-margin M]"
                  " [--pending-expire-after-strike S]"
                  " [--demo] [--policy-native]"
@@ -946,7 +947,7 @@ int main(int argc, char** argv) {
       std::abs(policy_hz - 50.0) > 1.0e-9) {
     std::cerr
         << "integrated serve Runner requires an unchanged 50 Hz ONNX "
-           "contract; the 100 Hz Driver holds each receive policy command for "
+           "contract; the 100 Hz Driver holds each model_3440 command for "
            "the intervening tick outside direct 100 Hz SERVE playback\n";
     return 2;
   }
@@ -959,19 +960,37 @@ int main(int argc, char** argv) {
       throw std::invalid_argument("teleop requires the existing 50 Hz receive policy contract");
     locomotion = std::make_unique<a3_pingpong::PpHumanLikePolicy>(teleop_policy_dir);
   }
+  // Reposition (auto-dock): HumanLike walks to dock.yaml's pelvis pose using
+  // /a3/base_pose_flat. Without --auto-dock, ENTER_DOCK is DOCK_UNAVAILABLE.
   const bool auto_dock = Has(argc, argv, "--auto-dock");
   std::unique_ptr<a3_pingpong::PpDockController> dock_controller;
+  std::string dock_config;
+  // Console tuning (/hope/runner/dock_config_flat): the AimRT callback only
+  // stores the newest request; the action worker validates and applies it.
+  std::mutex dock_tune_mutex;
+  std::vector<double> dock_tune_pending;
+  std::atomic<double> dock_tune_seq{0};
+  std::atomic<int> dock_tune_result{0};
+  std::array<std::atomic<double>, 10> dock_cfg_pub{};
+  const auto publish_dock_cfg = [&dock_cfg_pub](const a3_pingpong::DockConfig& c) {
+    const double v[10] = {c.target_x, c.target_y, c.target_yaw, c.position_tolerance_m,
+                          c.yaw_tolerance_rad, c.forward_m_s, c.backward_m_s, c.lateral_m_s,
+                          c.yaw_rad_s, c.max_start_distance_m};
+    for (int i = 0; i < 10; ++i) dock_cfg_pub[i].store(v[i]);
+  };
   if (auto_dock) {
     if (!locomotion)
       throw std::invalid_argument("--auto-dock requires --teleop-policy-dir");
-    const std::string dock_config = Flag(argc, argv, "--dock-config", "");
+    dock_config = Flag(argc, argv, "--dock-config", "");
     if (dock_config.empty())
       throw std::invalid_argument("--auto-dock requires --dock-config PATH");
     dock_controller = std::make_unique<a3_pingpong::PpDockController>(
         a3_pingpong::LoadDockConfig(dock_config));
     std::cout << "[pingpong] auto-dock target=(" << dock_controller->config().target_x
               << ", " << dock_controller->config().target_y
-              << ") yaw=" << dock_controller->config().target_yaw << "\n";
+              << ") yaw=" << dock_controller->config().target_yaw
+              << " max_start=" << dock_controller->config().max_start_distance_m << " m\n";
+    publish_dock_cfg(dock_controller->config());
   }
   const auto wall_seconds = [] { return std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count(); };
   const auto steady_seconds = [] { return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count(); };
@@ -995,6 +1014,11 @@ int main(int argc, char** argv) {
   backend->SetRunnerControlCallback(
       [&runner_control](const std::vector<double>& values) {
         runner_control.EnqueueFlatRequest(values);
+      });
+  if (dock_controller) backend->SetDockConfigCallback(
+      [&dock_tune_mutex, &dock_tune_pending](const std::vector<double>& values) {
+        std::lock_guard<std::mutex> lock(dock_tune_mutex);
+        dock_tune_pending = values;
       });
   if (locomotion) backend->SetLocomotionInputCallback(
       [&](const std::vector<double>& values) {
@@ -1060,6 +1084,11 @@ int main(int argc, char** argv) {
   // --no-imu-yaw reverts to the legacy identity-yaw transform (only sensible for a
   // non-turning model, e.g. p4); --use-imu-yaw is still accepted (now a no-op).
   pcfg.use_imu_yaw_for_targets = !Has(argc, argv, "--no-imu-yaw");
+  if (cfg["policy_target_position_frame"])
+    throw std::invalid_argument("replace position-only policy_target_position_frame with policy_target_frame for position AND velocity");
+  pcfg.target_frame = a3_pingpong::parse_target_frame(
+      cfg["policy_target_frame"]
+          ? cfg["policy_target_frame"].as<std::string>() : "training");
   // Scripted swing direction: default forehand; --backhand mirrors the target to
   // +y and selects the baked backhand clip. Toggle live with f/b. (No live planner.)
   pcfg.start_backhand = Has(argc, argv, "--backhand");
@@ -1077,6 +1106,21 @@ int main(int argc, char** argv) {
   pcfg.planner_mode = planner_mode;
   pcfg.kernel_mode = kernel_mode;
   pcfg.shared_session_home = Has(argc, argv, "--shared-session-home");
+  const std::string target_support_reference = cfg["policy_target_support_reference"]
+      ? cfg["policy_target_support_reference"].as<std::string>() : "session_home_v1";
+  if (target_support_reference != "session_home_v1" &&
+      target_support_reference != "live_base_v1")
+    throw std::invalid_argument("policy_target_support_reference must be session_home_v1 or live_base_v1");
+  // This option applies only to localized ball admission. A shared runtime YAML
+  // must not impose an external-base requirement on kernel/serve-only sessions.
+  pcfg.target_support_live_base = target_support_reference == "live_base_v1" &&
+      planner_mode && !kernel_mode && !serve_only;
+  const auto empirical_support = a3_pingpong::ParseEmpiricalLateralSupport(cfg["policy_target_empirical_support"]);
+  if (planner_mode && !kernel_mode && !serve_only) pcfg.empirical_lateral_support = empirical_support;
+  if (pcfg.target_support_live_base && !pcfg.shared_session_home)
+    throw std::invalid_argument("live-base target support requires shared-HOME localized Planner mode");
+  std::printf("[pp support] reference=%s; station observation unchanged\n",
+      pcfg.target_support_live_base ? "live_base_v1" : "session_home_v1");
   if (kernel_mode) {
     pcfg.yaw_align = true;
     std::cout << "[kernel] IMU entry heading + stance-foot odometry; estimated XY/vxy and FK height; no OptiTrack/Planner; not authoritative localization\n";
@@ -1217,7 +1261,7 @@ int main(int argc, char** argv) {
   }
 
   // Optional two-policy composition. This stays inside this Runner: Hope's
-  // receive policy produces the full command first, then the robot-side HumanLike
+  // model_3440 produces the full command first, then the robot-side HumanLike
   // 3630->15 policy replaces its owned lower-body joints before the publisher.
   const bool hybrid_lower_requested =
       Has(argc, argv, "--hybrid-lower") ||
@@ -1276,7 +1320,7 @@ int main(int argc, char** argv) {
     hybrid_lower =
         std::make_unique<a3_pingpong::PpHybridLowerPolicy>(hybrid_config);
     if (!hybrid_lower->Initialize()) return 2;
-    // HumanLike's observation/action loop is native 100 Hz. receive policy stays
+    // HumanLike's observation/action loop is native 100 Hz. model_3440 stays
     // at its trained 50 Hz and is held for the intervening 10 ms command.
     driver_hz = 100.0;
   }
@@ -1288,17 +1332,7 @@ int main(int argc, char** argv) {
   std::shared_ptr<a3_pingpong::PpBasePoseInput> base_in;
   const bool mocap_loss_protection = planner_mode && !kernel_mode && !serve_only;
   runner_control.RequireMocap(mocap_loss_protection);
-  const bool operator_loss_protection = mocap_loss_protection && Has(argc, argv, "--operator-watchdog");
-  if (operator_loss_protection && session_id.empty()) {
-    std::cerr << "[pingpong] --operator-watchdog requires a nonempty --session-id\n";
-    return 1;  // backend has not started; no hardware command can have been issued
-  }
-  runner_control.RequireOperatorHeartbeat(operator_loss_protection);
-  auto operator_heartbeat = std::make_shared<a3_pingpong::PpOperatorHeartbeat>(runner_boot_id, session_id);
-  if (operator_loss_protection) backend->SetOperatorHeartbeatCallback(
-      [operator_heartbeat](const std::vector<double>& values) {
-        operator_heartbeat->Echo(values, a3_pingpong::PpNowSteadySec());
-      });
+  // Operator UI/computer connectivity is not a play admission or stop condition.
   if (planner_mode) {
     auto racket_in = std::make_shared<a3_pingpong::PpRacketTargetInput>(
         pp->expected_planner_wire_schema());
@@ -1319,8 +1353,8 @@ int main(int argc, char** argv) {
                       : "[pingpong] planner velocity mode: PLANNED (default); executing "
                         "planner velocity subject to metadata gates\n");
   }
-  // Kernel normally has no base producer. Auto-dock still reads /a3/base_pose_flat
-  // directly and does not change kernel localization or the receive policy.
+  // Kernel has no base producer by default. Auto-dock still reads
+  // /a3/base_pose_flat directly; localization and the policy are unchanged.
   if (auto_dock && !base_in) {
     base_in = std::make_shared<a3_pingpong::PpBasePoseInput>();
     backend->SetBasePoseCallback(
@@ -1750,19 +1784,23 @@ int main(int argc, char** argv) {
   std::atomic<int> teleop_phase{0}; // off, entering, active, stopping
   std::atomic<double> teleop_progress{0};
   std::array<std::atomic<double>,3> teleop_velocity{};
-  std::atomic<int> dock_phase{0};
-  std::atomic<int> dock_attempt{0};
-  std::atomic<int> dock_result{0};
-  std::atomic<int> dock_reason{0};
-  std::atomic<double> dock_error_x{0}, dock_error_y{0}, dock_error_yaw{0};
-  std::atomic<double> dock_distance{0}, dock_elapsed{0}, dock_pose_age{1e9};
   a3_pingpong::PpTeleopEntry teleop_entry;
   bool teleop_entered = false;
-  Mode locomotion_session_mode = Mode::kPassive;
-  bool dock_frame_latched = false;
-  std::uint64_t dock_frame_id = 0;
   std::uint64_t teleop_tick = 0;
   int teleop_quiet_ticks = 0, teleop_fall_ticks = 0;
+  std::atomic<int> dock_phase{0}, dock_attempt{0}, dock_result{0}, dock_reason{0};
+  std::atomic<double> dock_error_x{0}, dock_error_y{0}, dock_error_yaw{0};
+  std::atomic<double> dock_distance{0}, dock_elapsed{0}, dock_pose_age{1e9};
+  Mode locomotion_session_mode = Mode::kPassive;
+  // The operator Stand is WALK_STAND. PD_STAND reached from MOTION or a
+  // completed serve hands back to HumanLike once its blend settles; PD_STAND
+  // from a staged WALK_STAND Ready/Serve re-enqueues that action instead.
+  Mode stand_watch_mode = Mode::kPassive;
+  double stand_entry_s = 0.;
+  bool stand_auto_walk = false;
+  double stand_settle_s = 0.;
+  bool dock_frame_latched = false;
+  std::uint64_t dock_frame_id = 0;
   robot_io::RobotCommand hybrid_hope_command_cache;
   bool hybrid_hope_command_valid = false;
   bool hybrid_run_hope_next = true;
@@ -1884,6 +1922,7 @@ int main(int argc, char** argv) {
         prev_mode_for_blend != Mode::kMotion && prev_mode_for_blend != Mode::kShadow;
     const bool serve_to_policy =
         policy_just_engaged && prev_mode_for_blend == Mode::kServe;
+    if (policy_just_engaged) ppp->begin_recurrent_session();
     if (serve_to_policy && !policy_native) {
       ppp->rearm_static_policy_handoff();
     } else if (policy_just_engaged) {
@@ -1910,7 +1949,7 @@ int main(int argc, char** argv) {
       cmd.tau_ff = Eigen::VectorXd::Zero(N);
       cmd.kp = Eigen::VectorXd::Zero(N);
       cmd.kd = Eigen::VectorXd::Zero(N);
-    } else if (m == Mode::kPdStand) {  // stiff nominal stand. Auto-dock holds HumanLike at 500 Hz instead.
+    } else if (m == Mode::kPdStand) {  // hold nominal stand pose (== a3_default_angles)
       cmd.q_des = official_stand ? ppp->official_stand_q() : stand_q;
       cmd.dq_des = Eigen::VectorXd::Zero(N);
       cmd.tau_ff = Eigen::VectorXd::Zero(N);
@@ -2028,7 +2067,7 @@ int main(int argc, char** argv) {
           hybrid_cached_blend_alpha = motion_blend_alpha;
         }
       } else {
-        // Hold receive policy's complete post-gain/post-blend command for the
+        // Hold model_3440's complete post-gain/post-blend command for the
         // intervening 10 ms. HumanLike below still sees the newest plant state
         // and evaluates a fresh 100 Hz lower-body action.
         cmd = hybrid_hope_command_cache;
@@ -2140,8 +2179,12 @@ int main(int argc, char** argv) {
             source.kp.setZero();
             source.kd.setZero();
           }
-          if (m == Mode::kMotion && policy_native &&
-              ppp->onnx().has_v11_affine_safe_qdes_contract())
+          // The low-gain actor's gravity-compensating q_des must not be
+          // multiplied by independently increasing stand gains on exit either.
+          // Cross-fade complete PD laws in both policy/stand directions; keep
+          // the existing measured-pose PASSIVE -> PD_STAND entry unchanged.
+          if (policy_native && ppp->onnx().has_v11_affine_safe_qdes_contract() &&
+              (m == Mode::kMotion || last_delivered_mode == Mode::kMotion))
             mode_transition.BeginImpedance(source, cmd, duration);
           else
             mode_transition.Begin(source, cmd, duration);
@@ -2281,16 +2324,16 @@ int main(int argc, char** argv) {
       }
       o.flush();  // enqueue the complete row; disk I/O stays on the worker
     } else {
-      // Never compare a resumed row with an arbitrarily old command.
+      // Do not compare the first resumed row with an arbitrarily old command.
       trace_previous_q_des.resize(0);
       trace_previous_shot_seq = 0;
     }
     return publish;
   };
 
-  // TELEOP, DOCK, and the Auto-dock PD_STAND hold own every 500 Hz callback.
-  // Other modes retain their native cadence: Serve and the optional legacy
-  // hybrid at 100 Hz, receive at 50 Hz.
+  // TELEOP and WALK_STAND (HumanLike at zero velocity) own every 500 Hz
+  // callback. Other modes retain their native
+  // cadence: Serve and the optional legacy hybrid at 100 Hz, receive at 50 Hz.
   // Serve's clock runs through every mode; operator events never reset its phase.
   std::uint64_t logical_50hz_tick = 0;
   a3_pingpong::PpModeCadence mode_cadence;
@@ -2303,19 +2346,13 @@ int main(int argc, char** argv) {
                                                                       robot_io::RobotCommand& command) mutable -> bool {
     if (mocap_loss_protection) {
       a3_pingpong::PpBaseSample sample;
-      // One second without real pelvis progress. Mailbox age
-      // uses the MDU monotonic clock, independently of wall-clock corrections.
+      // 500 ms without real pelvis progress after stale/reordered input drops.
+      // Only the newest admitted pose refreshes the MDU monotonic deadline.
       const bool usable = base_in && base_in->LatestForPolicy(
           sample, ppp->mocap_rescue_deadline_s(), ppp->authoritative_mocap_required());
       if (runner_control.ObserveMocap(usable, usable && sample.held_for_policy,
                                      usable ? sample.receipt_age_s : -1.))
         std::fprintf(stderr, "[pp SAFETY] MOCAP_UNAVAILABLE -> controlled PD_STAND recovery\n");
-    }
-    if (operator_loss_protection) {
-      const auto live = operator_heartbeat->Fresh(a3_pingpong::PpNowSteadySec());
-      if (runner_control.ObserveOperatorHeartbeat(live[0], live[1]))
-        std::fprintf(stderr, "[pp SAFETY] OPERATOR_%s_UNAVAILABLE -> controlled PD_STAND recovery\n",
-                     live[0] ? "COMPUTER" : "UI");
     }
     const auto command_now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
         std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -2331,8 +2368,7 @@ int main(int argc, char** argv) {
         a3_io::ServeHalSnapshot receipt;
         const bool fresh = serve_hal_clock.Read(receipt) && receipt.Ready(command_now_ns);
         if (fresh && !serve_hal_pid) serve_hal_pid = receipt.pid;
-        const bool valid = a3_io::IsServeHalRelease(
-            receipt, command_now_ns, serve_hal_pid, gripper_release_pos);
+        const bool valid = fresh && receipt.pid == serve_hal_pid && receipt.left == gripper_release_pos;
         const auto result = serve_cadence.ObserveHalSelection(command_now_ns,
             valid ? receipt.release_edge_ns : 0);
         if (result == a3_pingpong::PpServeCadence::Receipt::kSelected) {
@@ -2346,15 +2382,59 @@ int main(int argc, char** argv) {
       serve_hal_selection_missed.store(true, std::memory_order_release);
     if (locomotion) {
       const Mode mode = runner_control.mode();
-      // Auto-dock Stand is the same HumanLike policy at zero velocity. Reposition
-      // and Teleop change only the command, and the quiet exit stays on that policy.
-      const bool stand_hold = auto_dock && mode == Mode::kPdStand;
-      if (mode == Mode::kTeleop || (mode == Mode::kDock && dock_controller) || stand_hold) {
+      if (mode != stand_watch_mode) {
+        if (mode == Mode::kPdStand) {
+          stand_entry_s = steady_seconds();
+          const int serve_now = servep ? static_cast<int>(servep->state()) : -1;
+          const bool serve_failed = serve_now == static_cast<int>(a3_pingpong::ServeControllerState::kFault) ||
+                                    serve_now == static_cast<int>(a3_pingpong::ServeControllerState::kAborted);
+          // PASSIVE -> Stand (Init) also ends in WALK_STAND, after a longer
+          // stiff settle so the measured-pose entry finishes first.
+          stand_auto_walk = stand_watch_mode == Mode::kPassive || stand_watch_mode == Mode::kMotion ||
+                            (stand_watch_mode == Mode::kServe && !serve_failed);
+          // From MOTION the policy -> stand impedance blend must finish and the
+          // feet settle before HumanLike takes over (else it steps forward).
+          stand_settle_s = stand_watch_mode == Mode::kPassive ? 2.0
+              : stand_watch_mode == Mode::kMotion ? std::max(1.5, motion_blend_sec + 1.0)
+                                                  : motion_blend_sec + 0.5;
+        }
+        stand_watch_mode = mode;
+      }
+      if (mode == Mode::kPdStand && (stand_auto_walk || runner_control.StandHandoffPending()) &&
+          steady_seconds() - stand_entry_s >= stand_settle_s &&
+          state.dq.cwiseAbs().maxCoeff() < .5 && state.imu_gyro.norm() < .15) {
+        if (runner_control.StandHandoffPending()) {
+          const auto staged = runner_control.TakeStandHandoff();
+          if (staged != a3_pingpong::RunnerAction::kNone) {
+            runner_control.EnqueueLocalAction(staged);
+            std::fprintf(stderr, "[pp stand] handoff settled -> %s\n", a3_pingpong::RunnerActionName(staged));
+          }
+        } else {
+          runner_control.SetRuntimeMode(Mode::kWalkStand);
+          std::fprintf(stderr, "[pp stand] PD_STAND settled -> WALK_STAND\n");
+        }
+        stand_auto_walk = false;
+      }
+      // WALK_STAND is TELEOP without operator input: same entry blend, fall
+      // guard and quiet exit to PD_STAND; the velocity target stays zero.
+      // DOCK takes its velocity from PpDockController and, when the walk ends
+      // on its own, stays on HumanLike in WALK_STAND (no policy reset).
+      const bool walk_stand = mode == Mode::kWalkStand;
+      const bool dock = mode == Mode::kDock && dock_controller != nullptr;
+      if (mode == Mode::kTeleop || walk_stand || dock) {
         computed_mode = mode;
         prev_mode_for_blend = mode;
         mode_cadence.Reset();
-        const bool entering_dock = mode == Mode::kDock && locomotion_session_mode != Mode::kDock;
-        const bool entering_teleop = mode == Mode::kTeleop && locomotion_session_mode != Mode::kTeleop;
+        const bool entering_dock = dock && locomotion_session_mode != Mode::kDock;
+        // WALK_STAND / DOCK -> TELEOP keeps the policy live; the controller
+        // must still return to neutral before it moves the robot.
+        if (mode == Mode::kTeleop && teleop_entered && locomotion_session_mode != Mode::kTeleop)
+          teleop_input.Disarm();
+        if (entering_dock) {
+          dock_frame_latched = false;
+          dock_controller->Begin(steady_seconds());
+          teleop_quiet_ticks = 0;
+        }
         if (!teleop_entered) {
           robot_io::RobotCommand source = last_delivered_command;
           if (!last_delivered_valid) {
@@ -2367,56 +2447,53 @@ int main(int argc, char** argv) {
           teleop_stand.dq_des = teleop_stand.tau_ff = Eigen::VectorXd::Zero(31);
           teleop_stand.kp = ppp->official_stand_kp();
           teleop_stand.kd = ppp->official_stand_kd();
-          teleop_entry.Begin(source, teleop_stand);
+          // From the receive policy HumanLike takes the legs over 2.5 s
+          // (see PpTeleopEntry::kFromReceiveSeconds); 0.5 s elsewhere.
+          const bool from_receive = last_delivered_valid && last_delivered_mode == Mode::kMotion;
+          if (from_receive) {
+            teleop_entry.Begin(source, teleop_stand, a3_pingpong::PpTeleopEntry::kFromReceiveSeconds,
+                               a3_pingpong::PpTeleopEntry::kFromReceiveSeconds);
+            std::fprintf(stderr, "[pp stand] MOTION -> HumanLike, %.1f s leg handover\n",
+                         a3_pingpong::PpTeleopEntry::kFromReceiveSeconds);
+          } else {
+            teleop_entry.Begin(source, teleop_stand);
+          }
           teleop_input.Disarm();
           teleop_tick = 0;
           teleop_quiet_ticks = 0;
           teleop_fall_ticks = 0;
-          dock_frame_latched = false;
-          if (mode == Mode::kDock) dock_controller->Begin(steady_seconds());
           command = teleop_entry.Step(0., state, *locomotion, Eigen::Vector3d::Zero());
           teleop_entered = true;
         } else {
-          // The policy is already live. A new Reposition starts its own dock
-          // attempt without resetting HumanLike or replaying the entry blend.
-          if (entering_dock) {
-            dock_frame_latched = false;
-            dock_controller->Begin(steady_seconds());
-            teleop_quiet_ticks = 0;
-          }
-          if (entering_teleop) teleop_input.Disarm();
+          const bool stopping = runner_control.TeleopStopRequested();
+          const bool active = !teleop_entry.active() && !stopping;
           const bool body_quiet = state.dq.cwiseAbs().maxCoeff() < .5 && state.imu_gyro.norm() < .15;
-          bool stopping = false;
+          bool dock_finished = false;
           Eigen::Vector3d target = Eigen::Vector3d::Zero();
           if (mode == Mode::kTeleop) {
-            stopping = runner_control.TeleopStopRequested();
-            const bool active = !teleop_entry.active() && !stopping;
             target = teleop_input.Sample(active, wall_seconds(), steady_seconds());
-          } else if (mode == Mode::kDock) {
-            stopping = runner_control.DockStopRequested();
+          } else if (dock) {
             if (stopping) dock_controller->RequestStop();
             std::optional<a3_pingpong::DockPose> pose;
-            if (base_in) {
-              a3_pingpong::PpBaseSample sample;
-              if (base_in->Latest(sample, 1.0, true)) {
-                a3_pingpong::DockPose next;
-                next.x = sample.pos.x();
-                next.y = sample.pos.y();
-                next.yaw = a3_pingpong::DockYawWxyz(
-                    sample.quat[0], sample.quat[1], sample.quat[2], sample.quat[3]);
-                next.age_s = sample.receipt_age_s;
-                next.valid = true;
-                const bool flags = (sample.flags & a3_pingpong::kV17RequiredBaseFlags) ==
-                                   a3_pingpong::kV17RequiredBaseFlags;
-                if (!dock_frame_latched) {
-                  dock_frame_id = sample.world_frame_id;
-                  dock_frame_latched = true;
-                }
-                next.frame_ok = flags && sample.schema == 2 && sample.world_frame_id != 0 &&
-                                sample.world_frame_id == dock_frame_id;
-                pose = next;
-                dock_pose_age.store(next.age_s);
+            a3_pingpong::PpBaseSample sample;
+            if (base_in && base_in->Latest(sample, 1.0, true)) {
+              a3_pingpong::DockPose next;
+              next.x = sample.pos.x();
+              next.y = sample.pos.y();
+              next.yaw = a3_pingpong::DockYawWxyz(
+                  sample.quat[0], sample.quat[1], sample.quat[2], sample.quat[3]);
+              next.age_s = sample.receipt_age_s;
+              next.valid = true;
+              const bool flags = (sample.flags & a3_pingpong::kV17RequiredBaseFlags) ==
+                                 a3_pingpong::kV17RequiredBaseFlags;
+              if (!dock_frame_latched) {
+                dock_frame_id = sample.world_frame_id;
+                dock_frame_latched = true;
               }
+              next.frame_ok = flags && sample.schema == 2 && sample.world_frame_id != 0 &&
+                              sample.world_frame_id == dock_frame_id;
+              pose = next;
+              dock_pose_age.store(next.age_s);
             }
             const auto out = dock_controller->Update(
                 steady_seconds(), pose, teleop_entry.active(), locomotion->settled(), body_quiet);
@@ -2429,30 +2506,39 @@ int main(int argc, char** argv) {
             dock_error_yaw.store(out.error_yaw);
             dock_distance.store(out.distance);
             dock_elapsed.store(out.elapsed_s);
-            const bool finished = out.result == a3_pingpong::DockResult::kDone ||
-                                  out.result == a3_pingpong::DockResult::kFailed;
-            if (finished) stopping = true;
-            target = stopping || teleop_entry.active() ? Eigen::Vector3d::Zero() : out.velocity;
+            dock_finished = out.result == a3_pingpong::DockResult::kDone ||
+                            out.result == a3_pingpong::DockResult::kFailed;
+            if (!stopping && !dock_finished && !teleop_entry.active()) target = out.velocity;
           }
           command = teleop_entry.Step(teleop_tick * .002, state, *locomotion, target);
-          if (stopping && !teleop_entry.active() && locomotion->settled() && body_quiet)
+          if ((stopping || dock_finished) && !teleop_entry.active() && locomotion->settled() && body_quiet)
             ++teleop_quiet_ticks;
           else teleop_quiet_ticks = 0;
-          if (teleop_quiet_ticks >= 150) runner_control.SetRuntimeMode(Mode::kPdStand);
+          // TELEOP / DOCK always end in the operator Stand (WALK_STAND). Only a
+          // staged Ready/Serve leaves HumanLike, through the stiff PD_STAND.
+          if (teleop_quiet_ticks >= 150)
+            runner_control.SetRuntimeMode(runner_control.StandHandoffPending() ? Mode::kPdStand
+                                                                              : Mode::kWalkStand);
         }
         locomotion_session_mode = mode;
         ppp->observe_imu(state);
         const double gz = -(1.0 - 2.0 * (state.imu_quat_wxyz[1] * state.imu_quat_wxyz[1] +
                                          state.imu_quat_wxyz[2] * state.imu_quat_wxyz[2]));
         teleop_fall_ticks = gz > fall_guard_gz ? teleop_fall_ticks + 1 : 0;
-        if (fall_guard && teleop_fall_ticks >= 30) throw std::runtime_error("teleop fall guard");
-        if (mode == Mode::kTeleop) {
-          teleop_phase.store(runner_control.TeleopStopRequested() ? 3 : (teleop_entry.active() ? 1 : 2));
-          teleop_progress.store(std::min(1., teleop_tick * .002 / a3_pingpong::PpTeleopEntry::kSeconds));
-        } else {
-          teleop_phase.store(0);
-          teleop_progress.store(0);
+        if (fall_guard && teleop_fall_ticks >= 30) {
+          // Same physical result as the stiff-stand fall guard (zero gains,
+          // hold measured q) but recoverable: Stand again once the robot is
+          // upright, instead of a latched command fault that needs a restart.
+          runner_control.SetRuntimeMode(Mode::kPassive);
+          std::fprintf(stderr, "[pp SAFETY] HumanLike FALL GUARD: gravZ=%+.2f > %.2f for 60 ms -> PASSIVE (zero gains)\n",
+                       gz, fall_guard_gz);
+          command.q_des = state.q;
+          command.dq_des = Eigen::VectorXd::Zero(command.q_des.size());
+          command.tau_ff = command.kp = command.kd = Eigen::VectorXd::Zero(command.q_des.size());
+          teleop_fall_ticks = 0;
         }
+        teleop_phase.store(runner_control.TeleopStopRequested() ? 3 : (teleop_entry.active() ? 1 : 2));
+        teleop_progress.store(std::min(1., teleop_tick * .002 / a3_pingpong::PpTeleopEntry::kSeconds));
         const auto filtered = locomotion->filtered_velocity();
         for (int i = 0; i < 3; ++i) teleop_velocity[i].store(filtered[i]);
         ++teleop_tick;
@@ -2460,10 +2546,10 @@ int main(int argc, char** argv) {
       }
       if (teleop_entered) {
         teleop_entered = false;
-        locomotion_session_mode = Mode::kPassive;
         teleop_input.Disarm();
         dock_frame_latched = false;
       }
+      locomotion_session_mode = mode;
       teleop_phase.store(0);
       teleop_progress.store(0);
       for (auto& value : teleop_velocity) value.store(0);
@@ -2564,6 +2650,33 @@ int main(int argc, char** argv) {
               : static_cast<int>(servep->gripper_state());
       const bool cleanup_required =
           servep != nullptr && servep->cleanup_required();
+      if (dock_controller) {
+        std::vector<double> request;
+        {
+          std::lock_guard<std::mutex> lock(dock_tune_mutex);
+          request.swap(dock_tune_pending);
+        }
+        if (request.size() >= 3 && request[1] == static_cast<double>(runner_boot_id) &&
+            request[2] > dock_tune_seq.load()) {
+          auto result = a3_pingpong::DockConfigResult::kRejectedInvalid;
+          std::string why;
+          if (runner_control.mode() == Mode::kDock) {
+            result = a3_pingpong::DockConfigResult::kRejectedBusy;
+          } else if (const auto next = a3_pingpong::DockConfigFromWire(
+                         dock_controller->config(), request, &why)) {
+            dock_controller->SetConfig(*next);
+            publish_dock_cfg(*next);
+            result = a3_pingpong::SaveDockConfig(dock_config, *next)
+                ? a3_pingpong::DockConfigResult::kApplied
+                : a3_pingpong::DockConfigResult::kAppliedNotSaved;
+          }
+          dock_tune_seq.store(request[2]);
+          dock_tune_result.store(static_cast<int>(result));
+          std::fprintf(stderr, "[pp dock] tune seq=%.0f result=%d %s target=(%.3f, %.3f, %.3f)\n",
+                       request[2], static_cast<int>(result), why.c_str(),
+                       dock_cfg_pub[0].load(), dock_cfg_pub[1].load(), dock_cfg_pub[2].load());
+        }
+      }
       bool dock_pose_ready = false;
       bool dock_start_near = false;
       if (dock_controller && base_in) {
@@ -2673,14 +2786,14 @@ int main(int argc, char** argv) {
   }
   const std::string action_source_banner =
       hybridp == nullptr
-          ? "ONNX receive policy (learned 31-DOF action every tick)"
-          : "ONNX x2: receive policy upper 50Hz + AGI lower 100Hz (one publisher)";
+          ? "ONNX model_3440 (learned 31-DOF action every tick)"
+          : "ONNX x2: model_3440 upper 50Hz + AGI lower 100Hz (one publisher)";
   const std::string post_onnx_banner =
       hybridp == nullptr
-          ? "neck[3,4] HELD | receive policy owns remaining body command"
+          ? "neck[3,4] HELD | model_3440 owns remaining body command"
           : std::string("neck[3,4] HELD | AGI owns ") +
                 a3_pingpong::PpHybridLowerOwnerName(hybridp->config().owner) +
-                " q/dq/tau/kp/kd | receive policy owns the rest";
+                " q/dq/tau/kp/kd | model_3440 owns the rest";
   std::printf(
       "[pingpong] ================= RUN CONFIG =================\n"
       "[pingpong]  start_mode   = %-9s  (s=PD_STAND hold/NO swing, m=MOTION publish)\n"
@@ -2729,7 +2842,7 @@ int main(int argc, char** argv) {
 
   // --- keyboard control (raw, non-blocking) ---
   std::cout << "[keys] p=PASSIVE(limp)  s=PD_STAND(hold, NO swing)  h=SHADOW(compute, no publish)"
-               "  m=MOTION(publish)\n";
+               "  m=MOTION(publish)  w=WALK_STAND(HumanLike, from PD_STAND)\n";
   if (servep != nullptr) {
     std::cout
         << "[serve keys] S=SERVER R=RECEIVER "
@@ -2769,6 +2882,10 @@ int main(int argc, char** argv) {
           case 'h':
             runner_control.EnqueueLocalAction(
                 a3_pingpong::RunnerAction::kEnterShadow);
+            break;
+          case 'w':
+            runner_control.EnqueueLocalAction(
+                a3_pingpong::RunnerAction::kEnterWalkStand);
             break;
           case 'm':
             runner_control.EnqueueLocalAction(
@@ -2814,7 +2931,7 @@ int main(int argc, char** argv) {
           case '5':
           case '6':
           case '7':
-            if (runner_control.mode() == Mode::kTeleop || runner_control.mode() == Mode::kDock) {
+            if (a3_pingpong::IsLocomotionMode(runner_control.mode())) {
               std::cout << "-> return to PD_STAND before reference/policy diagnostics\n";
               break;
             }
@@ -2861,7 +2978,7 @@ int main(int argc, char** argv) {
                     ppp->set_swing_dir(-1);
                     std::cout << "-> swing dir = BACKHAND (scripted target +y, clip1)\n"; break;
           case 'r':
-            if (runner_control.mode() == Mode::kTeleop || runner_control.mode() == Mode::kDock) {
+            if (a3_pingpong::IsLocomotionMode(runner_control.mode())) {
               std::cout << "-> return to PD_STAND before REFERENCE_PLAYBACK\n";
               break;
             }
@@ -2877,7 +2994,7 @@ int main(int argc, char** argv) {
             }
             break;
           case 'x':
-            if (runner_control.mode() == Mode::kTeleop || runner_control.mode() == Mode::kDock) {
+            if (a3_pingpong::IsLocomotionMode(runner_control.mode())) {
               runner_control.EnqueueLocalAction(a3_pingpong::RunnerAction::kEnterPdStand);
               break;
             }
@@ -2902,15 +3019,13 @@ int main(int argc, char** argv) {
     }
   });
 
-  // Authoritative Runner heartbeat.  It carries actual local role/mode and
+  // Authoritative Runner state telemetry. It carries actual local role/mode and
   // the real PpServeController enum; the HDU observer only decodes it.
   std::thread runner_state_publisher([&]() {
-    unsigned heartbeat_tick = 0;
+    unsigned state_publish_tick = 0;
     while (!g_stop.load()) {
-      if (operator_loss_protection)
-        backend->PublishOperatorChallenge(operator_heartbeat->Issue(a3_pingpong::PpNowSteadySec()));
       backend->PublishMocapSafety(runner_control.EncodeMocapSafety());
-      if (heartbeat_tick++ % 10 != 0) {
+      if (state_publish_tick++ % 10 != 0) {
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
         continue;
       }
@@ -2933,13 +3048,17 @@ int main(int argc, char** argv) {
           teleop_input.Age(steady_seconds()),teleop_progress.load(),
           teleop_velocity[0].load(),teleop_velocity[1].load(),teleop_velocity[2].load(),
           teleop_input.armed()?1.:0.});
+      // Schema 2 = schema 1 (15) + tuning seq/result + 7 tunable limits.
       if (dock_controller) backend->PublishDockState({
-          1., static_cast<double>(runner_boot_id), static_cast<double>(dock_phase.load()),
+          2., static_cast<double>(runner_boot_id), static_cast<double>(dock_phase.load()),
           static_cast<double>(dock_attempt.load()), dock_error_x.load(), dock_error_y.load(),
           dock_error_yaw.load(), dock_distance.load(), dock_elapsed.load(),
           static_cast<double>(dock_result.load()), static_cast<double>(dock_reason.load()),
-          dock_controller->config().target_x, dock_controller->config().target_y,
-          dock_controller->config().target_yaw, dock_pose_age.load()});
+          dock_cfg_pub[0].load(), dock_cfg_pub[1].load(), dock_cfg_pub[2].load(),
+          dock_pose_age.load(), dock_tune_seq.load(), static_cast<double>(dock_tune_result.load()),
+          dock_cfg_pub[3].load(), dock_cfg_pub[4].load(), dock_cfg_pub[5].load(),
+          dock_cfg_pub[6].load(), dock_cfg_pub[7].load(), dock_cfg_pub[8].load(),
+          dock_cfg_pub[9].load()});
       std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
   });
@@ -2964,7 +3083,7 @@ int main(int argc, char** argv) {
     const std::uint64_t ticks = driver.PolicyTickCount();
     const std::uint64_t halts = driver.SafeHaltCount();
     auto now = std::chrono::steady_clock::now();
-    if (warming && runner_control.mode() == Mode::kTeleop) warming = false;
+    if (warming && a3_pingpong::IsLocomotionMode(runner_control.mode())) warming = false;
     if (warming &&
         std::chrono::duration<double>(now - t_start).count() >= warmup_sec) {
       a3_pingpong::RunnerActionReason refused = a3_pingpong::RunnerActionReason::kNone;

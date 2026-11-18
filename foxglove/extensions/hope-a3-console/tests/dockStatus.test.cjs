@@ -1,53 +1,40 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const load = require('./loadSource.cjs');
-const { decodeDockState, dockRepositionReason, formatDockStatus, serveBlocksReposition } = load('dockStatus');
-const { createTranslator } = load('i18n');
-const t = createTranslator('en');
-const sample = [1, 9, 2, 1, 0.12, -0.04, 0.02, 0.13, 4.5, 1, 0, -0.5, -0.7625, 0, 0.01];
+const { decodeDockState, dockRepositionReason, dockPhaseName, formatDockStatus } = require('./loadSource.cjs')('dockStatus');
+const english = require('./loadSource.cjs')('i18n').createTranslator('en');
+const sample = [1, 77, 2, 1, .1, -.2, .05, .2236, 3.5, 1, 0, -.5, -.7625, 0, .02];
+const reason = (extra = {}) => dockRepositionReason({ runnerFresh: true, runnerFault: false,
+  mode: 'PD_STAND', telemetryFresh: true, baseFresh: true, serving: false, pending: false,
+  estop: false, ...extra }, english);
 
-test('CDR Float64Array and JSON arrays both decode dock telemetry', () => {
-  const backing = new Float64Array([0, ...sample, 0]);
-  for (const input of [sample, new Float64Array(sample), backing.subarray(1, 16)]) {
-    assert.equal(JSON.stringify(decodeDockState(input)), JSON.stringify(sample));
-  }
+test('decodes typed arrays and rejects wrong schema or length', () => {
+  assert.deepEqual([...decodeDockState(new Float64Array(sample))], sample);
+  assert.deepEqual([...decodeDockState(sample)], sample);
+  assert.equal(decodeDockState(sample.slice(1)), undefined);
+  assert.equal(decodeDockState([2, ...sample.slice(1)]), undefined);
+  assert.equal(decodeDockState([...sample.slice(0, 14), Number.NaN]), undefined);
 });
 
-test('rejects a short, wrong-schema, or non-finite dock packet', () => {
-  for (const input of [null, {}, new DataView(new ArrayBuffer(120)), sample.slice(1),
-    [2, ...sample.slice(1)], [...sample.slice(0, 14), NaN]]) {
-    assert.equal(decodeDockState(input), undefined);
+test('Reposition opens from Stand, Walk stand or Teleop with a fresh base pose and dock telemetry', () => {
+  assert.equal(reason(), undefined);
+  assert.equal(reason({ mode: 'WALK_STAND' }), undefined);
+  assert.equal(reason({ mode: 'TELEOP' }), undefined);
+  assert.match(reason({ telemetryFresh: false }), /no Reposition loaded/);
+  assert.match(reason({ mode: 'DOCK' }), /Stand stops it/);
+  for (const mode of ['PASSIVE', 'MOTION', 'SERVE']) {
+    assert.match(reason({ mode }), /Select Stand or Teleop/);
   }
+  assert.match(reason({ baseFresh: false }), /base pose/);
+  assert.match(reason({ serving: true }), /serve/);
+  assert.match(reason({ estop: true }), /E-stop/);
+  assert.match(reason({ runnerFault: true }), /command fault/);
 });
 
-test('Reposition stays disabled until Auto-dock, Stand, a fresh base pose, and a quiet serve', () => {
-  const ready = { autoDock: 'on', runnerFresh: true, runnerFault: false, mode: 'PD_STAND',
-    baseFresh: true, serveActive: false, pending: false };
-  assert.equal(dockRepositionReason(ready, t), undefined);
-  assert.match(dockRepositionReason({ ...ready, autoDock: 'off' }, t), /off/);
-  assert.match(dockRepositionReason({ ...ready, runnerFresh: false }, t), /Runner status/);
-  assert.match(dockRepositionReason({ ...ready, mode: 'DOCK' }, t), /Stand stops/);
-  assert.match(dockRepositionReason({ ...ready, serveActive: true }, t), /serve/);
-  assert.match(dockRepositionReason({ ...ready, mode: 'PASSIVE' }, t), /Stand/);
-  assert.match(dockRepositionReason({ ...ready, baseFresh: false }, t), /base pose/);
-  assert.match(dockRepositionReason({ ...ready, pending: true }, t), /pending/);
-});
-
-test('inactive serve phases leave Reposition available', () => {
-  for (const phase of ['UNAVAILABLE', 'IDLE', 'WAIT_BALL_LOAD', 'GRIP_CLOSING', 'COMPLETE',
-    'ABORT_WAIT_HUMAN_CLEAR', 'ABORT_RETURN', 'ABORTED', 'FAULT', 'CLEANUP_OPENING', 'WAIT_GRIP_SECURE']) {
-    assert.equal(serveBlocksReposition(phase, false), false, phase);
-  }
-  assert.equal(serveBlocksReposition(undefined, undefined), false);
-  for (const phase of ['PREPARING_STAND', 'TRANSITION_TO_LOAD', 'WAIT_READY_TO_SERVE',
-    'PLAYING_PRE_RELEASE', 'RELEASE_PENDING', 'STRIKE', 'FOLLOW_THROUGH', 'RECOVERY', 'HANDOFF_READY']) {
-    assert.equal(serveBlocksReposition(phase, false), true, phase);
-  }
-  assert.equal(serveBlocksReposition('ABORTED', true), true);
-});
-
-test('status line reports the world-frame error and phase', () => {
-  assert.equal(formatDockStatus(undefined, t), 'WAITING FOR DOCK TELEMETRY');
-  assert.match(formatDockStatus(sample, t), /ALIGN · dx 0\.120 m · dy -0\.040 m · dyaw 1\.1 deg/);
-  assert.match(formatDockStatus(sample, t), /attempt 1 · 4\.5 s · RUNNING/);
+test('status line shows phase, error and result', () => {
+  assert.equal(dockPhaseName(sample), 'ALIGN');
+  const line = formatDockStatus(sample, english);
+  assert.match(line, /^ALIGN · Δx 0\.100 m · Δy -0\.200 m · Δyaw 2\.9° · 0\.224 m · try 1 · 3\.5 s · RUNNING$/);
+  const failed = [...sample]; failed[2] = 6; failed[9] = 3; failed[10] = 5;
+  assert.match(formatDockStatus(failed, english), /FAILED · START_TOO_FAR$/);
+  assert.match(formatDockStatus(undefined, english), /Waiting/);
 });

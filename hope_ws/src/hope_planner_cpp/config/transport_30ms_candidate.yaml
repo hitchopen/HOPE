@@ -1,0 +1,7 @@
+# Explicit 30 ms override, now matching the operator-selected production YAML.
+# This selection is NOT a measured end-to-end qualification.
+# Applies to packet + target transport. Solve (5 ms) and actor tick
+# (20 ms) budgets remain separate, so total reserve is 350+30+5+20 = 405 ms.
+hope_ball_flight_packetizer:
+  ros__parameters:
+    adaptive_transport_budget_s: 0.03

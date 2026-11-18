@@ -79,8 +79,11 @@ test('new UI text belongs in catalogs, and translations never become comparison 
        const text=node.text.trim();
        if(ts.isJsxText(node)) assert.ok(!/[A-Za-z]/.test(text),location+' raw JSX text');
        // Technical code/metadata and CSS classes are intentionally not translated.
+       let attribute=node.parent;
+       while(attribute && !ts.isJsxAttribute(attribute)) attribute=attribute.parent;
+       const cssClass=attribute?.name?.getText(ast)==='className';
        const technical=file==='index.ts'||file==='mocapSetup.ts'||text.startsWith('<')||text.startsWith('@')||
-         node.parent.getText(ast).startsWith('className=')||ts.isImportDeclaration(node.parent);
+         cssClass||ts.isImportDeclaration(node.parent);
        if(!technical) assert.ok(!/[A-Za-z]+\s+[A-Za-z]/.test(text),location+' raw prose: '+text);
      }
      if(ts.isBinaryExpression(node)&&[ts.SyntaxKind.EqualsEqualsEqualsToken,ts.SyntaxKind.ExclamationEqualsEqualsToken].includes(node.operatorToken.kind)) {
@@ -89,5 +92,16 @@ test('new UI text belongs in catalogs, and translations never become comparison 
      ts.forEachChild(node,visit);
    }
    visit(ast);
+ }
+});
+
+test('live and replay telemetry render in the saved panel language', () => {
+ for (const name of ['LiveTelemetry','ReplayTelemetry']) {
+  const Component=load(name,`\nexport { ${name} };`)[name];
+  const english=renderToStaticMarkup(React.createElement(Component,{context:{initialState:{language:'en'}}}));
+  const chinese=renderToStaticMarkup(React.createElement(Component,{context:{initialState:{language:'zh'}}}));
+  assert.doesNotMatch(english,han);
+  assert.match(english,/Robot XYZ/);
+  assert.match(chinese,/机器人 XYZ/);
  }
 });

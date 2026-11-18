@@ -15,6 +15,7 @@ readonly FOXGLOVE_ROS_COMMIT="05f27efc7e535d9c30c6b0cb4f6aa89de7243870"
 readonly ROSX_REPOSITORY="https://github.com/facontidavide/rosx_introspection.git"
 readonly ROSX_COMMIT="ab747a0d3970d3297a5652b82e7645ab1d11feb9"
 readonly FOXGLOVE_WORKSPACE="${HOME}/hope_foxglove_ws"
+readonly FOXGLOVE_BUILD_RECEIPT="${FOXGLOVE_WORKSPACE}/foxglove-build.sha256"
 readonly FOXGLOVE_SOURCE="${FOXGLOVE_WORKSPACE}/foxglove-sdk"
 readonly ROSX_SOURCE="${FOXGLOVE_WORKSPACE}/rosx_introspection"
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -29,6 +30,7 @@ readonly ROSX_PATCHED_FILE_SHA256="c3100994dea0fdc6dc2b87614ed35b1582d95819cd3f7
 readonly FOXGLOVE_CPP_SDK_ARCHIVE="${FOXGLOVE_CPP_SDK_ARCHIVE:-}"
 readonly FOXGLOVE_CPP_SDK_ARCHIVE_SHA256="0710f2ec5abc3954acf6203b93a96768dccd19d742af9b78fcd8fbbba5f6225a"
 readonly FOXGLOVE_CPP_SDK_TREE_SHA256="97f5e6d5f26d48d7ad60c2aff59dfd44b51ed92f3cde027245f121f44a7fe6ae"
+readonly ROSX_CPM_SHA256="7b354f3a5976c4626c876850c93944e52c83ec59a159ae5de5be7983f0e17a2a"
 
 die() {
     echo "ERROR: $*" >&2
@@ -49,7 +51,8 @@ checkout_pinned_source() {
         git -C "${destination}" init --quiet
         git -C "${destination}" remote add origin "${repository}"
         git -C "${destination}" fetch --depth 1 origin "${commit}"
-        git -C "${destination}" checkout --quiet --detach FETCH_HEAD
+        # ROS bridge uses source files, not the repository's LFS example assets.
+        GIT_LFS_SKIP_SMUDGE=1 git -C "${destination}" checkout --quiet --detach FETCH_HEAD
     fi
 
     local actual_commit
@@ -73,7 +76,15 @@ apply_verified_patch() {
         die "${label} compatibility patch checksum mismatch."
 
     local status
-    status="$(git -C "${repository}" status --porcelain --untracked-files=normal)"
+    # The display patch is hash-validated separately below. Preserve the
+    # compatibility check's rejection of every other unrecognized edit.
+    if [[ "$repository" == "$FOXGLOVE_SOURCE" ]]; then
+        status="$(git -C "${repository}" status --porcelain --untracked-files=normal -- . \
+          ':!ros/src/foxglove_bridge/src/ros2_foxglove_bridge.cpp' \
+          ':!ros/src/foxglove_bridge/include/foxglove_bridge/ros2_foxglove_bridge.hpp')"
+    else
+        status="$(git -C "${repository}" status --porcelain --untracked-files=normal)"
+    fi
     if [[ -z "${status}" ]]; then
         git -C "${repository}" apply --check "${patch}" || \
             die "${label} compatibility patch does not apply to the pinned source."
@@ -156,6 +167,8 @@ apply_verified_patch \
     "${ROSX_PATCHED_FILE}" "${ROSX_PATCHED_FILE_SHA256}" \
     "rosx_introspection"
 
+python3 "${SCRIPT_DIR}/apply_foxglove_display_patch.py" "${FOXGLOVE_SOURCE}"
+
 cmake_args=(
     -DCMAKE_BUILD_TYPE=Release
     -DBUILD_TESTING=OFF
@@ -163,9 +176,19 @@ cmake_args=(
 )
 if [[ -n "${FOXGLOVE_CPP_SDK_ARCHIVE}" ]]; then
     offline_cpp_sdk_dir="$(prepare_offline_cpp_sdk "${FOXGLOVE_CPP_SDK_ARCHIVE}")"
+    # rosx includes CPM before looking for system packages. Its downloader
+    # reuses a cached file only when it matches the upstream EXPECTED_HASH.
+    offline_cpm_file="$(dirname -- "${FOXGLOVE_CPP_SDK_ARCHIVE}")/CPM_0.40.0.cmake"
+    [[ -f "${offline_cpm_file}" ]] || \
+        die "offline CPM file is missing: ${offline_cpm_file}; complete runbook section 6.3.1."
+    echo "${ROSX_CPM_SHA256}  ${offline_cpm_file}" | sha256sum --check --status || \
+        die "offline CPM file checksum mismatch."
+    offline_cpm_cache="${FOXGLOVE_WORKSPACE}/offline/rosx-cpm"
+    install -D -m 0644 "${offline_cpm_file}" "${offline_cpm_cache}/cpm/CPM_0.40.0.cmake"
     cmake_args+=(
         "-DFETCHCONTENT_SOURCE_DIR_FOXGLOVE_SDK=${offline_cpp_sdk_dir}"
         -DFETCHCONTENT_FULLY_DISCONNECTED=ON
+        "-DCPM_SOURCE_CACHE:PATH=${offline_cpm_cache}"
     )
     echo "Using verified offline Foxglove C++ SDK: ${offline_cpp_sdk_dir}"
 fi
@@ -176,6 +199,13 @@ colcon build \
     --packages-up-to foxglove_bridge \
     --cmake-clean-cache \
     --cmake-args "${cmake_args[@]}"
+
+# A configure-only or failed build must not qualify as a completed install.
+{
+    sha256sum build/rosx_introspection/CMakeCache.txt build/foxglove_bridge/CMakeCache.txt
+    find install -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum
+} > "${FOXGLOVE_BUILD_RECEIPT}.tmp"
+mv -- "${FOXGLOVE_BUILD_RECEIPT}.tmp" "${FOXGLOVE_BUILD_RECEIPT}"
 
 echo "Built pinned ${FOXGLOVE_ROS_RELEASE}: ${FOXGLOVE_SOURCE}/ros/install/foxglove_bridge"
 sha256sum "${FOXGLOVE_SOURCE}/ros/install/foxglove_bridge/lib/foxglove_bridge/foxglove_bridge"

@@ -1,4 +1,16 @@
 import { Translator, defaultTranslator } from "./i18n";
+
+// Both the authoritative pelvis monitor and the base consumer must agree.
+// Missing, false, stale, or future-dated receipts fail closed.
+export function pelvisReady(input: {
+  baseFresh?: boolean; tfReady?: boolean;
+  baseReceived?: number; tfReceived?: number;
+}, now: number): boolean {
+  const fresh = (stamp: number | undefined) => stamp != undefined &&
+    Number.isFinite(stamp) && now >= stamp && now - stamp < 500;
+  return input.baseFresh === true && input.tfReady === true &&
+    fresh(input.baseReceived) && fresh(input.tfReceived);
+}
 // Read-only Runner telemetry; the schema-2 action/state contract is unchanged.
 export type MocapSafety = {
   boot: number;
@@ -35,19 +47,10 @@ export function decodeMocapSafety(value: unknown): MocapSafety | undefined {
 
 export function mocapSafetyText(state: MocapSafety | undefined, t: Translator = defaultTranslator): string {
   if (state == undefined) { return t("mocapSafety.mocapSafetyStatusUnavailable"); }
-  if (state.operatorInterrupted === 36 || state.operatorInterrupted === 37) {
-    const link = state.operatorInterrupted === 36 ? t("mocapSafety.foxgloveUi") : t("mocapSafety.operatorComputer");
-    return state.uiFresh === true && state.computerFresh === true && state.fresh
-      ? t("mocapSafety.stoppedLostLinksRestoredExplicitlyReEnterPlay", {source: link})
-      : t("mocapSafety.stoppedLostControlledPdStandRecovery", {source: link});
-  }
   if (!state.required) { return t("mocapSafety.offlineModeMocapProtectionNotRequired"); }
   if (state.interrupted) {
     return state.fresh ? t("mocapSafety.stoppedMocapLostStreamRestoredExplicitlyReEnter")
       : t("mocapSafety.stoppedMocapLostControlledPdStandRecovery");
-  }
-  if (state.operatorRequired === true && (state.uiFresh !== true || state.computerFresh !== true)) {
-    return t("mocapSafety.normalPlayEntryBlockedHeartbeatMissing", {source: state.uiFresh !== true ? t("mocapSafety.foxgloveUi") : t("mocapSafety.operatorComputer")});
   }
   if (state.held === true) {
     return t("mocapSafety.holdingLastPelvisPoseRealSampleAgeMs", {age: Math.round(state.ageMs ?? 0)});

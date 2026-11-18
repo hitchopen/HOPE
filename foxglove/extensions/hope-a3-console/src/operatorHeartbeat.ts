@@ -6,7 +6,7 @@ export const OPERATOR_ECHO = "/hope/runner/operator_echo_hdu_flat";
 // Standard ROS 2 MultiArray definitions, using the names expected by the
 // extension publishing API. No command datatype or arbitrary topic is exposed.
 // https://docs.foxglove.dev/docs/extensions/extension-api/type-aliases/PanelExtensionContext
-const datatypes = new Map([
+export const FLOAT64_ARRAY_DATATYPES = new Map([
   ["std_msgs/Float64MultiArray", { definitions: [
     { name: "layout", type: "std_msgs/MultiArrayLayout", isComplex: true },
     { name: "data", type: "float64", isArray: true },
@@ -46,7 +46,7 @@ export class OperatorHeartbeat {
     if (this.#last?.[1] === values[1] && values[2] === this.#last[2] && values[3]! <= this.#last[3]!) { return; }
     try {
       if (!this.#advertised) {
-        this.context.advertise(OPERATOR_ECHO, "std_msgs/Float64MultiArray", { datatypes });
+        this.context.advertise(OPERATOR_ECHO, "std_msgs/Float64MultiArray", { datatypes: FLOAT64_ARRAY_DATATYPES });
         this.#advertised = true;
       }
       this.context.publish(OPERATOR_ECHO, { layout: { dim: [], data_offset: 0 }, data: [...values, 1] });

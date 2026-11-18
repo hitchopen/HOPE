@@ -1,0 +1,107 @@
+{
+  "definition": "Native Runner measured-state FK interpolated at frozen plan deadline from50Hz trace; <=50ms bracket, exact frozen command identity, plan/trace target cross-check. Normal plane angle is acos(abs(normal dot target)); raw directed angle retained, since native FK exposes fixed site +Y and BH uses opposite face. Position uses native FK point without BH face-offset reconstruction. Not1kHz contact metrics; includes missed contacts with valid plans. ddof0 variance.",
+  "counts": {
+    "planner_attempts": 26,
+    "valid_plans": 26,
+    "unique_valid_commands": 26,
+    "valid_error_samples": 26
+  },
+  "planner_reasons": {
+    "command_valid": 26
+  },
+  "sample_status": {
+    "valid": 26
+  },
+  "all": {
+    "position_cm": {
+      "n": 26,
+      "mean": 3.4476988670979614,
+      "variance_ddof0": 1.6787440131021532,
+      "p95": 5.048041366505569,
+      "max": 5.068033565849352
+    },
+    "velocity_mps": {
+      "n": 26,
+      "mean": 0.18361482398393084,
+      "variance_ddof0": 0.001724036669096048,
+      "p95": 0.2651902348257119,
+      "max": 0.2868678415555089
+    },
+    "normal_plane_deg": {
+      "n": 26,
+      "mean": 1.2145208033845398,
+      "variance_ddof0": 0.9537228979973897,
+      "p95": 3.3384316943978463,
+      "max": 3.763255300617244
+    },
+    "normal_directed_deg": {
+      "n": 26,
+      "mean": 90.68978076615159,
+      "variance_ddof0": 7883.3392415652825,
+      "p95": 179.59534951463996,
+      "max": 179.65846435116043
+    }
+  },
+  "by_side": {
+    "BH": {
+      "position_cm": {
+        "n": 13,
+        "mean": 4.682058189580136,
+        "variance_ddof0": 0.060936435118695814,
+        "p95": 5.058549136351874,
+        "max": 5.068033565849352
+      },
+      "velocity_mps": {
+        "n": 13,
+        "mean": 0.163746050675577,
+        "variance_ddof0": 0.0016456682085991766,
+        "p95": 0.22660194025924207,
+        "max": 0.2868678415555089
+      },
+      "normal_plane_deg": {
+        "n": 13,
+        "mean": 0.5247400372329528,
+        "variance_ddof0": 0.015833788191957684,
+        "p95": 0.7557290600878558,
+        "max": 0.8252545223568006
+      },
+      "normal_directed_deg": {
+        "n": 13,
+        "mean": 179.47525996276707,
+        "variance_ddof0": 0.015833788191957684,
+        "p95": 179.62358115258436,
+        "max": 179.65846435116043
+      }
+    },
+    "FH": {
+      "position_cm": {
+        "n": 13,
+        "mean": 2.213339544615786,
+        "variance_ddof0": 0.2492657170883031,
+        "p95": 3.1481924947116373,
+        "max": 3.248057397913176
+      },
+      "velocity_mps": {
+        "n": 13,
+        "mean": 0.20348359729228468,
+        "variance_ddof0": 0.0010128688240354134,
+        "p95": 0.2598882951450514,
+        "max": 0.2689773345976123
+      },
+      "normal_plane_deg": {
+        "n": 13,
+        "mean": 1.9043015695361267,
+        "variance_ddof0": 0.9400169970974812,
+        "p95": 3.6006271232393936,
+        "max": 3.763255300617244
+      },
+      "normal_directed_deg": {
+        "n": 13,
+        "mean": 1.9043015695361267,
+        "variance_ddof0": 0.9400169970974812,
+        "p95": 3.6006271232393936,
+        "max": 3.763255300617244
+      }
+    }
+  }
+}

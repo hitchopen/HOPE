@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <filesystem>
+#include <fstream>
 
 namespace {
 
@@ -171,7 +172,7 @@ TEST(PpDockController, StopAndYamlDefaults) {
   EXPECT_DOUBLE_EQ(loaded.target_y, -0.7625);
   EXPECT_DOUBLE_EQ(loaded.target_yaw, 0.0);
   EXPECT_DOUBLE_EQ(loaded.timeout_s, 45.0);
-  EXPECT_DOUBLE_EQ(loaded.max_start_distance_m, 3.0);
+  EXPECT_DOUBLE_EQ(loaded.max_start_distance_m, 1.5);  // first-hardware cap
   EXPECT_EQ(loaded.max_attempts, 5);
   EXPECT_GT(loaded.approach_distance_m, 0.0);
   EXPECT_LT(loaded.position_tolerance_m, loaded.reopen_position_m);
@@ -197,4 +198,44 @@ TEST(PpDockController, SteersTowardTheTargetBeforeTheFinalYaw) {
   const auto spin = near.Update(0.0, Pose(cfg.target_x - 0.20, cfg.target_y, M_PI), false, false, false);
   EXPECT_NE(spin.velocity.z(), 0.0);
   EXPECT_NEAR(spin.velocity.x(), 0.0, 1e-9);
+}
+
+TEST(PpDockController, ConsoleTuningWireIsBoundedAndPersists) {
+  using namespace a3_pingpong;
+  const DockConfig base;
+  const std::vector<double> ok = {1, 42, 7, -0.45, -0.70, 0.1, 0.08, 0.07, 0.25, 0.12, 0.12, 0.4, 2.0};
+  const auto tuned = DockConfigFromWire(base, ok);
+  ASSERT_TRUE(tuned.has_value());
+  EXPECT_DOUBLE_EQ(tuned->target_x, -0.45);
+  EXPECT_DOUBLE_EQ(tuned->position_tolerance_m, 0.08);
+  EXPECT_DOUBLE_EQ(tuned->max_start_distance_m, 2.0);
+  EXPECT_LE(tuned->capture_position_m, tuned->position_tolerance_m);
+  EXPECT_LT(tuned->position_tolerance_m, tuned->reopen_position_m);
+  EXPECT_LT(tuned->yaw_tolerance_rad, tuned->reopen_yaw_rad);
+  std::string why;
+  for (int index : {6, 8, 11, 12, 3}) {
+    auto bad = ok;
+    bad[index] = index == 3 ? 9.0 : 99.0;
+    EXPECT_FALSE(DockConfigFromWire(base, bad, &why).has_value()) << index;
+  }
+  auto nan = ok; nan[4] = std::nan("");
+  EXPECT_FALSE(DockConfigFromWire(base, nan).has_value());
+  EXPECT_FALSE(DockConfigFromWire(base, {1, 42, 7}).has_value());
+  PpDockController dock(base);
+  dock.SetConfig(*tuned);
+  EXPECT_DOUBLE_EQ(dock.config().target_y, -0.70);
+
+  const auto dir = std::filesystem::temp_directory_path() / "pp_dock_tune_test";
+  std::filesystem::remove_all(dir);
+  std::filesystem::create_directories(dir);
+  const auto path = (dir / "dock.yaml").string();
+  { std::ofstream(path) << DockConfigYaml(base); }
+  ASSERT_TRUE(SaveDockConfig(path, *tuned));
+  const auto reloaded = LoadDockConfig(path);
+  EXPECT_DOUBLE_EQ(reloaded.target_x, -0.45);
+  EXPECT_DOUBLE_EQ(reloaded.lateral_m_s, 0.12);
+  EXPECT_EQ(reloaded.max_attempts, base.max_attempts);
+  EXPECT_TRUE(std::filesystem::exists(dir / "dock.yaml.orig"));
+  EXPECT_DOUBLE_EQ(LoadDockConfig((dir / "dock.yaml.orig").string()).target_x, base.target_x);
+  std::filesystem::remove_all(dir);
 }

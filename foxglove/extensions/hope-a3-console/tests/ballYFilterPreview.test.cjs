@@ -46,10 +46,10 @@ test('local drafts restore without being mistaken for Planner receipts; fill is 
   assert.match(xml(withBallYPreview({}, {...draft,min:'-2',max:'1'},options)), /box size="2.74 1.525 0.004"/);
   assert.doesNotMatch(xml(withBallYPreview({}, {...draft,min:'1',max:'2'},options)), /hope_preview_lane/);
 });
-test('migrates the accidentally persisted original default to the disabled public preset', () => {
+test('migrates the accidentally persisted original default to the operator right bound -1.30', () => {
   const legacy = {ballYFilterDraft:{enabled:true,min:'-1.38959',max:'-0.554359'}};
-  assert.equal(readBallYFilterDraft(legacy).min, '-1.525');
-  assert.equal(readBallYFilterDraft({}).min, '-1.525');
+  assert.equal(readBallYFilterDraft(legacy).min, '-1.3');
+  assert.equal(readBallYFilterDraft({}).min, '-1.3');
   assert.equal(ballYFilterDraftEdited(legacy), false);
   assert.equal(ballYFilterDraftEdited({}), false);
 });

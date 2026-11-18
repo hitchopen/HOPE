@@ -33,8 +33,6 @@ class FieldAssetsTest(unittest.TestCase):
 
     def exchange(self, host, config, request):
         self.calls.append((host, request["op"]))
-        if request["op"] == "read_policy_model":
-            return {"catalog_installed": False, "model": None}
         if request["op"] == "verify_ball_model":
             return {"configured_model": "ppq004", "runtime": "VERIFIED"}
         if host == "laptop":
@@ -185,8 +183,6 @@ class FieldAssetsTest(unittest.TestCase):
                                              "DEFAULT" if state == "default" else digest],
                                             capture_output=True, text=True, timeout=5)
                     self.assertEqual(result.returncode == 0, state in {"valid", "default"}, result.stderr)
-                    if result.returncode == 0:
-                        self.assertEqual("--shared-session-home" in result.stdout.splitlines(), mode == "OPTITRACK")
                     if state == "valid":
                         self.assertEqual(result.stdout.splitlines()[-2:], ["--serve-timeline", str(path)])
                     elif state == "default":
@@ -246,7 +242,8 @@ class LifecycleModeTest(unittest.TestCase):
             HelperEvent=HelperEvent, validate_session_id=validate_session_id,
             parse_helper_event=parse_helper_event, LIFECYCLE_HELPER="/fixed/helper",
             LAPTOP_LIFECYCLE_HELPER="/fixed/laptop-helper",
-            LAPTOP_USER="operator", ROBOT_USER="agi", SSH_OPTIONS=("-T",), json=json)
+            LAPTOP_USER="operator", ROBOT_USER="agi", SSH_OPTIONS=("-T",), json=json,
+            MAC_USER="dongc1", MAC_LIFECYCLE_HELPER="/home/dongc1/.local/libexec/hope-lifecycle")
         exec(compile(ast.Module(body=classes, type_ignores=[]), str(source), "exec"), namespace)
         def run(argv, **kwargs):
             calls.append(argv)
@@ -255,8 +252,7 @@ class LifecycleModeTest(unittest.TestCase):
 
     def test_pure_start_and_stop_need_no_laptop_base_planner_or_mocap(self):
         config = LifecycleConfig(laptop_wifi_ip="10.0.0.2", hdu_wifi_ip="10.0.0.3",
-            mdu_internal_ip="10.42.10.12", motive_ip="", table_side="P1",
-            auto_dock="off", revision=1)
+            mdu_internal_ip="10.42.10.12", motive_ip="", table_side="P1", revision=1)
         calls = []
         backend = self.backend(calls)
         session = "model21800_20260912T010203Z"
@@ -267,37 +263,24 @@ class LifecycleModeTest(unittest.TestCase):
             self.assertNotIn("start-base", argv)
             self.assertNotIn("start-planner", argv)
             self.assertEqual(argv[-3:], ["KERNEL", "a" * 64, "legacy"])
+        actions = [argv for argv in calls]
+        self.assertLess(next(i for i, argv in enumerate(actions) if "start-runner" in argv),
+                        next(i for i, argv in enumerate(actions) if "start-transport-gateway" in argv))
         calls.clear()
         backend.kill_all_and_collect(config, session, lambda event: None, "KERNEL")
-        self.assertEqual(len(calls), 3)
-        self.assertTrue(any("verify-vendor-mdu" in argv for argv in calls))
+        self.assertEqual(len(calls), 2)
         self.assertFalse(any("collect" in argv for argv in calls))
         calls.clear()
         backend.exchange_assets = lambda *_: {"configured_model": "ppq004", "runtime": "VERIFIED"}
         backend.start(config, session, lambda event: None)
         self.assertTrue(any("start-base" in argv for argv in calls))
         self.assertTrue(any("start-planner" in argv for argv in calls))
-
-    def test_kernel_auto_dock_keeps_mocap_and_base_relay_without_planner(self):
-        config = LifecycleConfig(laptop_wifi_ip="10.0.0.2", hdu_wifi_ip="10.0.0.3",
-            mdu_internal_ip="10.42.10.12", motive_ip="", table_side="P1",
-            auto_dock="on", revision=1)
-        calls = []
-        backend = self.backend(calls)
-        session = "model21800_20260912T010203Z"
-        backend.start(config, session, lambda event: None, "KERNEL", "a" * 64)
-        self.assertTrue(any("reconnect-laptop" in argv for argv in calls))
-        self.assertTrue(any("start-base" in argv for argv in calls))
-        self.assertFalse(any("start-planner" in argv for argv in calls))
-        self.assertFalse(any("prepare-laptop" in argv for argv in calls))
-        runner = next(argv for argv in calls if "start-runner" in argv)
-        preflight = next(argv for argv in calls if "preflight-mdu" in argv)
-        self.assertEqual(runner[-1], "on")
-        self.assertEqual(preflight[-1], "on")
-        calls.clear()
-        backend.kill_all_and_collect(config, session, lambda event: None, "KERNEL")
-        self.assertTrue(any("stop-capture-laptop" in argv for argv in calls))
-        self.assertFalse(any(argv[-1] == "collect" for argv in calls))
+        self.assertLess(next(i for i, argv in enumerate(calls) if "start-base" in argv),
+                        next(i for i, argv in enumerate(calls) if "start-planner" in argv))
+        self.assertLess(next(i for i, argv in enumerate(calls) if "start-base" in argv),
+                        next(i for i, argv in enumerate(calls) if "start-hal" in argv))
+        self.assertLess(next(i for i, argv in enumerate(calls) if "start-runner" in argv),
+                        next(i for i, argv in enumerate(calls) if "start-transport-gateway" in argv))
 
 
 if __name__ == "__main__":

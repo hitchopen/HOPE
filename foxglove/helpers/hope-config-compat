@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Source-only compatibility aliases. All venue values come from the generated
+# lifecycle receipt; this file contains no independent server/robot addresses.
+source "$HOME/.config/hope-foxglove/laptop-runtime.env" || return 1
+export LAPTOP_WIFI_IP="${HOPE_LIFECYCLE_LAPTOP_IP:?missing canonical Laptop address}"
+export HDU_WIFI_IP="${HOPE_LIFECYCLE_HDU_IP:?missing canonical HDU address}"
+export MDU_INTERNAL_IP="${HOPE_LIFECYCLE_MDU_IP:?missing canonical MDU address}"
+export LAPTOP_WIRED_IP="$LAPTOP_WIFI_IP" HDU_WIRED_IP="$HDU_WIFI_IP"
+export VRPN_IP="${HOPE_LIFECYCLE_VRPN_IP:-}" VRPN_PORT="${HOPE_LIFECYCLE_VRPN_PORT:-}"
+export MOTIVE_IP="${HOPE_LIFECYCLE_MOTIVE_IP:-}"
+# Interface names and source addresses are observations from the current route.
+read -r ROBOT_IF _hope_robot_src < <(ip -j -4 route get "$HDU_WIFI_IP" | python3 -c \
+ 'import json,sys; r=json.load(sys.stdin)[0]; print(r.get("dev",""), r.get("prefsrc",r.get("src","")))')
+export ROBOT_IF ROBOT_WIRED_IF="$ROBOT_IF"
+if [[ "${HOPE_LIFECYCLE_MOCAP_SOURCE:-none}" == vrpn && -n "$VRPN_IP" ]]; then
+  read -r VRPN_IF LAPTOP_VRPN_IP < <(ip -j -4 route get "$VRPN_IP" | python3 -c \
+   'import json,sys; r=json.load(sys.stdin)[0]; print(r.get("dev",""), r.get("prefsrc",r.get("src","")))')
+else
+  VRPN_IF= LAPTOP_VRPN_IP=
+fi
+export VRPN_IF LAPTOP_VRPN_IP
+unset _hope_robot_src

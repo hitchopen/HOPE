@@ -1,3 +1,4 @@
+#include "a3_pingpong/pp_empirical_support.hpp"
 // Ping-pong policy front-end as a drop-in A3PolicyDriver CommandFn. Per tick:
 //   scripted/planner racket target -> reference clock -> ONNX refs ->
 //   180/177/175-D obs (auto-selected from the model input dim) ->
@@ -129,6 +130,11 @@ struct PpPolicyConfig {
   // loading for old artifacts; formal HitterPingPong deploy always sets it.
   std::string deploy_cfg_path;
   bool shared_session_home = false; // Runner receipt -> Planner schema 4
+  // Admission geometry can follow the measured base independently of the
+  // model's immutable station/recovery observation. Opt in as a paired
+  // Planner/Runner runtime setting; never enlarge the exported support box.
+  bool target_support_live_base = false;
+  EmpiricalLateralSupport empirical_lateral_support;
   bool kernel_mode = false; // No-mocap actor WAIT test; never admits world-frame planner shots.
   int level = 1;                 // 0 = hold wind-up (quasi-stand), 1 = periodic forehand
   bool legs_passive = false;     // hold leg joints at nominal (firm PD) — for a HOISTED demo
@@ -190,6 +196,7 @@ struct PpPolicyConfig {
   // yaw would rotate the target obs ~84 deg OOD mid-motion. Revert with --no-imu-yaw (only
   // sensible for a non-turning model, e.g. p4).
   bool use_imu_yaw_for_targets = true;  // see build_obs_180(use_base_yaw_for_targets)
+  PpTargetFrame target_frame = PpTargetFrame::kTraining;
   double oracle_max_age_s = 0.1;    // reject oracle samples older than this (stale bridge/sim).
   double dt = 0.02;              // 50 Hz
   double strike_period = 3.0;    // seconds between strikes (level 1)
@@ -450,6 +457,12 @@ class PpPolicy {
     if ((cfg_.loc_mode == LocMode::kKernelImuLocal) != cfg_.kernel_mode ||
         (cfg_.kernel_mode && (!cfg_.planner_mode || !cfg_.policy_native)))
       throw std::invalid_argument("kernel mode requires the dedicated IMU-local policy-native test configuration");
+    if (cfg_.target_support_live_base &&
+        (!onnx_.is_fixed_home_contract() || !cfg_.shared_session_home ||
+         !cfg_.planner_mode || cfg_.loc_mode != LocMode::kExternalBase))
+      throw std::invalid_argument("live-base target support requires a localized fixed-HOME shared-session policy");
+    if (cfg_.empirical_lateral_support.enabled && !cfg_.target_support_live_base)
+      throw std::invalid_argument("empirical lateral support requires paired live-base admission");
     // RECOVERY ENVELOPE (Layer C) mode. PP_ENVELOPE_MODE=capability (default) is
     // telemetry-only so Gate3 keeps exposing policy failures; production lets L2/L3
     // refuse/expire planner flights. Anything else is a start-up configuration error.
@@ -597,6 +610,21 @@ class PpPolicy {
         throw std::runtime_error(
             "pingpong: fixed-y homing thresholds/gain must be finite, "
             "0 < exit < enter, gain > 1, and max delta in [enter,0.35] m");
+    }
+    if (cfg_.target_frame != PpTargetFrame::kTraining) {
+      if (onnx_.obs_dim() != kObsDim110 || onnx_.uses_compact_execution_obs())
+        throw std::runtime_error("body target override requires the 110-D hitter actor");
+      if (cfg_.target_frame == PpTargetFrame::kBodyOnce && !cfg_.planner_mode)
+        throw std::runtime_error("body_once target requires planner shot commits");
+      std::fprintf(stderr,
+          "[pp WARN] policy_target_frame=%s: obs[103:106] = "
+          "R_world_base^T * (target_world - base_world); obs[106:109] = "
+          "R_world_base^T * velocity_world; %s; "
+          "explicit override of the training observation contract\n",
+          cfg_.target_frame == PpTargetFrame::kBodyOnce ? "body_once" : "body",
+          cfg_.target_frame == PpTargetFrame::kBodyOnce
+              ? "capture once at shot commit; WAIT target unchanged; actor heading obs[99:101]=[1,0] in all phases"
+              : "full current pose every tick");
     }
     if (!build_src_to_sdk(onnx_.joint_names(), isaac_to_sdk_))
       throw std::runtime_error("pingpong: ONNX joint_names do not map onto the backend layout");
@@ -1280,7 +1308,11 @@ class PpPolicy {
   // anchor so it re-captures at the robot's NEW spot (a stale anchor from before the
   // move would command a walk back to the old position), and restarts the arm-hold
   // sustained-quiet clock (--arm-hold-nominal) for the fresh MOTION entry.
+  // Explicit GRU policies (model19000): a genuine new policy session starts from
+  // zero hidden state; it is carried across serves/HOLD/recovery otherwise.
+  void begin_recurrent_session() { onnx_.ResetRecurrentSession(); }
   void rearm_yaw_align() {
+    committed_body_target_.Reset();
     yaw_align_pending_.store(true);
     kernel_odometry_.Reset();
     hold_station_set_ = false;
@@ -1492,6 +1524,11 @@ class PpPolicy {
   void set_mode_handoff_hold(bool hold) { mode_handoff_hold_ = hold; }
   bool ComputeCommand(std::uint64_t tick_idx, const robot_io::RobotState& state,
                       robot_io::RobotCommand& cmd) {
+    // GRU hidden state advances at most once per control tick; read-only
+    // reference queries within the tick never advance it.
+    onnx_.BeginPolicyTick(tick_idx);
+    if (onnx_.is_recurrent() && !cfg_.policy_native)
+      throw std::runtime_error("GRU requires policy-native control through HOLD/recovery");
     // Kernel is an explicit no-mocap actor test. Keep the normal observation,
     // inference, action-feedback and Runner handoff paths below. Only world
     // localization/Planner release differ; never advertise synthetic mocap.
@@ -2438,7 +2475,7 @@ class PpPolicy {
           "Schema27 actor received reach permissions incompatible with its "
           "enabled/disabled artifact contract");
     }
-    const Eigen::VectorXd obs = onnx_.uses_compact_execution_obs()
+    Eigen::VectorXd obs = onnx_.uses_compact_execution_obs()
         ? BuildCompactObservation_(st, tg, tick_idx)
         : (onnx_.obs_dim() == kObsDim118)
         ? build_obs_118(st, tg, last_action_, onnx_.default_q())
@@ -2466,6 +2503,29 @@ class PpPolicy {
         : (onnx_.obs_dim() == kObsDim177)
         ? build_obs_177(refs, st, tg, last_action_, onnx_.default_q(), cfg_.use_imu_yaw_for_targets)
         : build_obs_180(refs, st, tg, last_action_, onnx_.default_q(), cfg_.use_imu_yaw_for_targets);
+    if (cfg_.target_frame == PpTargetFrame::kBodyOnce) {
+      const bool captured = committed_body_target_.Apply(
+          obs, st, tg,
+          hitter_optional_reach_active_flight(planner_engaged_, level_.load()),
+          planner_shot_seq_);
+      apply_forward_heading_110(obs);
+      if (captured) {
+        std::fprintf(stderr,
+            "[pp target-latch] tick=%llu shot=%llu command=%llu "
+            "base_w=[%.9f,%.9f,%.9f] quat_wxyz=[%.9f,%.9f,%.9f,%.9f] "
+            "pos_w=[%.9f,%.9f,%.9f] vel_w=[%.9f,%.9f,%.9f] "
+            "pos_b=[%.9f,%.9f,%.9f] vel_b=[%.9f,%.9f,%.9f] actor_heading=[1,0]\n",
+            static_cast<unsigned long long>(tick_idx),
+            static_cast<unsigned long long>(planner_shot_seq_),
+            static_cast<unsigned long long>(planner_frozen_command_seq_),
+            st.base_pos_w[0], st.base_pos_w[1], st.base_pos_w[2],
+            st.base_quat_w[0], st.base_quat_w[1], st.base_quat_w[2], st.base_quat_w[3],
+            tg.pos_w[0], tg.pos_w[1], tg.pos_w[2], tg.vel_w[0], tg.vel_w[1], tg.vel_w[2],
+            obs[103], obs[104], obs[105], obs[106], obs[107], obs[108]);
+      }
+    } else {
+      apply_target_frame(obs, st, tg, cfg_.target_frame);
+    }
     if (!PpAllFinite(obs)) {
       throw std::runtime_error("ping-pong observation contains NaN/Inf");
     }
@@ -4948,34 +5008,38 @@ class PpPolicy {
         set_planner_status_("origin_unset");
         return;
       }
-      const Vec2 relative_target =
-          Vec2(pos_w[0], pos_w[1]) - station_session_origin_w_;
+      const Vec2 support_reference = cfg_.target_support_live_base
+          ? Vec2(base_pos[0], base_pos[1]) : station_session_origin_w_;
+      const Vec2 relative_target = Vec2(pos_w[0], pos_w[1]) - support_reference;
       constexpr double kFixedTargetToleranceM = 0.030;
       const auto& pos_box = onnx_.hp_pos_boxes()[eng_clip];
       const bool x_supported = onnx_.is_fixed_home_contract()
           ? (relative_target[0] >= pos_box[0] && relative_target[0] <= pos_box[1])
           : std::fabs(relative_target[0] - reach_offset_clip_[eng_clip][0]) <= kFixedTargetToleranceM;
       const double y_margin = onnx_.is_fixed_home_contract() ? 0. : kFixedTargetToleranceM;
+      const auto effective_y = EffectiveLateralSupport(cfg_.empirical_lateral_support, eng_clip, {hp_y_band_[eng_clip][0], hp_y_band_[eng_clip][1]});
       const bool y_supported =
-          relative_target[1] >= hp_y_band_[eng_clip][0] - y_margin &&
-          relative_target[1] <= hp_y_band_[eng_clip][1] + y_margin;
+          relative_target[1] >= effective_y[0] - y_margin &&
+          relative_target[1] <= effective_y[1] + y_margin;
       if (!x_supported || !y_supported) {
         if ((gate_warn_tick_++ % 25) == 0) {
           std::fprintf(
               stderr,
-              "[pp gate] target outside immutable-station %s "
+              "[pp gate] target outside %s %s "
               "support: relative=(%+.3f,%+.3f), expected x=%+.3f y=[%+.3f,%+.3f]\n",
+              cfg_.target_support_live_base ? "live-base" : "immutable-station",
               sign > 0 ? "FH" : "BH", relative_target[0],
               relative_target[1], reach_offset_clip_[eng_clip][0],
-              hp_y_band_[eng_clip][0], hp_y_band_[eng_clip][1]);
+              effective_y[0], effective_y[1]);
         }
-        ClearPendingStation_(tick_idx, "fixed_station_target_unsupported");
-        set_planner_status_("fixed_station_target_unsupported");
+        const char* reason = cfg_.target_support_live_base
+            ? "live_base_target_unsupported" : "fixed_station_target_unsupported";
+        ClearPendingStation_(tick_idx, reason);
+        set_planner_status_(reason);
         return;
       }
-      // R10 never solves or updates a station from the ball.  The ball only
-      // selects a supported racket target around the immutable MOTION-entry
-      // anchor; XY error in the actor observation is the robot's real drift.
+      // Admission reference does not redefine the station or erase measured
+      // drift from the actor's observation.
       station = station_session_origin_w_;
     }
     if (cfg_.fixed_station_replay) {
@@ -5597,7 +5661,8 @@ class PpPolicy {
   void StreamTargetStep_(std::uint64_t tick_idx) {
     // Shared-reference Planner sends one immutable target per ball. A newer
     // flight or UI mode must never move the in-progress swing's target.
-    if (cfg_.shared_session_home || !racket_in_) return;
+    if (cfg_.shared_session_home || cfg_.target_frame == PpTargetFrame::kBodyOnce ||
+        !racket_in_) return;
     const auto snap = racket_in_->Latest();
     if (cfg_.shared_session_home && !SharedHomeCommandMatches_(snap.cmd)) return;
     planner_current_msg_seq_ = snap.seq;
@@ -5865,9 +5930,21 @@ class PpPolicy {
                    : obs110_vxy ? (int)(sizeof(blks110_vxy) / sizeof(Blk))
                    : (obs.size() == kObsDim110) ? (int)(sizeof(blks110) / sizeof(Blk))
                                                 : (int)(sizeof(blks180) / sizeof(Blk));
-    for (int i = 0; i < nblk; ++i)
-      std::fprintf(stderr, "   %-24s [%3d:%3d] %s\n", blks[i].n, blks[i].lo, blks[i].lo + blks[i].len,
+    for (int i = 0; i < nblk; ++i) {
+      const char* name = (obs.size() == kObsDim110 && blks[i].lo == 99 &&
+                         cfg_.target_frame == PpTargetFrame::kBodyOnce)
+          ? "base_forward_xy(fixed)"
+          : (obs.size() == kObsDim110 && blks[i].lo == 103 &&
+                         cfg_.target_frame != PpTargetFrame::kTraining)
+          ? (cfg_.target_frame == PpTargetFrame::kBodyOnce
+                 ? "racket_target(commit/WAIT)" : "racket_target_rel_base(body)")
+          : (obs.size() == kObsDim110 && blks[i].lo == 106 &&
+             cfg_.target_frame != PpTargetFrame::kTraining)
+          ? (cfg_.target_frame == PpTargetFrame::kBodyOnce
+                 ? "racket_vel(commit/WAIT)" : "racket_target_vel(body)") : blks[i].n;
+      std::fprintf(stderr, "   %-24s [%3d:%3d] %s\n", name, blks[i].lo, blks[i].lo + blks[i].len,
                    S(obs.segment(blks[i].lo, blks[i].len)).c_str());
+    }
     std::fprintf(stderr, " ACTION(raw,Isaac)[31]: %s\n", S(action).c_str());
     if (onnx_.has_bounded_qdes_contract()) {
       std::fprintf(stderr, " Q_DES(nominal,Isaac) : %s\n", S(qdes_nominal_isaac_).c_str());
@@ -6168,6 +6245,7 @@ class PpPolicy {
   std::string planner_lifecycle_reason_ = "init";
   std::uint64_t planner_lifecycle_seq_ = 0;
   std::uint64_t planner_shot_seq_ = 0;
+  PpCommittedBodyTarget committed_body_target_;
   std::uint64_t planner_current_msg_seq_ = 0;
   std::uint64_t planner_schema22_producer_epoch_ = 0;
   std::uint64_t planner_current_producer_epoch_ = 0;

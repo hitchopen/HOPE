@@ -141,8 +141,8 @@ class PolicyModelsTest(unittest.TestCase):
     'receive_only':False,'required_ball_model':'ppq004','serve_csv':{'name':csv.name,'sha256':c}}
    path.write_text(json.dumps(cat))
 
- def test_four_serve_models_pair_their_own_csv(self):
-  for model in ('model14600','model12600','model17400','model12000'):
+ def test_serve_models_pair_their_own_csv(self):
+  for model in ('model14600','model12600','model17400','model12000','model13800','modelfusion'):
    with self.subTest(model=model):
     self.install_serving(model);self.select(model)
     status=self.field.status();self.assertTrue(status['policy_models'][model]['available'])
@@ -228,6 +228,110 @@ class PolicyModelsTest(unittest.TestCase):
    cat=json.loads(json.dumps(original));cat['models']['model12000'][field]=value;p.write_text(json.dumps(cat))
    with self.assertRaisesRegex(ValueError,'matched'):self.select('model12000')
 
+ def install_13800(self):
+  for root in self.roots.values():
+   path=root/'catalog.json';cat=json.loads(path.read_text())
+   f=root/'model13800.bin';f.write_bytes(b'13800');d=hashlib.sha256(f.read_bytes()).hexdigest()
+   csv=root/'v23-13800.csv';csv.write_bytes(b'matched13800');c=hashlib.sha256(csv.read_bytes()).hexdigest()
+   cat['models']['model13800']={'files':{str(f):d,str(csv):c},'policy_sha256':d,'deploy_sha256':d,
+    'receive_only':False,'required_ball_model':'ppq004','serve_csv':{'name':csv.name,'sha256':c}}
+   path.write_text(json.dumps(cat))
+ def test_13800_selection_pairs_csv_and_start_verifies(self):
+  self.install_13800();self.select('model13800')
+  self.assertEqual(self.field.status()['csv']['name'],'v23-13800.csv')
+  digest=self.field.status()['csv']['sha256']
+  self.assertEqual(self.field.runner_selection(self.config),('OPTITRACK',digest))
+  self.field._data['csv']={'name':'custom.csv'}
+  self.field.command({'op':'use_default_csv'},self.config,stopped=True)
+  self.assertEqual(self.field.status()['csv']['sha256'],digest)
+  self.install_17400();self.select('model17400');self.assertIsNone(self.field.status()['csv'])
+  self.select('model13800');self.assertEqual(self.field.status()['csv']['sha256'],digest)
+ def test_13800_requires_ppq004_and_mocap(self):
+  self.install_13800();self.select('model13800')
+  with self.assertRaisesRegex(ValueError,'OptiTrack'):self.field.command({'op':'set_mode','mode':'KERNEL'},self.config,stopped=True)
+  original=self.field.exchange
+  self.field.exchange=lambda h,c,q: {'configured_model':'ppq002'} if q['op']=='verify_ball_model' else original(h,c,q)
+  with self.assertRaisesRegex(ValueError,'PPQ004'):self.field.runner_selection(self.config)
+ def test_13800_rejects_missing_and_running_before_writes(self):
+  with self.assertRaisesRegex(ValueError,'stop'):self.select('model13800',False)
+  self.assertEqual(self.calls,[])
+  with self.assertRaisesRegex(ValueError,'not installed'):self.select('model13800')
+ def test_13800_rejects_unpaired_csv_before_start(self):
+  self.install_13800();self.select('model13800')
+  for csv in (None, {'name':'legacy.csv','sha256':'a'*64}):
+   self.field._data['csv']=csv
+   with self.assertRaisesRegex(ValueError,'policy default'):self.field.runner_selection(self.config)
+  self.field.command({'op':'use_default_csv'},self.config,stopped=True)
+  self.field.runner_selection(self.config)
+ def test_13800_csv_tamper_rolls_back_both(self):
+  self.install_13800();self.install_serve_defaults();self.select('model12600');before=self.field.status()['csv']
+  (self.roots['mdu']/'v23-13800.csv').write_bytes(b'wrong model')
+  with self.assertRaisesRegex(ValueError,'changed'):self.select('model13800')
+  self.assertEqual(self.field.status()['csv'],before)
+  for root in self.roots.values():self.assertEqual(handle(root,{'op':'read_policy_model'})['model'],'model12600')
+ def test_13800_rejects_cross_endpoint_csv_mismatch_at_start(self):
+  self.install_13800();self.select('model13800')
+  p=self.roots['hdu']/'catalog.json';cat=json.loads(p.read_text())
+  cat['models']['model13800']['serve_csv']['sha256']='a'*64;p.write_text(json.dumps(cat))
+  with self.assertRaisesRegex(ValueError,'CSV differs'):self.field.runner_selection(self.config)
+ def test_13800_rejects_missing_capability_and_wrong_default_csv(self):
+  self.install_13800();p=self.roots['mdu']/'catalog.json';original=json.loads(p.read_text())
+  for field,value in [('receive_only',True),('required_ball_model','ppq002'),('serve_csv',{'name':'v23-12600.csv','sha256':'a'*64})]:
+   cat=json.loads(json.dumps(original));cat['models']['model13800'][field]=value;p.write_text(json.dumps(cat))
+   with self.assertRaisesRegex(ValueError,'matched'):self.select('model13800')
+
+ def install_fusion(self):
+  for root in self.roots.values():
+   path=root/'catalog.json';cat=json.loads(path.read_text())
+   f=root/'modelfusion.bin';f.write_bytes(b'fusion');d=hashlib.sha256(f.read_bytes()).hexdigest()
+   csv=root/'v23-fusion.csv';csv.write_bytes(b'matchedfusion');c=hashlib.sha256(csv.read_bytes()).hexdigest()
+   cat['models']['modelfusion']={'files':{str(f):d,str(csv):c},'policy_sha256':d,'deploy_sha256':d,
+    'receive_only':False,'required_ball_model':'ppq004','serve_csv':{'name':csv.name,'sha256':c}}
+   path.write_text(json.dumps(cat))
+ def test_fusion_selection_pairs_csv_and_start_verifies(self):
+  self.install_fusion();self.select('modelfusion')
+  self.assertEqual(self.field.status()['csv']['name'],'v23-fusion.csv')
+  digest=self.field.status()['csv']['sha256']
+  self.assertEqual(self.field.runner_selection(self.config),('OPTITRACK',digest))
+  self.field._data['csv']={'name':'custom.csv'}
+  self.field.command({'op':'use_default_csv'},self.config,stopped=True)
+  self.assertEqual(self.field.status()['csv']['sha256'],digest)
+  self.install_17400();self.select('model17400');self.assertIsNone(self.field.status()['csv'])
+  self.select('modelfusion');self.assertEqual(self.field.status()['csv']['sha256'],digest)
+ def test_fusion_requires_ppq004_and_mocap(self):
+  self.install_fusion();self.select('modelfusion')
+  with self.assertRaisesRegex(ValueError,'OptiTrack'):self.field.command({'op':'set_mode','mode':'KERNEL'},self.config,stopped=True)
+  original=self.field.exchange
+  self.field.exchange=lambda h,c,q: {'configured_model':'ppq002'} if q['op']=='verify_ball_model' else original(h,c,q)
+  with self.assertRaisesRegex(ValueError,'PPQ004'):self.field.runner_selection(self.config)
+ def test_fusion_rejects_missing_and_running_before_writes(self):
+  with self.assertRaisesRegex(ValueError,'stop'):self.select('modelfusion',False)
+  self.assertEqual(self.calls,[])
+  with self.assertRaisesRegex(ValueError,'not installed'):self.select('modelfusion')
+ def test_fusion_rejects_unpaired_csv_before_start(self):
+  self.install_fusion();self.select('modelfusion')
+  for csv in (None, {'name':'legacy.csv','sha256':'a'*64}):
+   self.field._data['csv']=csv
+   with self.assertRaisesRegex(ValueError,'policy default'):self.field.runner_selection(self.config)
+  self.field.command({'op':'use_default_csv'},self.config,stopped=True)
+  self.field.runner_selection(self.config)
+ def test_fusion_csv_tamper_rolls_back_both(self):
+  self.install_fusion();self.install_serve_defaults();self.select('model12600');before=self.field.status()['csv']
+  (self.roots['mdu']/'v23-fusion.csv').write_bytes(b'wrong model')
+  with self.assertRaisesRegex(ValueError,'changed'):self.select('modelfusion')
+  self.assertEqual(self.field.status()['csv'],before)
+  for root in self.roots.values():self.assertEqual(handle(root,{'op':'read_policy_model'})['model'],'model12600')
+ def test_fusion_rejects_cross_endpoint_csv_mismatch_at_start(self):
+  self.install_fusion();self.select('modelfusion')
+  p=self.roots['hdu']/'catalog.json';cat=json.loads(p.read_text())
+  cat['models']['modelfusion']['serve_csv']['sha256']='a'*64;p.write_text(json.dumps(cat))
+  with self.assertRaisesRegex(ValueError,'CSV differs'):self.field.runner_selection(self.config)
+ def test_fusion_rejects_missing_capability_and_wrong_default_csv(self):
+  self.install_fusion();p=self.roots['mdu']/'catalog.json';original=json.loads(p.read_text())
+  for field,value in [('receive_only',True),('required_ball_model','ppq002'),('serve_csv',{'name':'v23-12600.csv','sha256':'a'*64})]:
+   cat=json.loads(json.dumps(original));cat['models']['modelfusion'][field]=value;p.write_text(json.dumps(cat))
+   with self.assertRaisesRegex(ValueError,'matched'):self.select('modelfusion')
+
  def test_fresh_robot_accepts_only_explicitly_installed_model(self):
   self.install_12000()
   for root in self.roots.values():
@@ -238,6 +342,39 @@ class PolicyModelsTest(unittest.TestCase):
   with self.assertRaisesRegex(ValueError,'not installed'):self.select('model14600')
   self.assertEqual(self.field.status()['policy_model'],'model12000')
   self.assertEqual(self.field.status()['csv']['name'],'v23-12000.csv')
+ def install_astra(self):
+  self.install_13800()
+  for root in self.roots.values():
+   p=root/'catalog.json';cat=json.loads(p.read_text())
+   policy=root/'model13800astra.bin';policy.write_bytes(b'astra_joint_pvn')
+   csv=root/'v23-13800-astra.csv';csv.write_bytes(b'astra_serve')
+   d=hashlib.sha256(policy.read_bytes()).hexdigest();c=hashlib.sha256(csv.read_bytes()).hexdigest()
+   cat['models']['model13800astra']={'files':{str(policy):d,str(csv):c},'policy_sha256':d,'deploy_sha256':d,
+    'receive_only':False,'required_ball_model':'ppq004','serve_csv':{'name':csv.name,'sha256':c}}
+   p.write_text(json.dumps(cat))
+ def test_astra_roundtrip_preserves_original_13800_and_its_csv(self):
+  self.install_astra();self.select('model13800');original=self.field.status()['csv'].copy()
+  saved={h:json.loads((r/'catalog.json').read_text())['models']['model13800'] for h,r in self.roots.items()}
+  self.select('model13800astra');self.assertEqual(self.field.status()['csv']['name'],'v23-13800-astra.csv')
+  self.assertEqual(self.field.runner_selection(self.config),('OPTITRACK',self.field.status()['csv']['sha256']))
+  self.select('model13800');self.assertEqual(self.field.status()['csv'],original)
+  for h,r in self.roots.items():
+   self.assertEqual(json.loads((r/'catalog.json').read_text())['models']['model13800'],saved[h])
+   self.assertEqual((r/'model13800.bin').read_bytes(),b'13800')
+ def test_astra_rejects_original_model_csv_and_tampering(self):
+  self.install_astra();self.select('model13800');p=self.roots['mdu']/'catalog.json';cat=json.loads(p.read_text())
+  cat['models']['model13800astra']['serve_csv']['name']='v23-13800.csv';p.write_text(json.dumps(cat))
+  with self.assertRaisesRegex(ValueError,'matched'):self.select('model13800astra')
+  cat['models']['model13800astra']['serve_csv']['name']='v23-13800-astra.csv';p.write_text(json.dumps(cat))
+  (self.roots['mdu']/'v23-13800-astra.csv').write_bytes(b'wrong')
+  with self.assertRaisesRegex(ValueError,'changed'):self.select('model13800astra')
+  for r in self.roots.values():self.assertEqual(handle(r,{'op':'read_policy_model'})['model'],'model13800')
+ def test_astra_requires_stopped_and_optitrack(self):
+  self.install_astra()
+  with self.assertRaisesRegex(ValueError,'stop'):self.select('model13800astra',False)
+  self.assertEqual(self.calls,[])
+  self.select('model13800astra')
+  with self.assertRaisesRegex(ValueError,'OptiTrack'):self.field.command({'op':'set_mode','mode':'KERNEL'},self.config,stopped=True)
  def test_fresh_catalog_rejects_empty_unknown_or_missing_selection(self):
   root=self.roots['mdu'];p=root/'catalog.json'
   for models in ({}, {'unreviewed':{}}, [], None):
@@ -246,6 +383,44 @@ class PolicyModelsTest(unittest.TestCase):
   p.write_text(json.dumps({'version':1,'models':{}}))
   self.install_12000();cat=json.loads(p.read_text());cat['models']={'model12000':cat['models']['model12000']};p.write_text(json.dumps(cat))
   with self.assertRaisesRegex(ValueError,'not installed'):handle(root,{'op':'read_policy_model'})
+
+ def test_14200_variants_pair_reject_wrong_csv_and_restore_13800(self):
+  self.install_13800();self.select('model13800');original=self.field.status()['csv'].copy()
+  for name,csv_name in [('model400','v23-400.csv'),('model14200','v23-14200.csv'),('model14200fusion','v23-14200-fusion.csv'),('model14200best','v23-14200-best.csv'),('model15200body','v23-15200-body.csv')]:
+   with self.subTest(model=name):
+    for root in self.roots.values():
+     path=root/'catalog.json';cat=json.loads(path.read_text());f=root/(name+'.onnx');f.write_bytes(name.encode());csv=root/csv_name;csv.write_bytes(('matched-'+name).encode());digest=hashlib.sha256(f.read_bytes()).hexdigest();csv_digest=hashlib.sha256(csv.read_bytes()).hexdigest()
+     cat['models'][name]={'files':{str(f):digest,str(csv):csv_digest},'policy_sha256':digest,'deploy_sha256':digest,'required_ball_model':'ppq004','receive_only':False,'serve_csv':{'name':csv_name,'sha256':csv_digest}}
+     path.write_text(json.dumps(cat))
+    with self.assertRaisesRegex(ValueError,'stop'):self.select(name,False)
+    self.select(name);self.assertEqual(self.field.status()['csv']['name'],csv_name)
+    self.assertEqual(self.field.runner_selection(self.config),('OPTITRACK',self.field.status()['csv']['sha256']))
+    self.select('model13800');self.assertEqual(self.field.status()['csv'],original)
+    path=self.roots['mdu']/'catalog.json';cat=json.loads(path.read_text());cat['models'][name]['serve_csv']['name']='v23-13800.csv';path.write_text(json.dumps(cat))
+    with self.assertRaisesRegex(ValueError,'matched'):self.select(name)
+    for root in self.roots.values():self.assertEqual(handle(root,{'op':'read_policy_model'})['model'],'model13800')
+
+ def install_19000(self,model='model19000',**override):
+  for root in self.roots.values():
+   path=root/'catalog.json';cat=json.loads(path.read_text());f=root/(model+'.onnx');f.write_bytes(model.encode());digest=hashlib.sha256(f.read_bytes()).hexdigest()
+   cat['models'][model]={'files':{str(f):digest},'policy_sha256':digest,'deploy_sha256':digest,'required_ball_model':'ppq004','receive_only':True,**override}
+   path.write_text(json.dumps(cat))
+
+ def test_19000_and_26500_are_receive_only_optitrack_and_keep_other_models(self):
+  self.select('model14600');self.install_19000('model26500')
+  self.select('model26500');self.assertIsNone(self.field.status()['csv'])
+  with self.assertRaisesRegex(ValueError,'OptiTrack'):self.field.command({'op':'set_mode','mode':'KERNEL'},self.config,stopped=True)
+  self.select('model14600');self.install_19000()
+  self.select('model19000');self.assertIsNone(self.field.status()['csv'])
+  self.assertEqual(self.field.runner_selection(self.config),('OPTITRACK','DEFAULT'))
+  with self.assertRaisesRegex(ValueError,'OptiTrack'):self.field.command({'op':'set_mode','mode':'KERNEL'},self.config,stopped=True)
+  self.select('model14600')
+  for root in self.roots.values():self.assertTrue(handle(root,{'op':'list_policy_models'})['models']['model14600']['available'])
+  for bad in ({'receive_only':False},{'serve_csv':{'name':'x.csv','sha256':'0'*64}},{'required_ball_model':None}):
+   with self.subTest(bad=bad):
+    self.install_19000(**bad)
+    with self.assertRaisesRegex(ValueError,'receive-only'):self.select('model19000')
+    self.assertEqual(handle(self.roots['hdu'],{'op':'read_policy_model'})['model'],'model14600')
 
 class InventorySchedulingTest(unittest.TestCase):
  def test_hash_inventory_only_while_stopped_but_keep_ball_checks(self):
@@ -268,3 +443,12 @@ class InventorySchedulingTest(unittest.TestCase):
     self.assertFalse(node._field_refresh_running)
 
 if __name__=='__main__':unittest.main()
+
+
+class KernelPolicyRuleTest(unittest.TestCase):
+    def test_kernel_allows_only_14600_and_14200best(self):
+        import hope_policy_models as policy_models
+        self.assertNotIn('model14600', policy_models.MOCAP_MODELS)
+        self.assertNotIn('model14200best', policy_models.MOCAP_MODELS)
+        self.assertEqual(policy_models.MOCAP_MODELS, policy_models.MODELS - {'model14600', 'model14200best'})
+

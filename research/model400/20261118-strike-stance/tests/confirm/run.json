@@ -1,0 +1,39 @@
+{
+  "backend": "mjb_apply internal MuJoCo thread pool",
+  "mujoco": "3.17.0",
+  "processes": 1,
+  "threads": 12,
+  "environments": 12,
+  "cases_per_environment": 81,
+  "physical_ball_trials": 972,
+  "seconds": 114.73468143865466,
+  "return_code": 0,
+  "dataset_manifest_sha256": "1acdef21f24cb691feedf764f0b0bd4effe60849b5d550fba1c88e3bbcbb33c4",
+  "library_sha256": "8d651bbd442b4ad11460df63e9dfdc6787471c91e2280116a1bfca4c57a7e43b",
+  "policy_sha256": {
+    "v5": "2400bf0ef8e24204cc96d02a3d333004f6493cdfdea4566148c5c58ea48d2db6",
+    "width3": "818e6620a06de77b20927ea7ee1f77960590b441ba94d9748a512487e24fa84c"
+  },
+  "policy_groups": [
+    {
+      "label": "v5",
+      "path": "/home/user/Documents/Codex/2026-11-17/new-chat/outputs/model400-supergate-v5/policy"
+    },
+    {
+      "label": "width3",
+      "path": "/home/user/Documents/Codex/2026-11-17/new-chat/work/opt400-stance/width3"
+    }
+  ],
+  "diagnostics": "Read-only FK in separate mjData; planned time (next 1 ms tick), first physical contact from production contact step; p/v/n plus body orientation and warnings.",
+  "scope": "Read-only non-ball right-arm collision diagnostic; control and physics unchanged. Production native actor, causal IncomingTrajectory/Estimator/FutureContact/Stage3 cores, 1 kHz physical ball/contact law. Direct schema4 inputs on independent simulation clocks, fixed 8 ms delivery model. No DDS/transport/HAL/managed lifecycle or wall-time qualification. Initial measured WAIT state translated to nominal HOME, 20 s policy WAIT warm-up. Continuous per-shard shots, natural return drain.",
+  "support_profile": {
+    "path": "/home/user/Documents/Codex/2026-11-17/new-chat/work/opt400-stance/../rally400/support.yaml",
+    "sha256": "73581e06b20102ecf2e86c61c8202cc391adfda58b2928620ca12557b2aeca00",
+    "content": {
+      "live_base": true
+    }
+  },
+  "entry_script_sha256": "0e230ce399a828c7f8332ad6b7c5c3ec7d0c9ee4f973e1d2d459fa01c8fc321b",
+  "frozen_helper_manifest_sha256": "03f2384938c85bfc5a7596e7ebe8926f4828acdd96287262128decefa2c9c7d8",
+  "foot_diagnostics": "50 Hz: native solved previous-1ms contact force, current independent foot FK, inner/outer contact classification in local foot coordinates"
+}
