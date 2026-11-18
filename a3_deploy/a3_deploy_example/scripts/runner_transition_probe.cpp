@@ -1,12 +1,15 @@
 // Local simulation ABI. Links the production controller; has no HAL or transport.
 #include "a3_pingpong/pp_serve_controller.hpp"
 #include "a3_pingpong/pp_sha256.hpp"
+#include "a3_pingpong/pp_dock_controller.hpp"
 #include "a3_pingpong/pp_humanlike_policy.hpp"
 #include "a3_pingpong/pp_teleop_entry.hpp"
 #include "a3_pingpong/pp_policy.hpp"
 #include "a3_pingpong/pp_hybrid_lower_policy.hpp"
 #include "a3_pingpong/pp_runner_control.hpp"
+#include <cstdio>
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace {
@@ -221,6 +224,11 @@ int humanlike_step(void* p, const double* state, const double* velocity, double*
   }
 }
 
+void* probe_create_locomotion() {
+  try { return new Probe(); }
+  catch (const std::exception& e) { std::fprintf(stderr, "%s\n", e.what()); return nullptr; }
+}
+
 void* probe_create(const char* csv, const double* stand) {
   try {
     a3_pingpong::PpServe025FullbodyTimeline timeline;
@@ -340,5 +348,39 @@ int probe_apply(void* v, double elapsed, double* target) {
     Write(c, target);
     return 0;
   } catch (...) { return -1; }
+}
+
+void* dock_create(const char* yaml) {
+  try { return new a3_pingpong::PpDockController(a3_pingpong::LoadDockConfig(yaml)); }
+  catch (const std::exception& e) { std::fprintf(stderr, "%s\n", e.what()); return nullptr; }
+}
+void dock_destroy(void* p) { delete static_cast<a3_pingpong::PpDockController*>(p); }
+void dock_begin(void* p, double now) { static_cast<a3_pingpong::PpDockController*>(p)->Begin(now); }
+void dock_update(void* p, double now, const double* pose, int entry, int settled, int quiet, double* out) {
+  std::optional<a3_pingpong::DockPose> sample;
+  if (pose) {
+    a3_pingpong::DockPose next;
+    next.x = pose[0];
+    next.y = pose[1];
+    next.yaw = pose[2];
+    next.age_s = pose[3];
+    next.valid = pose[4] != 0.0;
+    next.frame_ok = pose[5] != 0.0;
+    sample = next;
+  }
+  const auto result = static_cast<a3_pingpong::PpDockController*>(p)->Update(
+      now, sample, entry != 0, settled != 0, quiet != 0);
+  out[0] = result.velocity.x();
+  out[1] = result.velocity.y();
+  out[2] = result.velocity.z();
+  out[3] = static_cast<double>(result.phase);
+  out[4] = static_cast<double>(result.attempt);
+  out[5] = result.error_x;
+  out[6] = result.error_y;
+  out[7] = result.error_yaw;
+  out[8] = result.distance;
+  out[9] = result.elapsed_s;
+  out[10] = static_cast<double>(result.result);
+  out[11] = static_cast<double>(result.reason);
 }
 }

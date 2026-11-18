@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Add lifecycle Auto-dock on/off, confirmed while stopped. It defaults to on. On keeps Kernel mocap and the base-pose relay and shows Reposition.
+- Reposition calls `/hope/runner/enter_dock` from fresh Stand with a fresh base pose and no active serve. Aborted, fault, and cleanup phases count as quiet. Stand aborts the walk.
+- The operations observer decodes `DOCK`, `ENTER_DOCK`, `REJECTED_DOCK`, and the dock rejection reasons.
+- Show dock phase, world-frame error, distance, attempt, elapsed time, and result from `/hope/runner/dock_state_hdu_flat`.
+- Off leaves the Kernel workflow unchanged and hides Reposition.
+
 ## 1.9.14
 
 - Show the Score Board ball phase or observed fault alongside the five-state label.
