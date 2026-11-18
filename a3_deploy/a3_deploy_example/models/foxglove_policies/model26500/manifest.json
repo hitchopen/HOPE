@@ -1,0 +1,39 @@
+{
+  "format_version": 1,
+  "packages": [
+    {
+      "model": "model26500",
+      "variant": "v1",
+      "status": "robot_install_bundle",
+      "source": {
+        "path": "Downloads/model_26500_policy",
+        "checkpoint_sha256": "5101210a15a4ed8662f10d702ef7ab2bb792a4f0bf09630ee2774542a02faa1d"
+      },
+      "assets": {
+        "policy": {
+          "path": "v1/policy/exported/policy.onnx",
+          "sha256": "379c2abcb7dca76785134a917e14e87788d84cd36f49badf753a01fc9d7efcc6"
+        },
+        "deploy": {
+          "path": "v1/policy/params/deploy.yaml",
+          "sha256": "ca30905df90282353387509118b72d73e2748b6f761272d8d075a0bf64e64582"
+        },
+        "planner_profile": {
+          "path": "v1/planner/model26500.json",
+          "sha256": "4669f83ebe75e3b3492ad9c083e734e63dc39d0af64c4e96c1d8eadda9d098fa"
+        },
+        "inspection": {
+          "path": "v1/inspection.yaml",
+          "sha256": "ea283970dc800f3422ccea4cf56a789d5031fe64ad3a7ce241e1619c147baed8"
+        }
+      },
+      "runner": {
+        "aarch64_sha256": "d62660cead18becdce05c9131c2155adaaa2fd885b0cc297a06e788d3371f228",
+        "built_from": "field Runner 259c249e3 (same binary as model14200best)"
+      },
+      "gate3_local": "gate3/runs/model26500_fixedhome26_20261115: 26/26 contacts, 26/26 legal, 0 falls; certification_pass=false",
+      "receive_only": true,
+      "required_ball_model": "ppq004"
+    }
+  ]
+}

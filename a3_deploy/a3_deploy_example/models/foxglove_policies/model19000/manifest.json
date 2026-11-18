@@ -1,0 +1,40 @@
+{
+  "format_version": 1,
+  "packages": [
+    {
+      "model": "model19000",
+      "variant": "v2",
+      "status": "robot_install_bundle",
+      "source": {
+        "handoff": "HOPE model_19000 GRU \u2014 integration review 2026-11-07",
+        "run": "gru-formal-2b8c09938a",
+        "checkpoint_sha256": "744526d2e7a9fdabe990070054ec3bd8126b286bc79041f94a930b0078c257c0",
+        "native_reference_source_commit": "7e51339062395261f106575cb2b3d8062565a7f8"
+      },
+      "assets": {
+        "policy": {
+          "path": "v2/policy/exported/policy.onnx",
+          "sha256": "2b2a029b450fb8601ecf34eefdbd3df6ab9f8597a33593dc9b7d6419fcd34d27"
+        },
+        "deploy": {
+          "path": "v2/policy/params/deploy.yaml",
+          "sha256": "160f282fdb95d4ca5d0df5222897a203150152248fcc364f8ba723086357f3fc"
+        },
+        "planner_profile": {
+          "path": "v2/planner/model19000.json",
+          "sha256": "4669f83ebe75e3b3492ad9c083e734e63dc39d0af64c4e96c1d8eadda9d098fa"
+        },
+        "inspection": {
+          "path": "v2/inspection.yaml",
+          "sha256": "5e036a931b61f94d8a9490ae5d4decf5bc2499827fb6698696ce5caad8ec1f5d"
+        }
+      },
+      "runner": {
+        "aarch64_sha256": "96626ee8e45a1833bc84321e8c38abd9e14dc3de1f2d2810a311b4115eeeecc8",
+        "built_from": "Hope_v11 field Runner (259c249e3 source) + explicit GRU port"
+      },
+      "receive_only": true,
+      "required_ball_model": "ppq004"
+    }
+  ]
+}
