@@ -1,0 +1,17 @@
+inspection_version: 1
+policy_abi: ball_clock_110_v1
+observation_dim: 110
+action_dim: 31
+recurrent_explicit_state: true
+recurrent_advances_during_inspection: 0
+step_dt: 0.02
+runtime_contract: rally_final_v2
+training_recipe: continuous_rally_sim2real_v3
+training_recipe_version: 3
+station_contract: fixed_session_anchor_v1
+position_support:
+  - [0.44, 0.69999999999999996, -0.68000000000000005, -0.23999999999999999, 0.80000000000000004, 1.45]
+  - [0.44, 0.69999999999999996, -0.23999999999999999, 0.28000000000000003, 0.80000000000000004, 1.45]
+velocity_support:
+  - [1, 2.8999999999999999, -0.80000000000000004, 1.2, 0.29999999999999999, 2]
+  - [1.1000000000000001, 2.8999999999999999, -1, 0.90000000000000002, 0, 1.8]
