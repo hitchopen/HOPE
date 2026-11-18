@@ -33,6 +33,8 @@ class FieldAssetsTest(unittest.TestCase):
 
     def exchange(self, host, config, request):
         self.calls.append((host, request["op"]))
+        if request["op"] == "read_policy_model":
+            return {"catalog_installed": False, "model": None}
         if request["op"] == "verify_ball_model":
             return {"configured_model": "ppq004", "runtime": "VERIFIED"}
         if host == "laptop":
