@@ -1,0 +1,305 @@
+<?xml version='1.0' encoding='utf-8'?>
+<profile version="1">
+  <node_assets>
+    <rigid_body version="1001" id="12ec94f0f6b75bb5:a0c443c26b6f6940">
+      <properties>
+        <property name="NodeName" value="Ball" default_value="Ball" />
+        <property name="AssetName" value="Ball" />
+        <property name="JointName" value="Ball" />
+        <property name="ParentInfo" value="None" />
+        <property name="ChildInfo" value="M01" />
+        <property name="DegreesOfFreedom" value="T:XYZ + R:XYZ" />
+        <property name="SyntheticLabelGraphScale" value="1.000000" default_value="1.000000" />
+        <property name="Color" value="4294934766" />
+        <property name="ShowBones" value="true" default_value="true" />
+        <property name="BoneColor" value="65793" />
+        <property name="ShowAxis" value="true" default_value="true" />
+        <property name="ShowMarkerLines" value="true" default_value="true" />
+        <property name="UserData" value="24" default_value="24" />
+      </properties>
+      <constraints>
+        <constraint name="M01" id="8e75e3798e7d5d86:a3bb8ffcb49f7da4" member_id="1" joint_name="Ball">
+          <offset>0.008844384196502123,0.017938140036882384,0.0000004492891931364942</offset>
+          <active_id>0</active_id>
+          <diameter>0.006</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="M02" id="d4b22c5c06095f0c:a8ae35c304aeb0d3" member_id="2" joint_name="Ball">
+          <offset>-0.00257360536133282,0.016077439876257255,-0.011614322299189567</offset>
+          <active_id>0</active_id>
+          <diameter>0.006</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="M03" id="85e88eb1bf3b5abd:82f9efe703a8d950" member_id="3" joint_name="Ball">
+          <offset>-0.006359258118919015,0.015959619399278928,0.010239647689599593</offset>
+          <active_id>0</active_id>
+          <diameter>0.006</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="M04" id="fef34f1d1d265b9f:a1445d8b1fc075af" member_id="4" joint_name="Ball">
+          <offset>0.009047339712334225,0.009847924625526199,-0.014871584471722395</offset>
+          <active_id>0</active_id>
+          <diameter>0.006</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="M05" id="ca649582bdb55945:af3229e5187727aa" member_id="5" joint_name="Ball">
+          <offset>-0.017427217249424128,0.009478701403085738,-0.0025389601518170055</offset>
+          <active_id>0</active_id>
+          <diameter>0.006</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="M06" id="4210ac712d11562c:abdfd9e73f85a103" member_id="6" joint_name="Ball">
+          <offset>0.00640303297561903,0.006776184660128981,0.017694193685075565</offset>
+          <active_id>0</active_id>
+          <diameter>0.006</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="M07" id="4a891b8823b55163:b44f98c507f82179" member_id="7" joint_name="Ball">
+          <offset>-0.006321247357383886,0.0049,-0.018331171044065</offset>
+          <active_id>0</active_id>
+          <diameter>0.006</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="M08" id="1a0dbdd4c2ff5fc7:a29475ffe599ad3b" member_id="8" joint_name="Ball">
+          <offset>-0.007030548818576984,0.004900000000000001,0.01807100947123889</offset>
+          <active_id>0</active_id>
+          <diameter>0.006</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="M09" id="867d3a2a1de0547e:b00deb4f1a93346b" member_id="9" joint_name="Ball">
+          <offset>0.01790820844712356,0.00833789392583641,-0.0031265948083934276</offset>
+          <active_id>0</active_id>
+          <diameter>0.006</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="M10" id="e00f74b0c43658bb:8506ee395c1f2e29" member_id="10" joint_name="Ball">
+          <offset>-0.019103860060610756,-0.0049,-0.003321525370157697</offset>
+          <active_id>0</active_id>
+          <diameter>0.006</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="M11" id="044437f793905a40:94b9aea4216fdb44" member_id="11" joint_name="Ball">
+          <offset>0.012721416196984404,-0.005328965267975259,0.014483359386406743</offset>
+          <active_id>0</active_id>
+          <diameter>0.006</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="M12" id="d8d4ecd1d866567c:b599173db6d8b521" member_id="12" joint_name="Ball">
+          <offset>0.002603672996188598,-0.0076492628569822525,-0.018295072141801192</offset>
+          <active_id>0</active_id>
+          <diameter>0.006</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="M13" id="fed058fefd855572:ab50bed6b96b272d" member_id="13" joint_name="Ball">
+          <offset>-0.013344212250354213,-0.008378987233386002,0.012317652875456872</offset>
+          <active_id>0</active_id>
+          <diameter>0.006</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="M14" id="c00647ae530e534d:bd5e2eee482d43af" member_id="14" joint_name="Ball">
+          <offset>0.01918871252848602,-0.005547482804455622,-0.0010093294969398614</offset>
+          <active_id>0</active_id>
+          <diameter>0.006</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="M15" id="b99d559a7acb5280:9213506c7aa72b0e" member_id="15" joint_name="Ball">
+          <offset>-0.010872301978645268,-0.009799352678743857,-0.013629590484043964</offset>
+          <active_id>0</active_id>
+          <diameter>0.006</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="M16" id="219c35c2fa3154f4:b0119dc992f97bf6" member_id="16" joint_name="Ball">
+          <offset>0.002347942582477076,-0.014211453475428652,0.013875220925993133</offset>
+          <active_id>0</active_id>
+          <diameter>0.006</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="M17" id="72b1456eb9a452e8:a06260b3d6972a64" member_id="17" joint_name="Ball">
+          <offset>0.0073374187923640255,-0.017982972001680928,-0.004772316361288623</offset>
+          <active_id>0</active_id>
+          <diameter>0.006</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+        <constraint name="M18" id="761550d71c7f5c3c:a7bcbd79f4d22362" member_id="18" joint_name="Ball">
+          <offset>-0.008100688234175598,-0.017883552893551414,0.0038154142679711556</offset>
+          <active_id>0</active_id>
+          <diameter>0.006</diameter>
+          <weight>1</weight>
+          <color>#00010101</color>
+        </constraint>
+      </constraints>
+      <marker_sticks>
+        <marker_stick origin="M01" end="M02" color="1 1 1" />
+        <marker_stick origin="M01" end="M03" color="1 1 1" />
+        <marker_stick origin="M01" end="M04" color="1 1 1" />
+        <marker_stick origin="M01" end="M05" color="1 1 1" />
+        <marker_stick origin="M01" end="M06" color="1 1 1" />
+        <marker_stick origin="M01" end="M07" color="1 1 1" />
+        <marker_stick origin="M01" end="M08" color="1 1 1" />
+        <marker_stick origin="M01" end="M09" color="1 1 1" />
+        <marker_stick origin="M01" end="M10" color="1 1 1" />
+        <marker_stick origin="M01" end="M11" color="1 1 1" />
+        <marker_stick origin="M01" end="M12" color="1 1 1" />
+        <marker_stick origin="M01" end="M13" color="1 1 1" />
+        <marker_stick origin="M01" end="M14" color="1 1 1" />
+        <marker_stick origin="M01" end="M15" color="1 1 1" />
+        <marker_stick origin="M01" end="M16" color="1 1 1" />
+        <marker_stick origin="M01" end="M17" color="1 1 1" />
+        <marker_stick origin="M01" end="M18" color="1 1 1" />
+        <marker_stick origin="M02" end="M03" color="1 1 1" />
+        <marker_stick origin="M02" end="M04" color="1 1 1" />
+        <marker_stick origin="M02" end="M05" color="1 1 1" />
+        <marker_stick origin="M02" end="M06" color="1 1 1" />
+        <marker_stick origin="M02" end="M07" color="1 1 1" />
+        <marker_stick origin="M02" end="M08" color="1 1 1" />
+        <marker_stick origin="M02" end="M09" color="1 1 1" />
+        <marker_stick origin="M02" end="M10" color="1 1 1" />
+        <marker_stick origin="M02" end="M11" color="1 1 1" />
+        <marker_stick origin="M02" end="M12" color="1 1 1" />
+        <marker_stick origin="M02" end="M13" color="1 1 1" />
+        <marker_stick origin="M02" end="M14" color="1 1 1" />
+        <marker_stick origin="M02" end="M15" color="1 1 1" />
+        <marker_stick origin="M02" end="M16" color="1 1 1" />
+        <marker_stick origin="M02" end="M17" color="1 1 1" />
+        <marker_stick origin="M02" end="M18" color="1 1 1" />
+        <marker_stick origin="M03" end="M04" color="1 1 1" />
+        <marker_stick origin="M03" end="M05" color="1 1 1" />
+        <marker_stick origin="M03" end="M06" color="1 1 1" />
+        <marker_stick origin="M03" end="M07" color="1 1 1" />
+        <marker_stick origin="M03" end="M08" color="1 1 1" />
+        <marker_stick origin="M03" end="M09" color="1 1 1" />
+        <marker_stick origin="M03" end="M10" color="1 1 1" />
+        <marker_stick origin="M03" end="M11" color="1 1 1" />
+        <marker_stick origin="M03" end="M12" color="1 1 1" />
+        <marker_stick origin="M03" end="M13" color="1 1 1" />
+        <marker_stick origin="M03" end="M14" color="1 1 1" />
+        <marker_stick origin="M03" end="M15" color="1 1 1" />
+        <marker_stick origin="M03" end="M16" color="1 1 1" />
+        <marker_stick origin="M03" end="M17" color="1 1 1" />
+        <marker_stick origin="M03" end="M18" color="1 1 1" />
+        <marker_stick origin="M04" end="M05" color="1 1 1" />
+        <marker_stick origin="M04" end="M06" color="1 1 1" />
+        <marker_stick origin="M04" end="M07" color="1 1 1" />
+        <marker_stick origin="M04" end="M08" color="1 1 1" />
+        <marker_stick origin="M04" end="M09" color="1 1 1" />
+        <marker_stick origin="M04" end="M10" color="1 1 1" />
+        <marker_stick origin="M04" end="M11" color="1 1 1" />
+        <marker_stick origin="M04" end="M12" color="1 1 1" />
+        <marker_stick origin="M04" end="M13" color="1 1 1" />
+        <marker_stick origin="M04" end="M14" color="1 1 1" />
+        <marker_stick origin="M04" end="M15" color="1 1 1" />
+        <marker_stick origin="M04" end="M16" color="1 1 1" />
+        <marker_stick origin="M04" end="M17" color="1 1 1" />
+        <marker_stick origin="M04" end="M18" color="1 1 1" />
+        <marker_stick origin="M05" end="M06" color="1 1 1" />
+        <marker_stick origin="M05" end="M07" color="1 1 1" />
+        <marker_stick origin="M05" end="M08" color="1 1 1" />
+        <marker_stick origin="M05" end="M09" color="1 1 1" />
+        <marker_stick origin="M05" end="M10" color="1 1 1" />
+        <marker_stick origin="M05" end="M11" color="1 1 1" />
+        <marker_stick origin="M05" end="M12" color="1 1 1" />
+        <marker_stick origin="M05" end="M13" color="1 1 1" />
+        <marker_stick origin="M05" end="M14" color="1 1 1" />
+        <marker_stick origin="M05" end="M15" color="1 1 1" />
+        <marker_stick origin="M05" end="M16" color="1 1 1" />
+        <marker_stick origin="M05" end="M17" color="1 1 1" />
+        <marker_stick origin="M05" end="M18" color="1 1 1" />
+        <marker_stick origin="M06" end="M07" color="1 1 1" />
+        <marker_stick origin="M06" end="M08" color="1 1 1" />
+        <marker_stick origin="M06" end="M09" color="1 1 1" />
+        <marker_stick origin="M06" end="M10" color="1 1 1" />
+        <marker_stick origin="M06" end="M11" color="1 1 1" />
+        <marker_stick origin="M06" end="M12" color="1 1 1" />
+        <marker_stick origin="M06" end="M13" color="1 1 1" />
+        <marker_stick origin="M06" end="M14" color="1 1 1" />
+        <marker_stick origin="M06" end="M15" color="1 1 1" />
+        <marker_stick origin="M06" end="M16" color="1 1 1" />
+        <marker_stick origin="M06" end="M17" color="1 1 1" />
+        <marker_stick origin="M06" end="M18" color="1 1 1" />
+        <marker_stick origin="M07" end="M08" color="1 1 1" />
+        <marker_stick origin="M07" end="M09" color="1 1 1" />
+        <marker_stick origin="M07" end="M10" color="1 1 1" />
+        <marker_stick origin="M07" end="M11" color="1 1 1" />
+        <marker_stick origin="M07" end="M12" color="1 1 1" />
+        <marker_stick origin="M07" end="M13" color="1 1 1" />
+        <marker_stick origin="M07" end="M14" color="1 1 1" />
+        <marker_stick origin="M07" end="M15" color="1 1 1" />
+        <marker_stick origin="M07" end="M16" color="1 1 1" />
+        <marker_stick origin="M07" end="M17" color="1 1 1" />
+        <marker_stick origin="M07" end="M18" color="1 1 1" />
+        <marker_stick origin="M08" end="M09" color="1 1 1" />
+        <marker_stick origin="M08" end="M10" color="1 1 1" />
+        <marker_stick origin="M08" end="M11" color="1 1 1" />
+        <marker_stick origin="M08" end="M12" color="1 1 1" />
+        <marker_stick origin="M08" end="M13" color="1 1 1" />
+        <marker_stick origin="M08" end="M14" color="1 1 1" />
+        <marker_stick origin="M08" end="M15" color="1 1 1" />
+        <marker_stick origin="M08" end="M16" color="1 1 1" />
+        <marker_stick origin="M08" end="M17" color="1 1 1" />
+        <marker_stick origin="M08" end="M18" color="1 1 1" />
+        <marker_stick origin="M09" end="M10" color="1 1 1" />
+        <marker_stick origin="M09" end="M11" color="1 1 1" />
+        <marker_stick origin="M09" end="M12" color="1 1 1" />
+        <marker_stick origin="M09" end="M13" color="1 1 1" />
+        <marker_stick origin="M09" end="M14" color="1 1 1" />
+        <marker_stick origin="M09" end="M15" color="1 1 1" />
+        <marker_stick origin="M09" end="M16" color="1 1 1" />
+        <marker_stick origin="M09" end="M17" color="1 1 1" />
+        <marker_stick origin="M09" end="M18" color="1 1 1" />
+        <marker_stick origin="M10" end="M11" color="1 1 1" />
+        <marker_stick origin="M10" end="M12" color="1 1 1" />
+        <marker_stick origin="M10" end="M13" color="1 1 1" />
+        <marker_stick origin="M10" end="M14" color="1 1 1" />
+        <marker_stick origin="M10" end="M15" color="1 1 1" />
+        <marker_stick origin="M10" end="M16" color="1 1 1" />
+        <marker_stick origin="M10" end="M17" color="1 1 1" />
+        <marker_stick origin="M10" end="M18" color="1 1 1" />
+        <marker_stick origin="M11" end="M12" color="1 1 1" />
+        <marker_stick origin="M11" end="M13" color="1 1 1" />
+        <marker_stick origin="M11" end="M14" color="1 1 1" />
+        <marker_stick origin="M11" end="M15" color="1 1 1" />
+        <marker_stick origin="M11" end="M16" color="1 1 1" />
+        <marker_stick origin="M11" end="M17" color="1 1 1" />
+        <marker_stick origin="M11" end="M18" color="1 1 1" />
+        <marker_stick origin="M12" end="M13" color="1 1 1" />
+        <marker_stick origin="M12" end="M14" color="1 1 1" />
+        <marker_stick origin="M12" end="M15" color="1 1 1" />
+        <marker_stick origin="M12" end="M16" color="1 1 1" />
+        <marker_stick origin="M12" end="M17" color="1 1 1" />
+        <marker_stick origin="M12" end="M18" color="1 1 1" />
+        <marker_stick origin="M13" end="M14" color="1 1 1" />
+        <marker_stick origin="M13" end="M15" color="1 1 1" />
+        <marker_stick origin="M13" end="M16" color="1 1 1" />
+        <marker_stick origin="M13" end="M17" color="1 1 1" />
+        <marker_stick origin="M13" end="M18" color="1 1 1" />
+        <marker_stick origin="M14" end="M15" color="1 1 1" />
+        <marker_stick origin="M14" end="M16" color="1 1 1" />
+        <marker_stick origin="M14" end="M17" color="1 1 1" />
+        <marker_stick origin="M14" end="M18" color="1 1 1" />
+        <marker_stick origin="M15" end="M16" color="1 1 1" />
+        <marker_stick origin="M15" end="M17" color="1 1 1" />
+        <marker_stick origin="M15" end="M18" color="1 1 1" />
+        <marker_stick origin="M16" end="M17" color="1 1 1" />
+        <marker_stick origin="M16" end="M18" color="1 1 1" />
+        <marker_stick origin="M17" end="M18" color="1 1 1" />
+      </marker_sticks>
+    </rigid_body>
+  </node_assets>
+</profile>

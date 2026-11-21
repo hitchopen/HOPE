@@ -268,7 +268,7 @@ For testing without a physical rig, `hope_ws/src/hope_bringup/scripts/fake_ball_
 publishes synthetic `/poses` trajectories (`fake_optitrack_publisher` does the same at the
 OptiTrack driver level).
 
-## ChingMu 18-sticker ping-pong ball template and asset
+## Shared 18-sticker ping-pong ball jig and assets
 
 The [ChingMu Ping Pong Ball Marker Template.stl](<ChingMu Ping Pong Ball Marker Template.stl>)
 is a **placement jig for eighteen flat, circular 6 mm reflective stickers on a
@@ -276,16 +276,19 @@ is a **placement jig for eighteen flat, circular 6 mm reflective stickers on a
 optimized for sticker clearance, partial-marker correspondence and coverage
 across viewing directions.
 
-**Use the matching 18-marker jig and asset together.** Print this jig, position
-all eighteen stickers, and import the matching asset. The OptiTrack files
-remain a separate design.
+**Use the same 18-marker jig for ChingMu and OptiTrack.** Position all eighteen
+stickers, then import the asset for your tracking software. The shared jig
+replaces the former 10-marker OptiTrack jig.
 
 - [Native CMTracker import asset: Ball](<ChingMu Ping Pong Ball Marker Asset.json>)
   contains 18 points / 54 XYZ numbers in millimetres. It is the coordinate
   source of truth for the generated jig.
+- [Native Motive asset: Ball](Ball.motive) and the
+  [Motive CSV asset](<Optitrack Ping Pong Ball Marker Template.csv>) define the
+  same 18 points in Motive's native Y-up metres.
 - [Print and marker-layout preview](<ChingMu Ping Pong Ball Marker Template.png>).
 
-This operator release contains the STL, native import JSON, preview and this
+This operator release contains the STL, import assets, preview and this
 guide. Development scripts, tests, baseline data and detailed verification
 reports are excluded. The measurements below record pre-release checks;
 the full audit cannot be independently rerun from this operator package alone.
@@ -296,6 +299,8 @@ Use these SHA-256 fingerprints to verify the matching release files:
 |---|---|
 | STL | `737a697c93e3eea35b7024b9b378d87f79764ccdb0e3b39c292ae117c8723d04` |
 | Native asset JSON | `addbd8cd607a554cf59c1fd8c8fd24b4ba4054b0168fe3012ed44c04f7a59da9` |
+| Native Motive asset | `45a3a756c3a499b96e2a88e8099ab5c0eee0a8bb835a670a27f11aa6e6f885b3` |
+| Motive asset CSV | `1b5c3d4f2e74e85f57b93464dbf09fbeaed327c759ab694c5729d86e90ba6734` |
 
 ### Spacing and view ambiguity
 
@@ -390,6 +395,26 @@ settings still require verification in the installed CMTracker version.
    check the named `Ball` pose through the ROS path above. Native-file
    millimetres do not establish stream units or the world frame.
 
+### Importing the OptiTrack asset
+
+In a test Motive project, load [Ball.motive](Ball.motive) with **File → Open
+File**. Use the equivalent [CSV](<Optitrack Ping Pong Ball Marker Template.csv>)
+if your build exposes **File → Import CSV** for rigid bodies. Choose one
+format per project. See the [Motive profile guide](https://docs.optitrack.com/motive-ui-panes/toolbar-command-bar)
+and the [Motive 3.2 CSV import guide](https://docs.optitrack.com/v3.2/motive-ui-panes/toolbar-command-bar#import-csv).
+
+Both formats convert each ChingMu ball-local point `(x, y, z)` in millimetres
+to `(x, z, -y) / 1000` in Motive's native Y-up metres, preserving the
+sphere center and point order.
+
+Confirm the imported body is named `Ball`, has 18 marker constraints at a
+nominal 20 mm radius, and retains its pivot at the physical sphere center.
+Check for an existing `Ball` or streaming-ID 24 collision before replacing
+the venue definition. Re-export the asset to check its offsets, then verify
+the center during rotation and confirm that NatNet streams `Ball` with
+**Streaming Up Axis = Z Up**. The file geometry has been checked offline.
+Import and live tracking still need verification in the installed Motive build.
+
 ### Limits of partial-marker matching
 
 The pre-release offline audit compared every three-, four- and five-marker
@@ -423,9 +448,9 @@ runtime gates or evidence of CMTracker's proprietary matching behavior.
 
 The geometric objectives follow OptiTrack's general
 [marker-placement guidance](https://docs.optitrack.com/v3.0/motive/rigid-body-tracking)
-on spacing and asymmetry. This does not establish ChingMu thresholds. Offline
-geometry and mesh checks have passed; physical print fit, CMTracker
-import/re-export and live tracking remain installation acceptance checks.
+on spacing and asymmetry. The reported gaps describe the marker geometry.
+Physical print fit, vendor import/re-export, and live tracking remain
+installation acceptance checks.
 
 ## What is intentionally not here
 
