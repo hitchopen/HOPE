@@ -322,15 +322,12 @@ all 17 markers and **does not support these 12-marker installations**; do not
 reuse its receipts. See [calibration limits](calibration/README.md) and the
 [VRPN operator guide](docs/operations/vrpn_pants_profiles.md).
 
-### ChingMu 18-marker ping-pong ball
+### Shared 18-marker ping-pong ball
 
-The [18-sticker ball jig and CMTracker asset](mocap/README.md#chingmu-18-sticker-ping-pong-ball-template-and-asset)
-use eighteen 6 mm stickers on a 40 mm ball. The asymmetric layout has optimized
-edge clearance and audited partial-match ambiguity and viewing-direction
-coverage. Use the matching jig and `Ball` asset together, and position all
-eighteen stickers with the supplied jig.
-The package includes a two-piece STL, native import JSON, preview and the
-[printing/import guide](mocap/README.md#chingmu-18-sticker-ping-pong-ball-template-and-asset).
+ChingMu and OptiTrack share one asymmetric layout of eighteen 6 mm stickers
+on a 40 mm ball. Print the shared two-piece jig and import the `Ball` asset for
+your tracking software. The package includes the STL, CMTracker JSON, native
+Motive and CSV assets, and a layout preview. See the [printing and import guide](mocap/README.md#shared-18-sticker-ping-pong-ball-jig-and-assets).
 
 ## Database
 
