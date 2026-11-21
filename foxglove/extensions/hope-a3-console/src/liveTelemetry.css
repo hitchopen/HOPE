@@ -1,0 +1,80 @@
+.hope-live-state-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-bottom: 5px;
+  font-size: 14px;
+  line-height: 20px;
+}
+.hope-live-state-strip .hope-live-badge {
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.hope-live-state-strip .active {
+  background: #dceee7;
+  color: #155b43;
+}
+.hope-live-state-strip .blocked {
+  background: #fce4d5;
+  color: #87340b;
+}
+.hope-live-state-strip .unknown {
+  background: #e7e9ee;
+  color: #455268;
+}
+.hope-live-state-strip .runner {
+  background: #dfeafa;
+  color: #204f86;
+}
+.hope-live-state-strip .missing,
+.hope-live-state-strip .reason {
+  color: #a54219;
+  font-weight: 600;
+}
+.hope-live-state-strip .shot {
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 12px;
+}
+/* Per-ball event strip: unlit = dashed outline, lit = filled in the marker colour. */
+.hope-live-events {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin-bottom: 6px;
+}
+.hope-live-events .hope-live-event {
+  border: 1px dashed #b4c2d5;
+  border-radius: 999px;
+  padding: 1px 9px;
+  color: #8a96a8;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.2s, color 0.2s;
+}
+.hope-live-events .hope-live-event.on {
+  border-style: solid;
+  border-color: transparent;
+}
+.hope-live-events .target.on {
+  background: #dbe8fb;
+  color: #176fce;
+}
+.hope-live-events .plane.on {
+  background: #fcefd2;
+  color: #a75b08;
+}
+.hope-live-events .strike.on {
+  background: #fadcd9;
+  color: #c92c26;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hope-live-events .hope-live-event {
+    transition: none;
+  }
+}

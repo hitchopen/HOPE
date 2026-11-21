@@ -64,3 +64,18 @@ def test_runtime_world_receipt_distinguishes_table_side():
 def test_unknown_side_fails_closed(side):
     with pytest.raises(ValueError, match="P1 or P2"):
         transform_position_xyz((0.0, 0.0, 0.0), side, LENGTH, WIDTH)
+
+
+def test_automatic_frame_latches_position_and_rejects_crossing():
+    from table_side_transform import AutomaticTableFrame
+    frame = AutomaticTableFrame()
+    for x in [float('nan'), 1.37]:
+        with pytest.raises(ValueError):
+            frame.observe((x, -.7, .3))
+    assert frame.side is None
+    assert frame.observe((3.431, -.665, .305)) == 'P2'
+    assert frame.observe((3.3, -.665, .305)) == 'P2'
+    with pytest.raises(ValueError, match='new session'):
+        frame.observe((-.5, -.7, .3))
+    with pytest.raises(ValueError, match='new session'):
+        frame.observe((3.431, -.665, .305))

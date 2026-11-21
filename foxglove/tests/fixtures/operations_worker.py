@@ -7,6 +7,7 @@ import time
 
 import hope_lifecycle_supervisor as lifecycle
 import hope_monitor_core
+import hope_config_runtime as config_runtime
 from hope_operations_native_state import RuntimeRelay
 import rclpy
 from rclpy.node import Node
@@ -35,6 +36,32 @@ lifecycle.CONFIG_PATH = root / "config.json"
 save_config_atomic(lifecycle.CONFIG_PATH, LifecycleConfig(
     laptop_wifi_ip="192.168.8.132", hdu_wifi_ip="192.168.8.182",
     mdu_internal_ip="10.42.10.12", revision=1))
+# Model the separate configuration auditor inside this inert fixture. Keep the
+# production freshness/identity checks, but never read or write host state.
+audit_path = root / "config-runtime.json"
+real_read_status = config_runtime.read_status
+real_owner_status = config_runtime.owner_status
+config_runtime.read_status = lambda config: real_read_status(config, path=audit_path)
+lifecycle.read_status = config_runtime.read_status
+lifecycle.owner_status = lambda config, state, busy: real_owner_status(
+    config, state, busy, path=root / "config-owner.json")
+
+
+def refresh_config_audit():
+    if (root / "hold_config_audit").exists():
+        return
+    config = config_runtime.load_config(lifecycle.CONFIG_PATH)
+    config_runtime.atomic_json(audit_path, {
+        "boot_id": config_runtime.BOOT.read_text().strip(),
+        "monotonic_s": time.monotonic(),
+        "config_sha256": config_runtime.identity(config),
+        "state": "APPLIED", "applied": True, "reason": "Isolated fixture consumers",
+        "services": [{"service": unit, "matches": True} for unit in config_runtime.UNITS],
+        "laptop": {"matches": True},
+    })
+
+
+refresh_config_audit()
 lock = root / "hardware.lock"
 lock.touch()
 original_lock = lifecycle.try_acquire_hardware_operation_lock
@@ -99,6 +126,7 @@ def on_player(self, player, message):
 original_init = lifecycle.LifecycleModule.__init__
 def init(self, *args, **kwargs):
     original_init(self, *args, **kwargs)
+    self.create_timer(.1, refresh_config_audit)
     if (root / "hold_startup").exists():
         (root / "startup_waiting").touch()
         while (root / "hold_startup").exists():

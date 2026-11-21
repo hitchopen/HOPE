@@ -48,7 +48,7 @@ inline constexpr std::size_t DefaultServeHandoffFrame(bool kernel_mode,
 
 // The single Runner/publisher is 100 Hz while serving so every original
 // selected SDK31 CSV FRAME maps one-to-one to one command tick. Outside SERVE,
-// the learned receive policy contract remains 50 Hz and its command is held for
+// the learned model_3440 contract remains 50 Hz and its command is held for
 // the intervening 10 ms callback. Arms follow CSV q_des/dq_des exactly, without
 // resampling or velocity scaling. Existing bounded ankle pitch support does
 // modify SDK joints 23/29; playback diagnostics report that delta explicitly.

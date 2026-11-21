@@ -92,29 +92,80 @@ TEST(PpBasePoseInput, ReorderedSequenceDoesNotPoisonRetainedPose) {
   EXPECT_EQ(sample.seq, 2U);
 }
 
-TEST(PpBasePoseInput, SourceWallRegressionIsAuditOnly) {
+TEST(PpBasePoseInput, SourceWallRegressionDoesNotRefreshOrReplacePose) {
   PpBasePoseInput input;
   input.SetFromFlat(Schema2Base(1));
-  auto regressed = Schema2Base(2, -1.0);
+  auto regressed = Schema2Base(2, -0.010);
   regressed[5] = 1.25;
   input.SetFromFlat(regressed);
   PpBaseSample sample;
   ASSERT_TRUE(input.Latest(sample, 0.2, true));
-  EXPECT_EQ(sample.seq, 2U);
-  EXPECT_NEAR(sample.pos[0], 1.25, 1.0e-12);
+  EXPECT_EQ(sample.seq, 1U);
+  EXPECT_NEAR(sample.pos[0], 1.0, 1.0e-12);
 }
 
 TEST(PpBasePoseInput, RelayRestartOpensNewSequenceEpoch) {
   PpBasePoseInput input;
   input.SetFromFlat(Schema2Base(100));
   std::this_thread::sleep_for(std::chrono::milliseconds(60));
-  auto restarted = Schema2Base(1, -1.0);
+  auto restarted = Schema2Base(1);
   restarted[5] = 1.5;
   input.SetFromFlat(restarted);
   PpBaseSample sample;
   ASSERT_TRUE(input.Latest(sample, 0.2, true));
   EXPECT_EQ(sample.seq, 1U);
   EXPECT_NEAR(sample.pos[0], 1.5, 1.0e-12);
+}
+
+TEST(PpBasePoseInput, StaleColdStartCannotSeedPose) {
+  PpBasePoseInput input;
+  input.SetFromFlat(Schema2Base(1, -0.353698));  // Recorded MDU delay.
+  PpBaseSample sample;
+  EXPECT_FALSE(input.LatestForPolicy(sample, 1., true));
+  input.SetFromFlat(Schema2Base(2));
+  ASSERT_TRUE(input.LatestForPolicy(sample, 1., true));
+  EXPECT_EQ(sample.seq, 2U);
+}
+
+TEST(PpBasePoseInput, DelayedBurstCannotRefreshDeadlineOrPoisonRestartEpoch) {
+  PpBasePoseInput input;
+  input.SetFromFlat(Schema2Base(100));
+  PpBaseSample original, retained;
+  ASSERT_TRUE(input.LatestForPolicy(original, 1., true));
+  std::this_thread::sleep_for(std::chrono::milliseconds(60));
+  for (int i = 0; i < 250; ++i) {
+    auto late = Schema2Base(101 + i, -0.353698);
+    late[5] = 99.; late[8] = -1.;
+    input.SetFromFlat(late);
+  }
+  input.SetFromFlat(Schema2Base(1, -0.353698));
+  ASSERT_TRUE(input.LatestForPolicy(retained, 1., true));
+  EXPECT_TRUE(retained.held_for_policy);
+  EXPECT_EQ(retained.seq, original.seq);
+  EXPECT_EQ(retained.pos, original.pos);
+  EXPECT_EQ(retained.quat, original.quat);
+  EXPECT_EQ(retained.source_wall_s, original.source_wall_s);
+  EXPECT_EQ(retained.receipt_wall_s, original.receipt_wall_s);
+  EXPECT_EQ(retained.receipt_steady_s, original.receipt_steady_s);
+  // A fresh packet resumes immediately, even below the discarded sequence IDs.
+  input.SetFromFlat(Schema2Base(101));
+  ASSERT_TRUE(input.LatestForPolicy(retained, 1., true));
+  EXPECT_EQ(retained.seq, 101U);
+  EXPECT_FALSE(retained.held_for_policy);
+}
+
+TEST(PpBasePoseInput, HigherSequenceWithIdenticalSourceTimeIsNotProgress) {
+  PpBasePoseInput input;
+  auto wire = Schema2Base(1);
+  input.SetFromFlat(wire);
+  PpBaseSample original, retained;
+  ASSERT_TRUE(input.Latest(original, 1., true));
+  wire[2] = 2.; wire[5] = 99.;
+  input.SetFromFlat(wire);
+  ASSERT_TRUE(input.Latest(retained, 1., true));
+  EXPECT_EQ(retained.seq, original.seq);
+  EXPECT_EQ(retained.pos, original.pos);
+  EXPECT_EQ(retained.receipt_steady_s, original.receipt_steady_s);
 }
 
 }  // namespace

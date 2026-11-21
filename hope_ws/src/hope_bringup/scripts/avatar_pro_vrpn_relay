@@ -34,9 +34,9 @@ import math
 import time
 
 from std_msgs.msg import Bool, String
+from table_side_transform import AutomaticTableFrame
 from vrpn_pants_contract import Selection, load_profiles, normalize_pose, observation, update_selection, validate_vrpn_setup
 from source_time_rate_gate import SourceTimeRateGate
-from operator_heartbeat import OperatorHeartbeat
 
 import rclpy
 from geometry_msgs.msg import PointStamped, Pose, PoseArray, PoseStamped, TransformStamped
@@ -110,6 +110,8 @@ class AvatarProVrpnRelay(Node):
         self._selection = Selection(str(self.get_parameter("pants_profile").value),
                                     str(self.get_parameter("table_side").value))
         self._follow_config = bool(self.get_parameter("follow_lifecycle_config").value)
+        self._table_frame = AutomaticTableFrame()
+        self._frame_source_ns = None
         self._config_seen = None
         self._config_error = "waiting for Foxglove CONFIRM CONFIG" if self._follow_config else ""
         self._observation_pub = self.create_publisher(String, "/hope/mocap/vrpn_observation", 10)
@@ -212,7 +214,6 @@ class AvatarProVrpnRelay(Node):
         }
         self._player_position_gates = {name: SourceTimeRateGate(30.0)
                                        for name in self._player_position_publishers}
-        self._operator_heartbeat = OperatorHeartbeat(self, str(self.get_parameter("debug_session_id").value))
 
         # topic -> ("PPT"|"UCB_P1"|"UCB_P2"|"ball"|"ball_candidate")
         self._subs: dict[str, object] = {}
@@ -245,6 +246,8 @@ class AvatarProVrpnRelay(Node):
             if selected.revision < 1:
                 raise ValueError("waiting for confirmed lifecycle configuration")
             if selected != self._selection:
+                self._table_frame = AutomaticTableFrame()
+                self._frame_source_ns = None
                 self._latest.clear()
                 self._motion.clear()
                 self._ball_topic = None
@@ -264,6 +267,9 @@ class AvatarProVrpnRelay(Node):
         spec = self._profiles[self._selection.profile]
         text = (f"VRPN · {self._selection.profile.upper()} · {spec['marker_count']} nominal points · "
                 f"{self._selection.body} · pelvis_link · pose-only; live geometry NOT verified")
+        text += f" · physical_end={self._table_frame.side or 'UNKNOWN'}"
+        if self._table_frame.fault:
+            text += " · BLOCKED: " + self._table_frame.fault
         if not self._config_ready():
             text += " · BLOCKED: " + (self._config_error or "lifecycle configuration stale")
         self._profile_match_pub.publish(Bool(data=False))
@@ -387,13 +393,18 @@ class AvatarProVrpnRelay(Node):
         if not self._config_ready():
             self._latest.clear()
             return
-        try:
-            normalized = self._normalize(msg, position_only=key in {"ball", "ball_candidate"})
-        except ValueError as exc:
-            self.get_logger().warning(f"invalid VRPN pose: {exc}", throttle_duration_sec=2.0)
+        # Validate raw input before publishing global evidence or latching a frame.
+        source_ns = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
+        now_ns = self.get_clock().now().nanoseconds
+        if source_ns <= 0 or not 0 <= now_ns - source_ns <= 500_000_000:
             return
-        if key in self._pose_publishers:  # PPT / UCB_P1 / UCB_P2
-            source_ns = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
+        try:
+            p, q = msg.pose.position, msg.pose.orientation
+            if msg.header.frame_id not in ("", self._world_frame):
+                raise ValueError("VRPN world frame does not match configured world")
+            if key in self._player_position_publishers:
+                normalize_pose((p.x, p.y, p.z), (q.x, q.y, q.z, q.w),
+                               self._position_scale, self._selection)
             if key in self._player_position_publishers and self._player_position_gates[key].accept(source_ns):
                 raw_player = PoseStamped()
                 raw_player.header.stamp = msg.header.stamp
@@ -407,13 +418,36 @@ class AvatarProVrpnRelay(Node):
                  raw_player.pose.orientation.z, raw_player.pose.orientation.w) = (
                     q.x/norm, q.y/norm, q.z/norm, q.w/norm)
                 self._player_position_publishers[key].publish(raw_player)
+            if key == self._selection.body:
+                if self._frame_source_ns is not None and source_ns <= self._frame_source_ns:
+                    return
+                self._table_frame.observe((p.x * self._position_scale,
+                                           p.y * self._position_scale,
+                                           p.z * self._position_scale))
+                self._frame_source_ns = source_ns
+            if (self._table_frame.side is None or self._table_frame.fault or
+                    self._frame_source_ns is None or
+                    not 0 <= now_ns - self._frame_source_ns <= 500_000_000):
+                self._latest.clear()
+                return
+        except ValueError as exc:
+            self._latest.clear()
+            self.get_logger().warning(f"table frame unavailable: {exc}", throttle_duration_sec=2.0)
+            return
+        try:
+            normalized = self._normalize(msg, position_only=key in {"ball", "ball_candidate"})
+        except ValueError as exc:
+            self.get_logger().warning(f"invalid VRPN pose: {exc}", throttle_duration_sec=2.0)
+            return
+        if key in self._pose_publishers:  # PPT / UCB_P1 / UCB_P2
             self._latest[key] = normalized
             self._pose_publishers[key].publish(normalized)
             if key == self._selection.body:
                 p, q, stamp = normalized.pose.position, normalized.pose.orientation, normalized.header.stamp
                 self._observation_pub.publish(String(data=json.dumps(observation(
                     self._selection, self._profiles, (stamp.sec, stamp.nanosec),
-                    (p.x, p.y, p.z), (q.x, q.y, q.z, q.w)), allow_nan=False)))
+                    (p.x, p.y, p.z), (q.x, q.y, q.z, q.w),
+                    self._table_frame.side), allow_nan=False)))
             if self._publish_tf:
                 self._broadcast_tf(key, normalized)
             return
@@ -483,7 +517,8 @@ class AvatarProVrpnRelay(Node):
                                   and 0.5 <= q_norm <= 1.5)
         input_q = raw_q if not position_only or ball_orientation_valid else (0, 0, 0, 1)
         position, quaternion = normalize_pose((p.x, p.y, p.z), input_q,
-                                               self._position_scale, self._selection)
+                                               self._position_scale, self._selection,
+                                               physical_table_side=self._table_frame.side)
         if position_only and not ball_orientation_valid:
             quaternion = (0.0, 0.0, 0.0, 0.0)
         normalized = PoseStamped()

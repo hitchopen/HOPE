@@ -1,12 +1,12 @@
-# Field serve025: event frame 48 -> release command frame 45.
-serve_release_lead_frames: 3
-
 # Transport/localization config shared by MuJoCo and hardware. Policy-owned
 # values (model, step_dt, joint map, default q, action scale/clip, Kp/Kd and
 # ordered observations) live in a Unitree-style policy directory supplied via
 # --policy-dir at source-tree launch/package time. The packaged config records
 # only the staged relative path "policy", never a checkpoint-specific source
 # path.
+
+# Field-tuned serve025 v14 / new_20261015: release at frame 45 (30 ms early).
+serve_release_lead_frames: 3
 
 obs_debug:
   loc_mode: external_base

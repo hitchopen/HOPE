@@ -123,6 +123,8 @@ class A3AimrtBackend : public RobotIOBackend {
   bool PublishOperatorChallenge(const std::vector<double>& values);
   void SetLocomotionInputCallback(FlatArrayCallback cb);
   bool PublishLocomotionState(const std::vector<double>& values);
+  bool PublishDockState(const std::vector<double>& values);
+  void SetDockConfigCallback(FlatArrayCallback cb);
 
   // ---------- Test hooks (no AimRT required) ----------
   void InjectWaistSample_ForTest(const a3_sync::WaistSample& s);
@@ -187,6 +189,8 @@ class A3AimrtBackend : public RobotIOBackend {
   FlatArrayCallback runner_control_cb_{};
   FlatArrayCallback locomotion_input_cb_{};
   std::function<void(const std::vector<double>&)> locomotion_state_publish_fn_{};
+  std::function<void(const std::vector<double>&)> dock_state_publish_fn_{};
+  FlatArrayCallback dock_config_cb_{};
   std::string runner_control_topic_{"/hope/runner/control_request_flat"};
   std::function<void(const std::vector<double>&)> session_home_publish_fn_{};
   std::string runner_state_topic_{"/hope/runner/state_flat"};

@@ -1,0 +1,66 @@
+{
+  "format_version": 1,
+  "source_publication_commit": "5885726183fde86769537b050f5f97bb93556868",
+  "packages": [
+    {
+      "model": "model14200best",
+      "variant": "best-v1",
+      "status": "local_catalog_snapshot",
+      "identity_source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-10/new-chat-4/work/deploy-mocap500/hdu-catalog-before.json",
+        "sha256": "6dfea5c28a891409508b8c854211483dd6d27ef8dfc22f50e022fde91d98ffdc"
+      },
+      "assets": {
+        "policy": {
+          "path": "best-v1/policy/exported/policy.onnx",
+          "sha256": "5344f9a220b953ca4cf4c5c57b536be6f04b5a88d13c0ac19b3f3c00c70adba2"
+        },
+        "deploy": {
+          "path": "best-v1/policy/params/deploy.yaml",
+          "sha256": "94bd36a8fa190e9cdb150d68a3b06045e43952d58343c659e1c21acef629feed"
+        },
+        "serve_csv": {
+          "path": "best-v1/serve/v23-14200-best.csv",
+          "sha256": "14c75e8e2f17234e26d2498c7b75da9b2f2b8aad48f8e31659901c56fa856630"
+        },
+        "planner_profile": {
+          "path": "best-v1/planner/model14200best.json",
+          "sha256": "4cdd74fa528b72fa0dce4b82f2ed01dd975cd1dec22f3f5538da1ef3ebe2bba4"
+        }
+      },
+      "receive_only": false,
+      "required_ball_model": "ppq004"
+    },
+    {
+      "model": "model14200best",
+      "variant": "earlier-staged",
+      "status": "local_staged_bundle",
+      "identity_source": {
+        "root": "Documents/Codex",
+        "path": "2026-11-08/model-u-fusion-13800-gate3-x20-2/outputs/model14200-best/hdu_entry.json",
+        "sha256": "d1325a44e173deb09c49c4528f8259f9341b8da742e3e31c42ef6b48d63e503d"
+      },
+      "assets": {
+        "policy": {
+          "path": "earlier-staged/policy/exported/policy.onnx",
+          "sha256": "95e63b544763ee52e9d6dfa45e0584e4205479a09eba2ba31cf2572e9e9be7e8"
+        },
+        "deploy": {
+          "path": "earlier-staged/policy/params/deploy.yaml",
+          "sha256": "4283d536ef0aa574f51233d161e388dfcc478405e997324d0f7056a998f98dd4"
+        },
+        "serve_csv": {
+          "path": "earlier-staged/serve/v23-14200-best.csv",
+          "sha256": "fa37dd8ffc89390163d30cda29ebea47c4e56db4317ceafcc4d33fcd971ff4c9"
+        },
+        "planner_profile": {
+          "path": "earlier-staged/planner/model14200best.json",
+          "sha256": "2448b4d5d9653b56b7f3c5b0cdaa11fdaef01d1487fbd5588b36c5b2c5f32345"
+        }
+      },
+      "receive_only": false,
+      "required_ball_model": "ppq004"
+    }
+  ]
+}

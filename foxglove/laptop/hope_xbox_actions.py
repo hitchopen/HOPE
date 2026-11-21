@@ -37,6 +37,11 @@ class ButtonEdges:
         return next(iter(rising))
 
 
+# The operator Stand is WALK_STAND (HumanLike); PD_STAND is the stiff Init and
+# the Runner's internal Ready/Serve handoff. Both count as standing.
+STANDING = ('PD_STAND', 'WALK_STAND')
+
+
 class ActionSequence:
     """Only proposes existing Trigger services; never produces joint commands.
 
@@ -85,8 +90,8 @@ class ActionSequence:
             if mode == 'SERVE':
                 self.status = 'Serve already selected; use B when the ball is loaded'
                 return False
-            if not (role == 'SERVER' and mode in ('PD_STAND', 'MOTION')):
-                if mode != 'PD_STAND':
+            if not (role == 'SERVER' and mode in (*STANDING, 'MOTION')):
+                if mode not in STANDING:
                     steps.append('stand')
                 if role != 'SERVER':
                     steps.append('server')
@@ -100,7 +105,7 @@ class ActionSequence:
             if mode == 'MOTION' and role == 'RECEIVER':
                 self.status = 'RECEIVER is already Ready'
                 return False
-            if mode != 'PD_STAND':
+            if mode not in STANDING:
                 steps.append('stand')
             if role != 'RECEIVER':
                 steps.append('receiver')
@@ -109,7 +114,7 @@ class ActionSequence:
             if mode == 'TELEOP':
                 self.status = 'Teleop already selected; release LT, center sticks, then hold LT'
                 return False
-            if mode != 'PD_STAND':
+            if mode not in STANDING:
                 self.status = 'Y ignored: select Stand first, then release and press Y again'
                 return False
             steps.append('teleop')
@@ -134,13 +139,13 @@ class ActionSequence:
     @staticmethod
     def reached(step, state):
         if step == 'stand':
-            return state.run_mode == 'PD_STAND'
+            return state.run_mode in STANDING
         if step in ('server', 'receiver'):
-            return state.run_mode == 'PD_STAND' and state.local_role == step.upper()
+            return state.run_mode in STANDING and state.local_role == step.upper()
         if step == 'prepare':
             return state.run_mode == 'SERVE' and state.serve_state in ('PREPARING_STAND', 'TRANSITION_TO_LOAD', 'WAIT_READY_TO_SERVE')
         if step == 'play':
-            return (state.run_mode == 'SERVE' and state.serve_state in ('PLAYING_PRE_RELEASE', 'RELEASE_PENDING', 'STRIKE', 'FOLLOW_THROUGH', 'RECOVERY')) or (state.run_mode in ('MOTION', 'TELEOP', 'PD_STAND') and state.serve_state == 'COMPLETE')
+            return (state.run_mode == 'SERVE' and state.serve_state in ('PLAYING_PRE_RELEASE', 'RELEASE_PENDING', 'STRIKE', 'FOLLOW_THROUGH', 'RECOVERY')) or (state.run_mode in ('MOTION', 'TELEOP', *STANDING) and state.serve_state == 'COMPLETE')
         return state.run_mode == {'ready':'MOTION', 'teleop':'TELEOP'}[step]
 
     def advance(self, state, now, connected=True):
@@ -170,7 +175,7 @@ class ActionSequence:
                 return None
         # Stand must still be current at dispatch. Never defer a Y press made
         # before/during a serve until recovery eventually reaches Stand.
-        if self.steps[0] == 'teleop' and state.run_mode != 'PD_STAND':
+        if self.steps[0] == 'teleop' and state.run_mode not in STANDING:
             self.cancel('Y cancelled: select Stand first, then release and press Y again')
             return None
         self.inflight = self.steps[0]

@@ -1,0 +1,10 @@
+{
+  "split": "fresh-heldout",
+  "seed": 2026111829,
+  "variant_start": 58000,
+  "cells": 81,
+  "n": 486,
+  "prior_launches_disjoint": true,
+  "policy_outcome_filtering": false,
+  "reserved_until_selection_freeze": true
+}

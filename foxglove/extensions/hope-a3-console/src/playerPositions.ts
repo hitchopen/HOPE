@@ -36,3 +36,10 @@ export function playerSideAvailable(side: 'P1' | 'P2', players: (PlayerPosition 
   return players.some(p => p != undefined && now >= p.receivedAt && now-p.receivedAt <= MAX_AGE_MS &&
     (side === 'P1' ? p.x < 0 : p.x > 2.74));
 }
+
+// Pants identity is independent of position. Preserve per-body freshness and
+// never let the other robot stand in for the selected asset.
+export function selectedPlayerAvailable(asset: string, players: (PlayerPosition | undefined)[], now: number): boolean {
+  const p = asset === 'P1' ? players[0] : asset === 'P2' ? players[1] : undefined;
+  return p != undefined && now >= p.receivedAt && now - p.receivedAt <= MAX_AGE_MS;
+}

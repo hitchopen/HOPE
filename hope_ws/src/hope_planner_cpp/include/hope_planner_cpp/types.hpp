@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <limits>
 #include <string>
+#include <vector>
 
 namespace hope_planner_cpp {
 
@@ -16,16 +17,16 @@ constexpr std::size_t kMaxEstimatorSamples = 192;
 constexpr std::size_t kInputRingCapacity = 1024;
 
 struct BallPhysics {
-  // 2026-10-10 multi-batch physical fit; radius/gravity remain fixed priors.
-  double drag_k = 0.12861635416914574;
-  double magnus_k = 0.00379260504480258;
-  double restitution_h = 0.6125555614493483;
-  double restitution_v = 0.9313775047019153;
+  // 2026-10-16 restored ppq002 one-star ball fit; radius/gravity remain fixed priors.
+  double drag_k = 0.1276482540395671;
+  double magnus_k = 0.004099236435745766;
+  double restitution_h = 0.5716640639694555;
+  double restitution_v = 0.9554747160275279;
   // Nakashima/Ace Coulomb prior (not venue-fit).
   double nakashima_friction_mu = 0.25;
   // Fitted capped table-slip law, distinct from the Nakashima prior.
-  double table_tangential_gain = 0.38744443855065164;
-  double table_friction_cap_mu = 0.16706204822993975;
+  double table_tangential_gain = 0.42833593603054454;
+  double table_friction_cap_mu = 0.22361815544013583;
   Vec3 gravity{0.0, 0.0, -9.81};
   double radius = 0.02;
 };
@@ -43,13 +44,32 @@ struct PlannerConfig {
   double x_hit = 0.15;
   Vec3 target_land{2.055, -0.7625, 0.0};
   double delta_t_flight = 0.50;
-  double restitution_racket = 0.654;
-  double restitution_exp_g1 = 0.759;
-  double restitution_exp_g2 = -0.0441;
+  double restitution_racket = std::numeric_limits<double>::quiet_NaN();
+  double restitution_exp_g1 = std::numeric_limits<double>::quiet_NaN();
+  double restitution_exp_g2 = std::numeric_limits<double>::quiet_NaN();
   double integrate_dt_s = 0.001;
   double max_predict_time_s = 2.0;
   bool adaptive_predict_horizon = false;
   double max_predict_time_cap_s = 3.0;
+  // Stage-3 values must be supplied by return_physics.yaml. Missing physical
+  // coefficients never silently select a different racket/flight model.
+  double ball_inertia_coeff = std::numeric_limits<double>::quiet_NaN();
+  double paddle_tangential_gain = std::numeric_limits<double>::quiet_NaN();
+  double paddle_angle_gain = std::numeric_limits<double>::quiet_NaN();
+  double paddle_friction_cap_mu = std::numeric_limits<double>::quiet_NaN();
+  double return_restitution_min = std::numeric_limits<double>::quiet_NaN();
+  double return_restitution_max = std::numeric_limits<double>::quiet_NaN();
+  double return_dt_integrate = std::numeric_limits<double>::quiet_NaN();
+  double return_numeric_epsilon = std::numeric_limits<double>::quiet_NaN();
+  double return_fd_relative_step = std::numeric_limits<double>::quiet_NaN();
+  double return_position_tolerance_m = std::numeric_limits<double>::quiet_NaN();
+  double return_time_tolerance_s = std::numeric_limits<double>::quiet_NaN();
+  double return_max_step_mps = std::numeric_limits<double>::quiet_NaN();
+  double return_net_clearance_margin = std::numeric_limits<double>::quiet_NaN();
+  int return_newton_iterations = 0;
+  int return_line_search_iterations = 0;
+  int return_seed_iterations = 0;
+  std::vector<double> return_alternative_flight_times;
 };
 
 struct EstimatorConfig {
@@ -156,6 +176,7 @@ struct BallState {
 struct StrikeTarget {
   Vec3 ball_position = Vec3::Zero();
   Vec3 ball_velocity = Vec3::Zero();
+  Vec3 ball_spin_rad_s = Vec3::Zero();
   double strike_source_time_s = 0.0;
   int predicted_bounces = 0;
   bool valid = false;
@@ -167,6 +188,9 @@ struct RacketCommand {
   Vec3 velocity = Vec3::Zero();
   Vec3 normal{1.0, 0.0, 0.0};
   Vec3 outgoing_ball_velocity = Vec3::Zero();
+  Vec3 outgoing_ball_spin_rad_s = Vec3::Zero();
+  Vec3 predicted_landing = Vec3::Zero();
+  double return_flight_time_s = 0.0;
   Vec3 target_land = Vec3::Zero();
   double strike_source_time_s = 0.0;
   int predicted_bounces = 0;

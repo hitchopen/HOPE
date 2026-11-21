@@ -137,3 +137,30 @@ def runtime_world_frame_sha256(
         document, sort_keys=True, separators=(",", ":"), allow_nan=False
     ).encode("ascii")
     return hashlib.sha256(encoded).hexdigest()
+
+
+class AutomaticTableFrame:
+    """Latch the selected body's physical end, independently of its asset name.
+
+    A process/configuration epoch owns one frame. Crossing ends invalidates it;
+    never rotate a live HOME or an already published flight underneath consumers.
+    """
+
+    def __init__(self, length=2.74, width=1.525):
+        self.length, self.width = _dimensions(length, width)
+        self.side = None
+        self.fault = ""
+
+    def observe(self, position_xyz):
+        x, _, _ = _vector(position_xyz, 3, "position")
+        if self.fault:
+            raise ValueError(self.fault)
+        # The centre band cannot establish which end owns the policy frame.
+        if abs(x - self.length / 2) <= 0.25:
+            raise ValueError("selected body is too close to table centre")
+        side = TABLE_SIDE_P1 if x < self.length / 2 else TABLE_SIDE_P2
+        if self.side is not None and self.side != side:
+            self.fault = "physical table end changed; stop and start a new session"
+            raise ValueError(self.fault)
+        self.side = side
+        return side

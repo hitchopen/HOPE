@@ -29,28 +29,13 @@ def test_aimrt_keeps_runner_routes_without_elink_admission_transport():
     assert "elink_challenge" not in CONFIG.read_text()
 
 
-def test_python_and_native_relays_do_not_add_an_elink_dependency():
-    path = ROOT / "foxglove/a3/hope_runner_transport_relay.py"
-    tree = ast.parse(path.read_text())
-    constants = {
-        item.targets[0].id: item.value.value
-        for item in tree.body
-        if isinstance(item, ast.Assign) and len(item.targets) == 1
-        and isinstance(item.targets[0], ast.Name) and isinstance(item.value, ast.Constant)
-    }
-    expected = {
-        "REMOTE_STATE_TOPIC": "/hope/runner/state_flat",
-        "LOCAL_STATE_TOPIC": "/hope/runner/state_hdu_flat",
-        "LOCAL_CONTROL_TOPIC": "/hope/runner/control_request_hdu_flat",
-        "REMOTE_CONTROL_TOPIC": "/hope/runner/control_request_flat",
-    }
-    native = (ROOT / "foxglove/a3/native/runner_transport.cpp").read_text()
-    for name, value in expected.items():
-        assert constants[name] == value
-        assert native.count('"' + value + '"') == 1
-    assert len(set(expected.values())) == 4
-    for source in (path.read_text(), native):
-        assert "elink_permit" not in source and "elink_challenge" not in source
+def test_native_gateway_does_not_add_an_elink_dependency():
+    native = (ROOT / "foxglove/a3/native/transport_gateway.cpp").read_text()
+    expected = ("/hope/runner/state_flat", "/hope/runner/state_hdu_flat",
+                "/hope/runner/control_request_hdu_flat", "/hope/runner/control_request_flat")
+    for topic in expected:
+        assert native.count('"' + topic + '"') == 1
+    assert "elink_permit" not in native and "elink_challenge" not in native
     native_root = CONFIG.parent.parent
     for relative in ("include/robot_io/a3_aimrt_backend.hpp", "src/robot_io/a3_aimrt_backend.cpp"):
         source = (native_root / relative).read_text()

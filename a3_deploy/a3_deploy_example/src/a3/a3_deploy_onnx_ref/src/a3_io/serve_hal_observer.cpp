@@ -64,8 +64,9 @@ struct Observer {
     __atomic_store_n(&clock->magic, a3_io::ServeHalClock::kMagic, __ATOMIC_SEQ_CST);
     __atomic_store_n(&clock->pid, static_cast<std::uint64_t>(getpid()), __ATOMIC_SEQ_CST);
     __atomic_store_n(&clock->selected_ns, stamp, __ATOMIC_SEQ_CST);
-    // Runner matches the transition against the selected profile's OPEN value.
-    if (a3_io::IsServeHalSelectionEdge(previous_left, left))
+    // Record transitions only; Runner checks the selected profile's OPEN value.
+    // Initial cached commands and repeated RELEASE are not new edges.
+    if (left != previous_left && previous_left != ~0ULL)
       __atomic_store_n(&clock->release_edge_ns, stamp, __ATOMIC_SEQ_CST);
     __atomic_store_n(&clock->left, static_cast<std::uint64_t>(left), __ATOMIC_SEQ_CST);
     __atomic_store_n(&clock->node, node, __ATOMIC_SEQ_CST);

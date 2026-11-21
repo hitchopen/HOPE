@@ -55,7 +55,6 @@ from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPo
 from tf2_ros import TransformBroadcaster
 
 from source_time_rate_gate import SourceTimeRateGate
-from operator_heartbeat import OperatorHeartbeat
 from table_side_transform import (
     normalize_table_side,
     transform_position_xyz,
@@ -233,7 +232,6 @@ class OptitrackMctRelay(Node):
         }
         self._player_position_gates = {name: SourceTimeRateGate(30.0)
                                        for name in self._player_position_publishers}
-        self._operator_heartbeat = OperatorHeartbeat(self, self._debug_session_id)
 
         input_topic = str(self.get_parameter("input_poses_topic").value)
         self._sub = self.create_subscription(

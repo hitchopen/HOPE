@@ -1,0 +1,400 @@
+{
+  "v5": {
+    "all": {
+      "n": 486,
+      "planned": 486,
+      "completed": 486,
+      "contacts": 442,
+      "legal": 423,
+      "collisions": 4,
+      "position_cm": [
+        5.357073908854263,
+        11.609981398592787
+      ],
+      "velocity_mps": [
+        0.2833155683839109,
+        0.03502674968995088
+      ],
+      "normal_deg": [
+        5.755769757834517,
+        47.9954638938987
+      ]
+    },
+    "by_side": {
+      "BHfront": {
+        "n": 122,
+        "planned": 122,
+        "completed": 122,
+        "contacts": 122,
+        "legal": 122,
+        "collisions": 2,
+        "position_cm": [
+          4.436040227644869,
+          6.314462279223119
+        ],
+        "velocity_mps": [
+          0.2355971489380533,
+          0.026876454541969887
+        ],
+        "normal_deg": [
+          2.4746123027743363,
+          3.9834456765998434
+        ]
+      },
+      "BHother": {
+        "n": 130,
+        "planned": 130,
+        "completed": 130,
+        "contacts": 109,
+        "legal": 103,
+        "collisions": 1,
+        "position_cm": [
+          6.577405619030139,
+          17.40679645950337
+        ],
+        "velocity_mps": [
+          0.31101995749945155,
+          0.056018645292490406
+        ],
+        "normal_deg": [
+          7.1043364872636,
+          58.82262871839672
+        ]
+      },
+      "FH": {
+        "n": 234,
+        "planned": 234,
+        "completed": 234,
+        "contacts": 211,
+        "legal": 198,
+        "collisions": 1,
+        "position_cm": [
+          5.159308895113589,
+          9.84171300801124
+        ],
+        "velocity_mps": [
+          0.29280307516756193,
+          0.025910285901438047
+        ],
+        "normal_deg": [
+          6.717254948824096,
+          57.37896443065554
+        ]
+      }
+    },
+    "by_height": {
+      "0": {
+        "n": 162,
+        "planned": 162,
+        "completed": 162,
+        "contacts": 159,
+        "legal": 153,
+        "collisions": 4,
+        "position_cm": [
+          4.391371151007247,
+          6.948189213502906
+        ],
+        "velocity_mps": [
+          0.2829438814258765,
+          0.039361682302271106
+        ],
+        "normal_deg": [
+          3.366720030614519,
+          18.650489246166703
+        ]
+      },
+      "1": {
+        "n": 162,
+        "planned": 162,
+        "completed": 162,
+        "contacts": 148,
+        "legal": 138,
+        "collisions": 0,
+        "position_cm": [
+          4.920719785196432,
+          10.639369864446657
+        ],
+        "velocity_mps": [
+          0.2262061069082371,
+          0.02461269047167727
+        ],
+        "normal_deg": [
+          6.103170720259823,
+          58.91442810359066
+        ]
+      },
+      "2": {
+        "n": 162,
+        "planned": 162,
+        "completed": 162,
+        "contacts": 135,
+        "legal": 132,
+        "collisions": 0,
+        "position_cm": [
+          6.7591307903591105,
+          14.153634881107166
+        ],
+        "velocity_mps": [
+          0.34079671681761914,
+          0.03454016512941003
+        ],
+        "normal_deg": [
+          7.797418522629209,
+          56.42489862532708
+        ]
+      }
+    },
+    "shards": [
+      {
+        "end_drift_cm": 8.201935541532372,
+        "end_width_cm": 34.4762990586,
+        "end_heading_deg": 12.179917259628366,
+        "max_width_cm": 35.1779435875,
+        "min_width_cm": 30.0418545291,
+        "minimum_base_height": 1.04917113163
+      },
+      {
+        "end_drift_cm": 4.953583156312657,
+        "end_width_cm": 31.337471968800003,
+        "end_heading_deg": 7.642349883243312,
+        "max_width_cm": 33.52720901949999,
+        "min_width_cm": 29.051721436700007,
+        "minimum_base_height": 1.059223261
+      },
+      {
+        "end_drift_cm": 6.686732937755314,
+        "end_width_cm": 31.983507160800006,
+        "end_heading_deg": 7.17313214981896,
+        "max_width_cm": 36.5802001154,
+        "min_width_cm": 29.554367575600004,
+        "minimum_base_height": 1.05810918064
+      },
+      {
+        "end_drift_cm": 6.448226602619868,
+        "end_width_cm": 30.913891325499996,
+        "end_heading_deg": 2.7667808062473753,
+        "max_width_cm": 35.605328146000005,
+        "min_width_cm": 30.3216291223,
+        "minimum_base_height": 1.05419901758
+      },
+      {
+        "end_drift_cm": 4.675939655639492,
+        "end_width_cm": 30.08951136229999,
+        "end_heading_deg": 3.868504407168405,
+        "max_width_cm": 33.14928173090001,
+        "min_width_cm": 30.023705538899993,
+        "minimum_base_height": 1.05781595714
+      },
+      {
+        "end_drift_cm": 5.143326937214809,
+        "end_width_cm": 31.985580043600002,
+        "end_heading_deg": 4.776599573904972,
+        "max_width_cm": 34.851823113,
+        "min_width_cm": 30.3404191815,
+        "minimum_base_height": 1.0502747928
+      }
+    ],
+    "mean_end_drift_cm": 6.018290805179085,
+    "max_end_drift_cm": 8.201935541532372,
+    "max_end_heading_deg": 12.179917259628366
+  },
+  "hold40lat": {
+    "all": {
+      "n": 486,
+      "planned": 486,
+      "completed": 486,
+      "contacts": 434,
+      "legal": 419,
+      "collisions": 7,
+      "position_cm": [
+        5.633477589514041,
+        11.773884654319247
+      ],
+      "velocity_mps": [
+        0.27883372021694214,
+        0.03731517560248042
+      ],
+      "normal_deg": [
+        5.901047472645717,
+        49.80794130115474
+      ]
+    },
+    "by_side": {
+      "BHfront": {
+        "n": 122,
+        "planned": 122,
+        "completed": 122,
+        "contacts": 121,
+        "legal": 120,
+        "collisions": 3,
+        "position_cm": [
+          4.586759020714304,
+          6.567182201785268
+        ],
+        "velocity_mps": [
+          0.23544986281197625,
+          0.026321716960135164
+        ],
+        "normal_deg": [
+          2.7158941010721724,
+          4.750863684146882
+        ]
+      },
+      "BHother": {
+        "n": 130,
+        "planned": 130,
+        "completed": 130,
+        "contacts": 106,
+        "legal": 101,
+        "collisions": 2,
+        "position_cm": [
+          6.893108478601146,
+          18.40506952452382
+        ],
+        "velocity_mps": [
+          0.32157359581224465,
+          0.07060672083438686
+        ],
+        "normal_deg": [
+          7.773547701289992,
+          83.64439354632964
+        ]
+      },
+      "FH": {
+        "n": 234,
+        "planned": 234,
+        "completed": 234,
+        "contacts": 207,
+        "legal": 198,
+        "collisions": 2,
+        "position_cm": [
+          5.4794077169167945,
+          9.32805720606635
+        ],
+        "velocity_mps": [
+          0.2777082790888077,
+          0.022554110097927998
+        ],
+        "normal_deg": [
+          6.521405086356047,
+          46.87906614907107
+        ]
+      }
+    },
+    "by_height": {
+      "0": {
+        "n": 162,
+        "planned": 162,
+        "completed": 162,
+        "contacts": 155,
+        "legal": 150,
+        "collisions": 7,
+        "position_cm": [
+          4.832212837556358,
+          7.554451601782123
+        ],
+        "velocity_mps": [
+          0.2857640585694914,
+          0.05121948517680054
+        ],
+        "normal_deg": [
+          3.5818686932279693,
+          29.2736530337764
+        ]
+      },
+      "1": {
+        "n": 162,
+        "planned": 162,
+        "completed": 162,
+        "contacts": 148,
+        "legal": 141,
+        "collisions": 0,
+        "position_cm": [
+          5.159640035532185,
+          10.20419393186969
+        ],
+        "velocity_mps": [
+          0.2266221071486043,
+          0.0216956051376921
+        ],
+        "normal_deg": [
+          6.0049197575728215,
+          47.8082721297697
+        ]
+      },
+      "2": {
+        "n": 162,
+        "planned": 162,
+        "completed": 162,
+        "contacts": 131,
+        "legal": 128,
+        "collisions": 0,
+        "position_cm": [
+          6.908579895453581,
+          15.070575308400274
+        ],
+        "velocity_mps": [
+          0.3241149949327309,
+          0.03420596052418325
+        ],
+        "normal_deg": [
+          8.116353967136364,
+          62.04493621290811
+        ]
+      }
+    },
+    "shards": [
+      {
+        "end_drift_cm": 9.661367657105759,
+        "end_width_cm": 37.6849836156,
+        "end_heading_deg": 8.768685873861536,
+        "max_width_cm": 38.370753062199995,
+        "min_width_cm": 30.054341304700007,
+        "minimum_base_height": 1.04926105506
+      },
+      {
+        "end_drift_cm": 3.7995852899025415,
+        "end_width_cm": 32.4402040074,
+        "end_heading_deg": 4.0123899349638315,
+        "max_width_cm": 34.1512943574,
+        "min_width_cm": 29.03308937029999,
+        "minimum_base_height": 1.05892146235
+      },
+      {
+        "end_drift_cm": 5.5413625144942555,
+        "end_width_cm": 32.2602648795,
+        "end_heading_deg": 5.038110667859573,
+        "max_width_cm": 38.01569970730001,
+        "min_width_cm": 30.1817503209,
+        "minimum_base_height": 1.05774036584
+      },
+      {
+        "end_drift_cm": 6.154583498213201,
+        "end_width_cm": 33.3630178078,
+        "end_heading_deg": 4.07240186450682,
+        "max_width_cm": 36.1767916663,
+        "min_width_cm": 30.501979745100005,
+        "minimum_base_height": 1.05553190167
+      },
+      {
+        "end_drift_cm": 3.720179506741947,
+        "end_width_cm": 31.29451922669999,
+        "end_heading_deg": 4.9811548878046565,
+        "max_width_cm": 33.294889604,
+        "min_width_cm": 29.8704768532,
+        "minimum_base_height": 1.05785447877
+      },
+      {
+        "end_drift_cm": 5.104598094968893,
+        "end_width_cm": 34.4210042383,
+        "end_heading_deg": 5.305711786941438,
+        "max_width_cm": 36.348143348899995,
+        "min_width_cm": 30.310546446599997,
+        "minimum_base_height": 1.05131063931
+      }
+    ],
+    "mean_end_drift_cm": 5.663612760237766,
+    "max_end_drift_cm": 9.661367657105759,
+    "max_end_heading_deg": 8.768685873861536
+  }
+}

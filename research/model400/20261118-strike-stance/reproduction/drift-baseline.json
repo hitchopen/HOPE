@@ -1,0 +1,366 @@
+[
+  {
+    "source_shot": 1,
+    "side": "FH",
+    "pre": {
+      "width_cm": 26.054226161214828,
+      "right_drift_cm": 1.4864500489572503,
+      "left_drift_cm": 0.7843234524428678
+    },
+    "post": {
+      "width_cm": 27.082801918731803,
+      "right_drift_cm": 1.7608214168218714,
+      "left_drift_cm": 0.4921241412994751
+    }
+  },
+  {
+    "source_shot": 2,
+    "side": "BH",
+    "pre": {
+      "width_cm": 26.736620298061737,
+      "right_drift_cm": 1.7780598329221802,
+      "left_drift_cm": 0.4598209774826171
+    },
+    "post": {
+      "width_cm": 26.86794907398855,
+      "right_drift_cm": 1.6933417969873688,
+      "left_drift_cm": 0.4916562545672949
+    }
+  },
+  {
+    "source_shot": 3,
+    "side": "FH",
+    "pre": {
+      "width_cm": 26.01402890616267,
+      "right_drift_cm": 1.7233192023136799,
+      "left_drift_cm": 0.589518665675533
+    },
+    "post": {
+      "width_cm": 27.47566664094268,
+      "right_drift_cm": 1.8326827309625253,
+      "left_drift_cm": 0.14408479993624393
+    }
+  },
+  {
+    "source_shot": 4,
+    "side": "BH",
+    "pre": {
+      "width_cm": 27.37845323498711,
+      "right_drift_cm": 1.920339022156926,
+      "left_drift_cm": 0.19907375370599792
+    },
+    "post": {
+      "width_cm": 27.577350275359137,
+      "right_drift_cm": 1.8419584024563864,
+      "left_drift_cm": 0.191587655169739
+    }
+  },
+  {
+    "source_shot": 5,
+    "side": "FH",
+    "pre": {
+      "width_cm": 26.734488952902897,
+      "right_drift_cm": 1.7640093607294713,
+      "left_drift_cm": 0.32853277049908625
+    },
+    "post": {
+      "width_cm": 28.002253586481597,
+      "right_drift_cm": 2.1084575985365936,
+      "left_drift_cm": 0.06569494411802144
+    }
+  },
+  {
+    "source_shot": 6,
+    "side": "BH",
+    "pre": {
+      "width_cm": 27.833375985974723,
+      "right_drift_cm": 2.1465133874592497,
+      "left_drift_cm": 0.1475417607383183
+    },
+    "post": {
+      "width_cm": 28.186853786873524,
+      "right_drift_cm": 2.1635298313029008,
+      "left_drift_cm": 0.11045495195342704
+    }
+  },
+  {
+    "source_shot": 7,
+    "side": "FH",
+    "pre": {
+      "width_cm": 27.348228798912626,
+      "right_drift_cm": 1.8541039298405755,
+      "left_drift_cm": 0.20112040581969978
+    },
+    "post": {
+      "width_cm": 28.85680743269154,
+      "right_drift_cm": 2.303657115995054,
+      "left_drift_cm": 0.5422139405073404
+    }
+  },
+  {
+    "source_shot": 8,
+    "side": "FH",
+    "pre": {
+      "width_cm": 28.804480693415318,
+      "right_drift_cm": 2.2900068081824734,
+      "left_drift_cm": 0.4938805400332872
+    },
+    "post": {
+      "width_cm": 29.587668330133432,
+      "right_drift_cm": 3.072093769687092,
+      "left_drift_cm": 0.445265825017946
+    }
+  },
+  {
+    "source_shot": 9,
+    "side": "BH",
+    "pre": {
+      "width_cm": 29.54539369461563,
+      "right_drift_cm": 3.0352734812204987,
+      "left_drift_cm": 0.44956387346820986
+    },
+    "post": {
+      "width_cm": 29.556552275173754,
+      "right_drift_cm": 2.9909492586724364,
+      "left_drift_cm": 0.37141984422990154
+    }
+  },
+  {
+    "source_shot": 10,
+    "side": "BH",
+    "pre": {
+      "width_cm": 29.466139531011848,
+      "right_drift_cm": 2.897997855558086,
+      "left_drift_cm": 0.3607722844915188
+    },
+    "post": {
+      "width_cm": 29.565257927240964,
+      "right_drift_cm": 2.8827674995997277,
+      "left_drift_cm": 0.39913360873171505
+    }
+  },
+  {
+    "source_shot": 11,
+    "side": "FH",
+    "pre": {
+      "width_cm": 29.5321082487829,
+      "right_drift_cm": 2.85527863283969,
+      "left_drift_cm": 0.38096300656017024
+    },
+    "post": {
+      "width_cm": 30.213830032632856,
+      "right_drift_cm": 3.667413970920191,
+      "left_drift_cm": 0.2614315012624476
+    }
+  },
+  {
+    "source_shot": 12,
+    "side": "BH",
+    "pre": {
+      "width_cm": 30.214853198494158,
+      "right_drift_cm": 3.6387790252463734,
+      "left_drift_cm": 0.3018409644990398
+    },
+    "post": {
+      "width_cm": 30.34908549182819,
+      "right_drift_cm": 3.4584953455873304,
+      "left_drift_cm": 0.5998770940452265
+    }
+  },
+  {
+    "source_shot": 13,
+    "side": "FH",
+    "pre": {
+      "width_cm": 30.227756173841346,
+      "right_drift_cm": 3.419003385804783,
+      "left_drift_cm": 0.5033646924467036
+    },
+    "post": {
+      "width_cm": 31.206017328928144,
+      "right_drift_cm": 4.149859409190233,
+      "left_drift_cm": 0.9844688657013236
+    }
+  },
+  {
+    "source_shot": 14,
+    "side": "BH",
+    "pre": {
+      "width_cm": 31.172951859648183,
+      "right_drift_cm": 4.115713367241688,
+      "left_drift_cm": 0.9830896553774375
+    },
+    "post": {
+      "width_cm": 31.150716920593247,
+      "right_drift_cm": 4.032345920270085,
+      "left_drift_cm": 0.9564318349947195
+    }
+  },
+  {
+    "source_shot": 15,
+    "side": "FH",
+    "pre": {
+      "width_cm": 31.00342273002922,
+      "right_drift_cm": 3.99570130791937,
+      "left_drift_cm": 0.8369044519261907
+    },
+    "post": {
+      "width_cm": 31.774576037957804,
+      "right_drift_cm": 4.907857992684949,
+      "left_drift_cm": 1.039247215808937
+    }
+  },
+  {
+    "source_shot": 16,
+    "side": "BH",
+    "pre": {
+      "width_cm": 31.754162128353062,
+      "right_drift_cm": 4.873051237896798,
+      "left_drift_cm": 1.0605330710540202
+    },
+    "post": {
+      "width_cm": 31.964917650323958,
+      "right_drift_cm": 4.977803200669549,
+      "left_drift_cm": 1.2834329715305821
+    }
+  },
+  {
+    "source_shot": 17,
+    "side": "FH",
+    "pre": {
+      "width_cm": 31.87162350379471,
+      "right_drift_cm": 4.93390955486883,
+      "left_drift_cm": 1.2272910557360148
+    },
+    "post": {
+      "width_cm": 32.68192603817123,
+      "right_drift_cm": 5.737707494545967,
+      "left_drift_cm": 1.407349577461068
+    }
+  },
+  {
+    "source_shot": 18,
+    "side": "BH",
+    "pre": {
+      "width_cm": 32.66485085736743,
+      "right_drift_cm": 5.718340906719619,
+      "left_drift_cm": 1.42081502992632
+    },
+    "post": {
+      "width_cm": 32.95985329245396,
+      "right_drift_cm": 5.697725930122366,
+      "left_drift_cm": 1.7072064416864947
+    }
+  },
+  {
+    "source_shot": 19,
+    "side": "FH",
+    "pre": {
+      "width_cm": 32.862237221307225,
+      "right_drift_cm": 5.642201370391794,
+      "left_drift_cm": 1.6561354581796508
+    },
+    "post": {
+      "width_cm": 33.85031057933588,
+      "right_drift_cm": 6.4080323309694736,
+      "left_drift_cm": 2.0687938759949334
+    }
+  },
+  {
+    "source_shot": 20,
+    "side": "BH",
+    "pre": {
+      "width_cm": 33.79624770179989,
+      "right_drift_cm": 6.382981884797983,
+      "left_drift_cm": 2.0507477995023202
+    },
+    "post": {
+      "width_cm": 33.90914249954578,
+      "right_drift_cm": 6.3462398508284865,
+      "left_drift_cm": 2.1466456409124457
+    }
+  },
+  {
+    "source_shot": 21,
+    "side": "FH",
+    "pre": {
+      "width_cm": 33.758847671850155,
+      "right_drift_cm": 6.30360912769704,
+      "left_drift_cm": 2.029694747537941
+    },
+    "post": {
+      "width_cm": 34.680501888753966,
+      "right_drift_cm": 7.215338929901282,
+      "left_drift_cm": 2.288688915270979
+    }
+  },
+  {
+    "source_shot": 22,
+    "side": "BH",
+    "pre": {
+      "width_cm": 34.62059929758484,
+      "right_drift_cm": 7.195747497818673,
+      "left_drift_cm": 2.2734809545862547
+    },
+    "post": {
+      "width_cm": 34.77836895583692,
+      "right_drift_cm": 7.138905339228989,
+      "left_drift_cm": 2.414881052794229
+    }
+  },
+  {
+    "source_shot": 23,
+    "side": "FH",
+    "pre": {
+      "width_cm": 34.70378452693947,
+      "right_drift_cm": 7.0986071714408965,
+      "left_drift_cm": 2.352843271730514
+    },
+    "post": {
+      "width_cm": 35.47437690543422,
+      "right_drift_cm": 7.897706259601605,
+      "left_drift_cm": 2.4918177118778435
+    }
+  },
+  {
+    "source_shot": 24,
+    "side": "BH",
+    "pre": {
+      "width_cm": 35.40658677471718,
+      "right_drift_cm": 7.878233140148129,
+      "left_drift_cm": 2.481649308849009
+    },
+    "post": {
+      "width_cm": 35.761233498695134,
+      "right_drift_cm": 7.781154705434131,
+      "left_drift_cm": 2.835687168703052
+    }
+  },
+  {
+    "source_shot": 25,
+    "side": "FH",
+    "pre": {
+      "width_cm": 35.68293703485009,
+      "right_drift_cm": 7.724013589175886,
+      "left_drift_cm": 2.773050247919364
+    },
+    "post": {
+      "width_cm": 36.568196621111895,
+      "right_drift_cm": 8.46681604724629,
+      "left_drift_cm": 3.039301332772327
+    }
+  },
+  {
+    "source_shot": 26,
+    "side": "BH",
+    "pre": {
+      "width_cm": 36.472076564275646,
+      "right_drift_cm": 8.426490321619754,
+      "left_drift_cm": 3.0061340218704338
+    },
+    "post": {
+      "width_cm": 36.46320361891263,
+      "right_drift_cm": 8.34638292367204,
+      "left_drift_cm": 3.035270420224598
+    }
+  }
+]

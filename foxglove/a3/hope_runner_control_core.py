@@ -1,7 +1,7 @@
 """ROS-free codec for the local Runner's fixed operator contract.
 
 The browser never publishes this wire directly.  ``hope_command_proxy``
-maps ten exact Trigger services to the fixed request array and waits for the
+maps thirteen exact Trigger services to the fixed request array and waits for the
 authoritative Runner state response.
 """
 
@@ -31,6 +31,8 @@ ACTION_CODES = {
     "OPEN_GRIPPER": 10,
     "CONFIRM_GRIP_SECURE": 12,
     "ENTER_TELEOP": 13,
+    "ENTER_DOCK": 14,
+    "ENTER_WALK_STAND": 15,
 }
 ACTION_NAMES = {value: key for key, value in ACTION_CODES.items()}
 ACTION_NAMES[0] = "NONE"
@@ -44,6 +46,8 @@ MODE_NAMES = {
     4: "REFERENCE_PLAYBACK",
     5: "SERVE",
     6: "TELEOP",
+    7: "DOCK",
+    8: "WALK_STAND",
 }
 ROLE_NAMES = {0: "UNASSIGNED", 1: "SERVER", 2: "RECEIVER"}
 RESULT_NAMES = {
@@ -63,6 +67,7 @@ RESULT_NAMES = {
     13: "REJECTED_CLEANUP_REQUIRED",
     14: "REJECTED_GRIPPER_STATE",
     15: "REJECTED_TELEOP",
+    16: "REJECTED_DOCK",
 }
 REASON_NAMES = {
     0: "NONE",
@@ -101,6 +106,10 @@ REASON_NAMES = {
     35: "MOCAP_UNAVAILABLE",
     36: "OPERATOR_UI_UNAVAILABLE",
     37: "OPERATOR_COMPUTER_UNAVAILABLE",
+    38: "DOCK_UNAVAILABLE",
+    39: "DOCK_MOCAP_UNAVAILABLE",
+    40: "DOCK_START_TOO_FAR",
+    41: "DOCK_STOP_REQUESTED",
 }
 SERVE_STATE_NAMES = {
     -1: "UNAVAILABLE",

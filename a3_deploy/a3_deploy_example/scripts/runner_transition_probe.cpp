@@ -200,6 +200,11 @@ int probe_teleop_begin(void* p, const double* source, const double* stand) {
   try { static_cast<Probe*>(p)->teleop_entry.Begin(Read(source), Read(stand)); return 0; }
   catch (...) { return -1; }
 }
+int probe_teleop_begin_custom(void* p, const double* source, const double* stand,
+                              double support_s, double arms_s) {
+  try { static_cast<Probe*>(p)->teleop_entry.Begin(Read(source), Read(stand), support_s, arms_s); return 0; }
+  catch (...) { return -1; }
+}
 int probe_teleop_step(void* p, void* actor, double elapsed, const double* state,
                       const double* velocity, double* out) {
   try {
@@ -231,6 +236,11 @@ void* probe_create(const char* csv, const double* stand) {
     p->serve = std::make_unique<a3_pingpong::PpServeController>(std::move(timeline), c.q_des, c.kp, c.kd, nullptr);
     return p.release();
   } catch (const std::exception& e) { std::fprintf(stderr,"%s\n",e.what()); return nullptr; }
+}
+
+// Transitions only (Stand / receive / HumanLike handoffs); no Serve controller.
+void* probe_create_transitions() {
+  try { return new Probe(); } catch (...) { return nullptr; }
 }
 
 int probe_select_segments(void* v, int policy, const char* actor, const char* deploy) {

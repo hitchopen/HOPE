@@ -185,3 +185,22 @@ class XboxActionTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class WalkStandXboxTests(unittest.TestCase):
+    def test_walk_stand_counts_as_stand(self):
+        seq = ActionSequence()
+        self.assertTrue(seq.request('Y', state('WALK_STAND'), 0))
+        self.assertEqual(seq.advance(state('WALK_STAND'), .1), 'enter_teleop')
+        seq = ActionSequence()
+        self.assertTrue(seq.request('X', state('WALK_STAND', 'RECEIVER'), 0))
+        self.assertEqual(seq.advance(state('WALK_STAND', 'RECEIVER'), .1), 'enter_motion')
+        seq = ActionSequence()
+        self.assertTrue(seq.request('A', state('WALK_STAND', 'SERVER'), 0))
+        self.assertEqual(seq.advance(state('WALK_STAND', 'SERVER'), .1), 'prepare_serve')
+        # From Teleop, Stand lands in WALK_STAND and the sequence continues.
+        seq = ActionSequence()
+        self.assertTrue(seq.request('X', state('TELEOP'), 0))
+        self.assertEqual(seq.advance(state('TELEOP'), .1), 'enter_pd_stand')
+        seq.acknowledge(True)
+        self.assertEqual(seq.advance(state('WALK_STAND'), .2), 'set_receiver')
