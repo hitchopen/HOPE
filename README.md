@@ -1,5 +1,17 @@
 # HOPE: Hitch Open Ping-Pong Embodied AI Challenge
 
+## Final StationaryRally GRU: model_29999 (MuJoCo diagnostic)
+
+[Download final actor bundle](a3_deploy/a3_deploy_example/models/model_29999/model_29999_gru_bundle.zip) · [Bundle and exact commands](a3_deploy/a3_deploy_example/models/model_29999/README.md) · [Final video](docs/assets/gru-formal-2b8c09938a/model_29999.mp4) · [Eight-checkpoint comparison and evidence](docs/evaluations/gru-formal-2b8c09938a/README.md)
+
+[Download comparison actor model_19000](a3_deploy/a3_deploy_example/models/model_19000/model_19000_gru_bundle.zip) · [model_19000 commands and provenance](a3_deploy/a3_deploy_example/models/model_19000/README.md). Both actors are from the same run; model_29999 remains the final model. Model_19000 recorded100 raw contacts,0 qualified contacts/legal landings, and a fall at152.96s in the final recovery tail after100 balls resolved.
+
+
+This feature branch publishes the final actor from `gru-formal-2b8c09938a`, training source `33c609022efbb4e85fe6a58a5a8947b0fbd46c76`. The final physical diagnostic launched/resolved100 balls with100 raw racket-contact balls, **zero reference-qualified contacts and legal landings**, and no fall. Completion is not successful-return rate. The eight videos retain their20-second initial idle; skip to00:20 for the first serve. Early falls, including late recovery-tail falls after all100 flights resolved, are reported explicitly in the comparison table.
+
+The recurrent actor uses explicit hidden-state IO and the corrected PPQ004 table-impact MuJoCo evaluator. It is a reference-sequence diagnostic, **not formal Gate3 certification** or a validated real-robot GRU deployment. Native feed-forward deployment described elsewhere in this README is a different policy/runtime.
+
+
 Mac users: see [macOS development and operator setup](docs/operations/macos_deployment.md).
 The operator backend supports any normal Mac login, with explicit Mac/Linux
 profiles and separate configurable container/robot accounts; no personal Mac
@@ -572,3 +584,16 @@ See the
 [validation limits](docs/operations/runtime_public_validation.md). This checkout
 includes the ready-to-install Foxglove `.foxe`, HumanLike locomotion bundle and
 serve CSVs.
+
+<!-- four-frozen-gru-exports -->
+
+## Additional frozen recurrent exports
+
+**export verified; no new behavioral evaluation performed.** Run `gru-formal-2b8c09938a`. These bundles have no new standing/ball results or videos.
+
+| Iteration | Portable bundle | Loading and verification |
+|---|---|---|
+| 13000 | [ZIP](a3_deploy/a3_deploy_example/models/model_13000/model_13000_gru_bundle.zip) | [README](a3_deploy/a3_deploy_example/models/model_13000/README.md) |
+| 14000 | [ZIP](a3_deploy/a3_deploy_example/models/model_14000/model_14000_gru_bundle.zip) | [README](a3_deploy/a3_deploy_example/models/model_14000/README.md) |
+| 14600 | [ZIP](a3_deploy/a3_deploy_example/models/model_14600/model_14600_gru_bundle.zip) | [README](a3_deploy/a3_deploy_example/models/model_14600/README.md) |
+| 20000 | [ZIP](a3_deploy/a3_deploy_example/models/model_20000/model_20000_gru_bundle.zip) | [README](a3_deploy/a3_deploy_example/models/model_20000/README.md) |

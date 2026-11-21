@@ -1,0 +1,15 @@
+# Opt-in GRU policy for HOPEPingPongStationaryRally.
+# Inherit the balanced-hold PPO schedule, projection loss,
+# bounded exploration, W&B logging, and 64 steps/environment unchanged.
+# Start from random weights: checkpoint_path=null and warm_start_actor_checkpoint=null.
+defaults:
+  - ppo_balanced_hold
+  - _self_
+
+name: HitterStationaryRallyGRUPPO
+
+policy:
+  recurrent: true
+  rnn_type: gru
+  rnn_hidden_dim: 110
+  rnn_num_layers: 1

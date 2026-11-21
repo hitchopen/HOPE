@@ -1711,6 +1711,8 @@ def parse_args(argv=None):
         "--runner-trace", default="/tmp/pp_runner_trace.csv",
         help="runner command trace; mandatory projector evidence for rally_v15",
     )
+    parser.add_argument('--policy-inspection', type=Path,
+                        help='strict native fixed-HOME inspection; legacy plane checks remain unchanged otherwise')
     return parser.parse_args(argv)
 
 
@@ -1919,13 +1921,19 @@ def main(argv=None):
             joint_defaults is not None,
             "available" if joint_defaults is not None else "missing/unreadable",
         ))
+        expected_shared_plane = 0.58
         fixed_plane_ok = (
             onnx_planes is not None
-            and abs(onnx_planes.get("fh", float("nan")) - 0.58) <= 1.0e-6
-            and abs(onnx_planes.get("bh", float("nan")) - 0.58) <= 1.0e-6
+            and abs(onnx_planes.get("fh", float("nan")) - expected_shared_plane) <= 1.0e-6
+            and abs(onnx_planes.get("bh", float("nan")) - expected_shared_plane) <= 1.0e-6
         )
+        if args.policy_inspection is not None:
+            from pp_fixed_home_profile import inspected_plane_check
+            expected_shared_plane, fixed_plane_ok = inspected_plane_check(
+                json.loads(args.policy_inspection.read_text()), onnx_planes)
         checks.append((
-            "loaded policy bundle uses one shared x=0.58 m plane",
+            (f"loaded policy bundle uses the required shared x={expected_shared_plane:.3f} m plane"
+             if args.policy_inspection is not None else "loaded policy bundle uses one shared x=0.58 m plane"),
             fixed_plane_ok,
             "missing runner geometry banner" if onnx_planes is None else
             f"fh={onnx_planes['fh']:.3f} bh={onnx_planes['bh']:.3f}",

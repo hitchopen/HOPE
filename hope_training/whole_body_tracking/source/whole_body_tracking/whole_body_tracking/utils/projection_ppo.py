@@ -29,6 +29,8 @@ from .settled_policy_refinement import SettledPolicyRefinement
 class ProjectionPPO(PPO):
     """Adam PPO plus a gradient-capped mean or Gaussian-tail projection cost."""
 
+    _supports_recurrent = False
+
     def __init__(
         self,
         *args,
@@ -119,7 +121,7 @@ class ProjectionPPO(PPO):
                 lambda _optimizer, _args, _kwargs: project_std()
             )
         if self.projection_aux_enabled:
-            if self.policy.is_recurrent:
+            if self.policy.is_recurrent and not self._supports_recurrent:
                 raise RuntimeError(
                     "ProjectionPPO currently requires a non-recurrent actor"
                 )

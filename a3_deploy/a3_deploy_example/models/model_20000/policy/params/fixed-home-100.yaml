@@ -1,0 +1,56 @@
+schema_version: 1
+family: fixed_home
+description: 'Fixed HOME: six clean shots followed by a repeating rapid sequence; no inter-ball reset. Simulator
+  truth, not training-bank replay.'
+balls: 100
+clean_serves:
+- [2.4, -1.0225, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -0.7125, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -1.0575, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -0.6575, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -1.0925, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -0.6125, 0.49, -3.0, 0.0, 2.2]
+rapid_cycle:
+- [2.4, -1.0225, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -1.0575, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -0.7125, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -0.6575, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -1.0925, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -0.6125, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -1.0225, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -0.7125, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -1.0575, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -0.6575, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -1.0925, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -0.6125, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -1.0225, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -0.7125, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -1.0575, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -0.6575, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -1.0925, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -0.6125, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -1.0225, 0.49, -3.0, 0.0, 2.2]
+- [2.4, -0.7125, 0.49, -3.0, 0.0, 2.2]
+timing:
+  clean_flight_s: 2.5
+  rapid_flight_s: 1.15
+  final_flight_s: 2.5
+  clean_pause_s: 1.0
+  rapid_pause_s: 0.0
+metrics:
+  PP_RECOVERY_RADIUS_M: 0.05
+  PP_RECOVERY_SPEED_MAX_MPS: 0.12
+  PP_RECOVERY_DWELL_S: 0.3
+  PP_RECOVERY_YAW_MAX_DEG: 5.0
+  PP_MOTION_IDLE_S: 20.0
+  PP_MIN_MOTION_IDLE_S: 15.0
+  PP_REQUIRED_POST_COMPLETION_TAIL_S: 3.0
+  PP_RAPID_MAX_ENGAGE_GAP_S: 1.4
+  PP_RAPID_CONTACT_TO_NEXT_COMMIT_MIN_S: 0.4
+  PP_RAPID_CONTACT_TO_NEXT_COMMIT_MAX_S: 0.55
+  PP_HOME_MAX_SUPPORT_MIDPOINT_END_M: 0.03
+  PP_HOME_MAX_FOOT_ANCHOR_END_M: 0.03
+  PP_HOME_MIN_SIGNED_WIDTH_M: 0.26
+  PP_HOME_MAX_SIGNED_WIDTH_M: 0.31
+  PP_MAX_END_YAW_DRIFT_DEG: 5.0
+  PP_MAX_PEAK_YAW_DRIFT_DEG: 12.0

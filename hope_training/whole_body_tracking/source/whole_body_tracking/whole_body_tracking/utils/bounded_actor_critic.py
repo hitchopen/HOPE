@@ -8,8 +8,8 @@ import torch
 from torch.distributions import Normal
 
 from isaaclab.utils import configclass
-from isaaclab_rl.rsl_rl import RslRlPpoActorCriticCfg
-from rsl_rl.modules import ActorCritic
+from isaaclab_rl.rsl_rl import RslRlPpoActorCriticCfg, RslRlPpoActorCriticRecurrentCfg
+from rsl_rl.modules import ActorCritic, ActorCriticRecurrent
 
 
 def exploration_contract_for_transform(action_transform: str) -> str:
@@ -176,8 +176,83 @@ class RslRlBoundedStdActorCriticCfg(RslRlPpoActorCriticCfg):
     reset_noise_std_on_warm_start: bool = False
 
 
+class BoundedStdActorCriticRecurrent(ActorCriticRecurrent):
+    """GRU actor and critic with the baseline's bounded exploration contract."""
+
+    def __init__(
+        self, *args, min_noise_std: float = 0.05, max_noise_std: float = 0.6,
+        entropy_excluded_action_indices: tuple[int, ...] | list[int] = (),
+        entropy_action_transform: str = "identity", **kwargs,
+    ):
+        self.min_noise_std = float(min_noise_std)
+        self.max_noise_std = float(max_noise_std)
+        if not (math.isfinite(self.min_noise_std) and math.isfinite(self.max_noise_std)
+                and 0.0 < self.min_noise_std < self.max_noise_std):
+            raise ValueError("noise std bounds must satisfy 0 < min < max")
+        if kwargs.get("state_dependent_std", False) or kwargs.get("noise_std_type", "scalar") != "scalar":
+            raise ValueError("bounded recurrent policy requires state-independent scalar std")
+        self.entropy_action_transform = str(entropy_action_transform).lower()
+        self.exploration_contract = exploration_contract_for_transform(self.entropy_action_transform)
+        super().__init__(*args, **kwargs)
+        initial_std = self.std.detach().clone()
+        self.register_buffer("_initial_physical_std", initial_std, persistent=False)
+        excluded = tuple(sorted({int(index) for index in entropy_excluded_action_indices}))
+        if any(index < 0 or index >= self.std.numel() for index in excluded):
+            raise ValueError("passive action column is outside policy action dimension")
+        active = torch.ones(self.std.numel(), dtype=torch.bool, device=self.std.device)
+        if excluded:
+            active[list(excluded)] = False
+        self.register_buffer("_entropy_active_action_mask", active, persistent=False)
+        self.entropy_excluded_action_indices = excluded
+        self.project_noise_std_()
+
+    @torch.no_grad()
+    def project_noise_std_(self) -> None:
+        self.std.clamp_(min=self.min_noise_std, max=self.max_noise_std)
+
+    @property
+    def effective_noise_std(self) -> torch.Tensor:
+        return self.std
+
+    def _update_distribution(self, features) -> None:
+        self.project_noise_std_()
+        super()._update_distribution(features)
+        active = self._entropy_active_action_mask
+        mean = torch.where(active, self.distribution.mean, torch.zeros_like(self.distribution.mean))
+        std = torch.where(active, self.distribution.stddev, self._initial_physical_std)
+        self.distribution = Normal(mean, std)
+
+    def act(self, obs, masks=None, hidden_state=None) -> torch.Tensor:
+        actions = super().act(obs, masks=masks, hidden_state=hidden_state)
+        return torch.where(self._entropy_active_action_mask, actions, torch.zeros_like(actions))
+
+    def act_inference(self, obs) -> torch.Tensor:
+        actions = super().act_inference(obs)
+        return torch.where(self._entropy_active_action_mask, actions, torch.zeros_like(actions))
+
+    @property
+    def entropy(self) -> torch.Tensor:
+        entropy = self.distribution.entropy()
+        if self.entropy_action_transform == "tanh":
+            raw = self.distribution.rsample()
+            entropy = entropy + 2.0 * (
+                math.log(2.0) - raw - torch.nn.functional.softplus(-2.0 * raw)
+            )
+        return entropy[..., self._entropy_active_action_mask].sum(dim=-1)
+
+
+@configclass
+class RslRlBoundedStdActorCriticRecurrentCfg(RslRlPpoActorCriticRecurrentCfg):
+    class_name: str = "BoundedStdActorCriticRecurrent"
+    min_noise_std: float = 0.05
+    max_noise_std: float = 0.6
+    entropy_excluded_action_indices: list[int] = []
+    entropy_action_transform: str = "identity"
+
+
 def register_with_rsl_rl_runner() -> None:
     """Expose the repository policy to rsl_rl's class-name based runner factory."""
     import rsl_rl.runners.on_policy_runner as runner_module
 
     runner_module.BoundedStdActorCritic = BoundedStdActorCritic
+    runner_module.BoundedStdActorCriticRecurrent = BoundedStdActorCriticRecurrent

@@ -24,11 +24,16 @@ from whole_body_tracking.utils.adamw_ppo import (
 )
 from whole_body_tracking.utils.bounded_actor_critic import (
     RslRlBoundedStdActorCriticCfg,
+    RslRlBoundedStdActorCriticRecurrentCfg,
     register_with_rsl_rl_runner as register_bounded_actor_critic,
 )
 from whole_body_tracking.utils.projection_ppo import (
     RslRlProjectionPpoAlgorithmCfg,
     register_with_rsl_rl_runner as register_projection_ppo,
+)
+from whole_body_tracking.utils.recurrent_projection_ppo import (
+    RslRlRecurrentProjectionPpoAlgorithmCfg,
+    register_with_rsl_rl_runner as register_recurrent_projection_ppo,
 )
 
 
@@ -38,6 +43,7 @@ from whole_body_tracking.utils.projection_ppo import (
 register_bounded_actor_critic()
 register_adamw_ppo()
 register_projection_ppo()
+register_recurrent_projection_ppo()
 
 
 def find_ppo_yaml() -> str | None:
@@ -140,10 +146,17 @@ def runner_kwargs(params: dict, experiment_name: str) -> dict:
     else:
         algorithm_cfg = RslRlPpoAlgorithmCfg(**algorithm_kwargs)
 
+    recurrent = bool(p.get("recurrent", False))
+    if recurrent and not bool(a.get("projection_aux_enabled", False)):
+        raise ValueError("stationary GRU requires the baseline projection auxiliary")
     if bool(a.get("projection_aux_enabled", False)):
         if str(a.get("optimizer", "adam")).lower() != "adam":
             raise ValueError("ProjectionPPO currently requires optimizer=adam")
-        algorithm_cfg = RslRlProjectionPpoAlgorithmCfg(
+        projection_cfg = (
+            RslRlRecurrentProjectionPpoAlgorithmCfg if recurrent
+            else RslRlProjectionPpoAlgorithmCfg
+        )
+        algorithm_cfg = projection_cfg(
             projection_aux_enabled=True,
             projection_aux_lambda=float(a["projection_aux_lambda"]),
             projection_aux_lambda_max=float(a["projection_aux_lambda_max"]),
@@ -167,7 +180,26 @@ def runner_kwargs(params: dict, experiment_name: str) -> dict:
             "policy.min_noise_std and policy.max_noise_std must either both be "
             "present (bounded actor) or both be absent (legacy ActorCritic)"
         )
-    if has_min_noise:
+    if recurrent:
+        if not has_min_noise:
+            raise ValueError("stationary GRU requires the baseline's bounded action std")
+        rnn_type = str(p.get("rnn_type", "gru")).lower()
+        if rnn_type != "gru":
+            raise ValueError("stationary recurrent policy requires GRU")
+        hidden_dim = int(p["rnn_hidden_dim"])
+        num_layers = int(p.get("rnn_num_layers", 1))
+        if hidden_dim <= 0 or num_layers <= 0:
+            raise ValueError("GRU hidden dimension and layer count must be positive")
+        policy_cfg = RslRlBoundedStdActorCriticRecurrentCfg(
+            rnn_type=rnn_type,
+            rnn_hidden_dim=hidden_dim,
+            rnn_num_layers=num_layers,
+            min_noise_std=float(p["min_noise_std"]),
+            max_noise_std=float(p["max_noise_std"]),
+            entropy_action_transform=str(p.get("entropy_action_transform", "identity")),
+            **common_policy_kwargs,
+        )
+    elif has_min_noise:
         policy_cfg = RslRlBoundedStdActorCriticCfg(
             min_noise_std=float(p["min_noise_std"]),
             max_noise_std=float(p["max_noise_std"]),

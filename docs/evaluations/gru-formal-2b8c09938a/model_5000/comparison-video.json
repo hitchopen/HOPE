@@ -1,0 +1,28 @@
+{
+  "style": {
+    "width": 800,
+    "height": 500,
+    "fps": 20,
+    "playback_speed": 1,
+    "camera_lookat": [
+      1.35,
+      0,
+      0.85
+    ],
+    "camera_distance": 6.2,
+    "camera_azimuth": 115,
+    "camera_elevation": -24,
+    "reference_color": "purple dashed",
+    "actual_colors": "orange before contact; cyan after contact",
+    "version": 1
+  },
+  "frames": 3070,
+  "duration_s": 153.5,
+  "first_serve_video_s": 20.0,
+  "first_serve_sim_s": 19.999999999999662,
+  "initial_idle_preserved": true,
+  "checkpoint_iteration": 5000,
+  "onnx_sha256": "fce08d2d15360d2f5010b0c8134d3556a9a4739a9f089ce67e5be71987ea0a45",
+  "video_sha256": "07ac62340de709f1addd8a5eba4312e5f75cf2e98f1175ee36ab2eeb6fb0aa8b",
+  "semantics": "Recorded actual states + recorded-command planner reference, rendered offline; no new actor/physics scoring."
+}

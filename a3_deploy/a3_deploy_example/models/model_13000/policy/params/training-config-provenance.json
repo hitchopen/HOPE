@@ -1,0 +1,9 @@
+{
+  "original_training_config_sha256": {
+    "env.yaml": "a9d28f88d1f98130f10b7de1979e9941330d1a1a1ab58041c77f5498ba2ccc90",
+    "agent.yaml": "770dbc5f9ccba22c0957b0afc14178da8a3e45eafd3a66f9ee1596e30215a015",
+    "task_resolved.yaml": "5fcbf22da9b99edb9919f28faca3f887c6901e9deb106a8683f10f5e54006ada"
+  },
+  "full_training_params_retained_locally": true,
+  "why_not_published": "Only runtime fields are required. Original training YAML includes workstation paths and logging configuration; immutable original hashes are retained."
+}

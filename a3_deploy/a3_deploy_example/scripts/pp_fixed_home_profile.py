@@ -2,6 +2,17 @@
 import math
 
 
+def inspected_plane_check(inspection, observed):
+    """Match the actual Runner planes to its strict inspection, at 1 micrometre.
+
+    This selects no new target and grants no extra tolerance. The legacy
+    model21800 checker remains independently fixed at 0.580 m.
+    """
+    _, expected = planner_profile(inspection)
+    return expected, bool(observed is not None and all(
+        abs(observed.get(side, float('nan')) - expected) <= 1e-6 for side in ('fh','bh')))
+
+
 def planner_profile(inspection, home_topic='/hope/runner/session_home_hdu_flat'):
     if (inspection.get('station_contract') != 'fixed_session_anchor_v1'
             or inspection.get('policy_abi') != 'ball_clock_110_v1'):

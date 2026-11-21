@@ -1,0 +1,11 @@
+{
+  "historical_source_inputs_sha256": "2d076b3129aed94264f5318745602cea5d8793e0afd0674c4f15eb8c29078c73",
+  "changed_paths": [
+    "hope_training/whole_body_tracking/scripts/export_recurrent_mujoco.py",
+    "hope_training/whole_body_tracking/scripts/compare_planner_ball.py",
+    "hope_training/whole_body_tracking/tests/test_ppq004_preflight_gate.py",
+    "hope_training/whole_body_tracking/scripts/verify_recurrent_bundle_weights.py"
+  ],
+  "reason": "Portable metadata/path handling and local test-fixture configuration; no actor weights or scored physics/observation/action/lifecycle settings changed",
+  "old_videos_not_generated_by_publication_commit": true
+}

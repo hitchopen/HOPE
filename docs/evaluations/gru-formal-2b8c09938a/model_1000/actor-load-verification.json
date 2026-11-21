@@ -1,0 +1,52 @@
+{
+  "result": "PASS",
+  "iteration": 1000,
+  "checkpoint_sha256": "6617447199c885e1242d332504c5a94bfc75294b9cf1f4d84f55d0ac110fde54",
+  "onnx_sha256": "fedb5f3739d97c9d94d0d274ab792669cffa29f7b314c12c8e4b7f5844e8445c",
+  "actor_parameter_sha256": "0e45b738b9dbf96a0a87dfd295db3dc47e3cc4b7024ca6040200e09ca7cdd0f8",
+  "loaded_initializers": {
+    "actor.0.bias": [
+      "actor.0.bias"
+    ],
+    "actor.0.weight": [
+      "actor.0.weight"
+    ],
+    "actor.2.bias": [
+      "actor.2.bias"
+    ],
+    "actor.2.weight": [
+      "actor.2.weight"
+    ],
+    "actor.4.bias": [
+      "actor.4.bias"
+    ],
+    "actor.4.weight": [
+      "actor.4.weight"
+    ],
+    "actor.6.bias": [
+      "actor.6.bias"
+    ],
+    "actor.6.weight": [
+      "actor.6.weight"
+    ]
+  },
+  "gru_weights_and_bias_match": true,
+  "finite_actor_weights": true,
+  "identical_environment_contract_fields": [
+    "normalization",
+    "normalization_keys",
+    "joint_names",
+    "observation_layout",
+    "hidden_shape",
+    "action",
+    "actuator",
+    "root_default",
+    "physics_dt",
+    "decimation",
+    "control_dt",
+    "task",
+    "motion_cfg",
+    "visual_table",
+    "racket_site"
+  ]
+}

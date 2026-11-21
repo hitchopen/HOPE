@@ -1,6 +1,6 @@
 """Hydra training entry for the HOPE Agibot A3 policy.
 
-Single task, single algo. Build the ``HOPE-HitterPingPong-AgibotA3-v0`` environment (110-D
+Build the ``HOPE-HitterPingPong-AgibotA3-v0`` environment (110-D
 ``hitter_pure`` actor observation, privileged critic, 50 Hz control, ``wrap_teleport: false``), a
 rsl_rl PPO runner, and train. Checkpoints are written locally (periodic every ``save_interval`` and
 a final one). The PPO runner config selects TensorBoard or W&B logging; credentials
@@ -8,14 +8,19 @@ and the team destination are configured outside the repository.
 
 Usage:
     python scripts/train.py task=HOPEPingPong algo=ppo headless=true
+    python scripts/train.py task=HOPEPingPongStationaryRally algo=ppo_stationary_gru headless=true
 
 Override any field on the CLI, e.g.:
     python scripts/train.py task=HOPEPingPong num_envs=2048 max_iterations=20000 seed=1 \
         motion_file=/abs/hope_forehand.npz motion_file_2=/abs/hope_backhand.npz
 
-Tune training by editing cfg/task/HOPEPingPong.yaml and cfg/algo/ppo.yaml.
+The StationaryRally GRU recipe inherits the professor's balanced-hold PPO and
+task settings. It starts from random weights unless full_resume_checkpoint
+points to a compatible schema-v3 checkpoint from the same run.
 """
 
+import hashlib
+import json
 import os
 import pathlib
 import sys
@@ -43,8 +48,6 @@ def _configure_ball_physics(cfg) -> pathlib.Path | None:
     profile = cfg.task.get("ball_physics")
     if profile is None:
         return None
-    import hashlib
-
     path = pathlib.Path(str(profile["path"]))
     if not path.is_absolute():
         path = _repo_root() / path
@@ -100,6 +103,38 @@ def _resolve_motion_sources(cfg) -> list[str]:
                 "(see docs/REPLACE_MOTIONS.md)."
             )
     return resolved
+
+
+def _full_resume_manifest(cfg, num_envs: int, motion_files: list[str]) -> dict:
+    """Bind a stateful GRU checkpoint to the exact task, algorithm, and source."""
+    recipe = OmegaConf.to_container(cfg, resolve=True)
+    for launch_only in ("checkpoint_path", "full_resume_checkpoint", "run_name"):
+        recipe.pop(launch_only, None)
+    root = pathlib.Path(__file__).resolve().parents[1]
+    sources = [
+        pathlib.Path(__file__),
+        *(
+            root / "source/whole_body_tracking/whole_body_tracking/utils" / name
+            for name in (
+                "my_on_policy_runner.py", "ppo_cfg.py", "bounded_actor_critic.py",
+                "projection_ppo.py", "recurrent_projection_ppo.py",
+            )
+        ),
+    ]
+    return {
+        "recipe_sha256": hashlib.sha256(
+            json.dumps(recipe, sort_keys=True, default=str).encode()
+        ).hexdigest(),
+        "num_envs": int(num_envs),
+        "motion_sha256": [
+            hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
+            for path in motion_files
+        ],
+        "source_sha256": {
+            str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in sources
+        },
+    }
 
 
 def _set_dotted(obj, dotted: str, value, applied: list, where: str) -> None:
@@ -310,6 +345,11 @@ def _run(cfg):
 
     # 3) PPO runner cfg from cfg/algo/ppo.yaml.
     algo = OmegaConf.to_container(cfg.algo, resolve=True)
+    recurrent = bool(algo["policy"].get("recurrent", False))
+    if recurrent and cfg.task.get("build_contract", {}).get("reward_revision") != (
+        "actual_complete_hold_v11_stationary_reach_v4"
+    ):
+        raise ValueError("ppo_stationary_gru requires HOPEPingPongStationaryRally")
     from whole_body_tracking.utils.balanced_hold_contract import validate_balanced_hold_algorithm
     from whole_body_tracking.utils.robust_ball_distribution import validate_training_contract
     validate_training_contract(OmegaConf.to_container(cfg.task, resolve=True), algo)
@@ -401,10 +441,26 @@ def _run(cfg):
     distribution_revision = cfg.task.get("build_contract", {}).get("training_distribution_revision")
     runner.checkpoint_resume_context = {"training_recipe_revision": recipe_revision, "reward_revision": reward_revision,
                                         "training_distribution_revision": distribution_revision}
+    if recurrent:
+        runner.checkpoint_resume_manifest = _full_resume_manifest(cfg, num_envs, motion_files)
     ckpt = getattr(cfg, "checkpoint_path", None)
+    full_resume = getattr(cfg, "full_resume_checkpoint", None)
     warm_start = getattr(cfg, "warm_start_actor_checkpoint", None)
-    if ckpt is not None and warm_start is not None:
-        raise ValueError("checkpoint_path and warm_start_actor_checkpoint are mutually exclusive")
+    if sum(value is not None for value in (ckpt, full_resume, warm_start)) > 1:
+        raise ValueError("checkpoint_path, full_resume_checkpoint, and warm_start_actor_checkpoint are mutually exclusive")
+    if recurrent and (ckpt is not None or warm_start is not None):
+        raise ValueError(
+            "stationary GRU starts from random weights; resume only with full_resume_checkpoint "
+            "from the same GRU run"
+        )
+    if full_resume is not None:
+        if not recurrent:
+            raise ValueError("full_resume_checkpoint is reserved for the stationary GRU recipe")
+        resume_path = pathlib.Path(str(full_resume)).resolve()
+        if not resume_path.is_file():
+            raise FileNotFoundError(f"full_resume_checkpoint does not exist: {resume_path}")
+        runner.load_exact(str(resume_path))
+        print(f"[train.py] exact GRU resume from {resume_path}", flush=True)
     if ckpt is not None:
         ckpt = os.path.abspath(str(ckpt))
         if not os.path.isfile(ckpt):

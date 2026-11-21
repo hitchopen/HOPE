@@ -61,6 +61,7 @@ def _resolve_motion_path(value: str) -> str:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--checkpoint", required=True, help="Local checkpoint (.pt) to evaluate.")
+    parser.add_argument("--recipe", help="Resolved training YAML. For GRU, defaults to params/task_resolved.yaml beside the checkpoint.")
     parser.add_argument("--task", default="HOPE-HitterPingPong-AgibotA3-v0", help="Gym task id.")
     parser.add_argument("--num-envs", type=int, default=256, help="Parallel environments.")
     parser.add_argument("--num-steps", type=int, default=4000, help="Policy steps to roll out.")
@@ -69,10 +70,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--json-out", default=None, help="Also write {'success_rate': ...} to this file.")
     parser.add_argument("--experiment-name", default="agibot_a3_hitter_pingpong", help="rsl_rl experiment name.")
     parser.add_argument(
-        "--motion-file", default="hope_training/motions/preprocessed/hope_forehand.npz", help="Forehand clip."
+        "--motion-file", help="Forehand clip. Overrides the saved recipe when supplied."
     )
     parser.add_argument(
-        "--motion-file-2", default="hope_training/motions/preprocessed/hope_backhand.npz", help="Backhand clip."
+        "--motion-file-2", help="Backhand clip. Overrides the saved recipe when supplied."
     )
     return parser.parse_args()
 
@@ -86,10 +87,25 @@ def _first_attr(obj, names):
 
 
 def main() -> int:
+    from omegaconf import OmegaConf
+    from train import _apply_task_overrides, _configure_ball_physics, _resolve_motion_sources
+
     args = parse_args()
     checkpoint = os.path.abspath(args.checkpoint)
     if not os.path.isfile(checkpoint):
         raise FileNotFoundError(f"checkpoint not found: {checkpoint}")
+
+    recipe_path = (
+        pathlib.Path(args.recipe) if args.recipe
+        else pathlib.Path(checkpoint).parent / "params/task_resolved.yaml"
+    )
+    if args.recipe and not recipe_path.is_file():
+        raise FileNotFoundError(f"resolved training recipe does not exist: {recipe_path}")
+    recipe = OmegaConf.load(recipe_path) if recipe_path.is_file() else None
+    if recipe is not None and not args.recipe and not OmegaConf.select(recipe, "algo.policy.recurrent"):
+        recipe = None
+    if recipe is not None:
+        _configure_ball_physics(recipe)
 
     sys.argv = sys.argv[:1]
     from isaaclab.app import AppLauncher
@@ -118,17 +134,29 @@ def main() -> int:
         )
 
         env_cfg = parse_env_cfg(args.task, device=args.device, num_envs=args.num_envs)
-        clips = [_resolve_motion_path(c) for c in (args.motion_file, args.motion_file_2) if c]
+        if recipe is not None:
+            _apply_task_overrides(env_cfg, recipe, [])
+            if args.motion_file is not None:
+                recipe.motion_file = args.motion_file
+            if args.motion_file_2 is not None:
+                recipe.motion_file_2 = args.motion_file_2
+            clips = _resolve_motion_sources(recipe)
+        else:
+            clips = [
+                _resolve_motion_path(args.motion_file or "hope_training/motions/preprocessed/hope_forehand.npz"),
+                _resolve_motion_path(args.motion_file_2 or "hope_training/motions/preprocessed/hope_backhand.npz"),
+            ]
         env_cfg.commands.motion.motion_file = clips if len(clips) > 1 else clips[0]
 
         env = gym.make(args.task, cfg=env_cfg, render_mode=None)
         base_env = env.unwrapped
         env = RslRlVecEnvWrapper(env)
 
-        agent_cfg = RslRlOnPolicyRunnerCfg(**runner_kwargs(load_ppo_params(), args.experiment_name))
+        algo = OmegaConf.to_container(recipe.algo, resolve=True) if recipe is not None else load_ppo_params()
+        agent_cfg = RslRlOnPolicyRunnerCfg(**runner_kwargs(algo, args.experiment_name))
         agent_cfg.device = args.device
         runner = HOPEOnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=args.device)
-        runner.load(checkpoint)
+        runner.load(checkpoint, load_optimizer=False, map_location=args.device)
         policy = runner.get_inference_policy(device=base_env.device)
 
         physics = BallPhysics.from_config()
@@ -188,6 +216,8 @@ def main() -> int:
             with torch.inference_mode():
                 actions = policy(obs)
                 obs, _, dones, _ = env.step(actions)
+                if runner.alg.policy.is_recurrent:
+                    runner.alg.policy.reset(dones)
             target_pos, racket_pos, racket_vel, tts, swing = read_state()
             # A strike happens when the reference clock crosses the strike frame (tts: >0 -> <=0).
             # Environments that RESET this step are excluded: a time-out/fall reset re-seeds the

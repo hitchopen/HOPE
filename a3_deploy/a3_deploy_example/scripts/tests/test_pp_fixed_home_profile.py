@@ -3,7 +3,7 @@ import sys
 import unittest
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from pp_fixed_home_profile import planner_profile
+from pp_fixed_home_profile import planner_profile, inspected_plane_check
 
 class FixedHomeProfileTest(unittest.TestCase):
     def setUp(self):
@@ -28,4 +28,9 @@ class FixedHomeProfileTest(unittest.TestCase):
         a,x=planner_profile(self.receipt, '/hope/runner/session_home_flat')
         self.assertEqual(a['hope_planner']['ros__parameters']['session_home_input_topic'], '/hope/runner/session_home_flat')
         self.assertAlmostEqual(x,.57)
+    def test_inspected_plane_check_rejects_legacy_plane_and_missing_geometry(self):
+        expected, passed = inspected_plane_check(self.receipt, {'fh':.57,'bh':.57})
+        self.assertAlmostEqual(expected,.57);self.assertTrue(passed)
+        for wrong in (None, {'fh':.58,'bh':.58}, {'fh':.57,'bh':.58}, {'fh':float('nan'),'bh':.57}):
+            self.assertFalse(inspected_plane_check(self.receipt, wrong)[1])
 if __name__=='__main__':unittest.main()

@@ -1,0 +1,86 @@
+{
+  "run_id": "gru-formal-2b8c09938a",
+  "checkpoint_iteration": 29999,
+  "checkpoint_sha256": "6e671c56d1de5ead2a7553f489bf346bb372957d87f0bcc30854e2931e472c88",
+  "onnx_sha256": "c361831725a4fd42661a7b6f46c738000120e248bae06e28f9e05195da3e96d3",
+  "publication_code_commit": "a22dcf3fd1609806dffa45040bfe1c5ec4dad904",
+  "historical_video_provenance": "docs/evaluations/gru-formal-2b8c09938a/historical-evaluated-source-hashes.json",
+  "files": {
+    "README.md": {
+      "sha256": "ce6d397854c84aff3a203e9db85ba335145ea557e059b0e798dc7e349b6c6a55",
+      "bytes": 7789
+    },
+    "policy/exported/requirements-runtime.txt": {
+      "sha256": "6a8e085d8000d14115f055fcb3bc5683e43293ed7ed43562f866ec2a70b3bdfa",
+      "bytes": 33
+    },
+    "policy/exported/actor.onnx": {
+      "sha256": "c361831725a4fd42661a7b6f46c738000120e248bae06e28f9e05195da3e96d3",
+      "bytes": 1195533
+    },
+    "policy/exported/actor-load-verification.json": {
+      "sha256": "243e66f64f03a6b65e8d5baa2fb0006dcd1bbd0a0e2f4e22c9b28fba8940fbf3",
+      "bytes": 1168
+    },
+    "policy/exported/manifest.json": {
+      "sha256": "cce96636d113dd40587ae88b1c6f4d6f1f2a9583677e61dc19745a945d5ecb35",
+      "bytes": 52039
+    },
+    "policy/exported/requirements-mujoco.txt": {
+      "sha256": "cc4e17e8742f1808cbd2130c796704f4661ce66a89392a32b93216e8cfb26f40",
+      "bytes": 57
+    },
+    "policy/exported/verify.py": {
+      "sha256": "13394c1db00326a7e5c845b7a4f51ff7255f48363af700461fd98d42d91eb0f1",
+      "bytes": 944
+    },
+    "policy/exported/parity_vectors.npz": {
+      "sha256": "78dd445bf40331eef84e90ba287c361d710b73a48f023fa72cbb75a07a49aa6f",
+      "bytes": 65952
+    },
+    "policy/params/ball_physics_ppq004_training.yaml": {
+      "sha256": "df55e82102e0d5624732ea7ea03f6d98053f45d7f036367e3df3551a1c88a6f9",
+      "bytes": 1514
+    },
+    "policy/params/fixed-home-100.yaml": {
+      "sha256": "8254d6ff1024a163b19b28baa1d59ed6cbff9081bc8501076ac7202919503dfb",
+      "bytes": 1922
+    },
+    "policy/params/ball_physics_fallback.yaml": {
+      "sha256": "415c17116b73c2985a3be78be06cedce4788def1ccc388c7979235b3a3cae5e7",
+      "bytes": 6556
+    },
+    "policy/params/planner-parameters.json": {
+      "sha256": "ee00cca700d9dffe13fb867910d09c91043b2ec8400ccdf3feb0966c541b3488",
+      "bytes": 1946
+    },
+    "policy/params/training-config-provenance.json": {
+      "sha256": "bb3d842c3cd72f244345ff356f8e17d01bee67f01dcb303f8c0f0c01581633b1",
+      "bytes": 536
+    },
+    "policy/params/runtime.json": {
+      "sha256": "1747c3648c02470e2b3a97aafcc508601130bcd128a5070c1cda7d8329336bd3",
+      "bytes": 45974
+    },
+    "policy/exported/runtime/__init__.py": {
+      "sha256": "19609ecc957c5a4e09252ae8916fe206e566c60cc49d09c96750b3ec8752a8fc",
+      "bytes": 116
+    },
+    "policy/exported/runtime/joint_order.py": {
+      "sha256": "f78df7e87067c31a9a31ab3231a673086ac0537ae718a6b9bdf89a19fa31e7f1",
+      "bytes": 2304
+    },
+    "policy/exported/runtime/observation.py": {
+      "sha256": "7925a4e04abad67c50f17b76c17e7b7fa1e57c2db4787cd19b80126b372bf89e",
+      "bytes": 5118
+    },
+    "policy/exported/runtime/quaternion.py": {
+      "sha256": "eb3e417b06c056b50e0c13c38e7a7bc1a1c000229fc4b1632fff18fbf212ccc1",
+      "bytes": 2668
+    },
+    "policy/exported/runtime/recurrent_policy.py": {
+      "sha256": "4d46f20329d99b01db8fb62860d275cd9fb08b7487c0421063670bc2f2e05033",
+      "bytes": 2050
+    }
+  }
+}

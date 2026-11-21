@@ -41,6 +41,11 @@ def export_motion_policy_as_onnx(
     filename="policy.onnx",
     verbose=False,
 ):
+    if getattr(actor_critic, "is_recurrent", False):
+        raise RuntimeError(
+            "Periodic A3 ONNX export is stateless; disable it for GRU until the "
+            "deployment runner handles explicit recurrent state."
+        )
     if not os.path.exists(path):
         os.makedirs(path, exist_ok=True)
     policy_exporter = _OnnxMotionPolicyExporter(env, actor_critic, normalizer, verbose)

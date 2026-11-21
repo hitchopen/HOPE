@@ -554,6 +554,8 @@ def main() -> int:
     parser.add_argument("--max-ctrl-step-peak-ratio", type=float, default=0.20)
     parser.add_argument("--max-ctrl-saturation-fraction", type=float, default=0.0)
     parser.add_argument("--ctrl-reversal-step-epsilon-ratio", type=float, default=0.005)
+    from pp_gate3_plant_contracts import add_cli, evaluate
+    add_cli(parser)
     args = parser.parse_args()
     limits = SmoothnessLimits(
         min_idle_s=args.min_idle_s,
@@ -572,6 +574,7 @@ def main() -> int:
     )
     try:
         report = build_report(args.plant, args.runner_trace, limits, args.ball_log)
+        report.update(evaluate(args))
     except (OSError, ValueError) as exc:
         print(f"[plant-report] FAIL: {exc}")
         return 2
@@ -619,6 +622,10 @@ def main() -> int:
           f"[{p['base_z_min_m']:.3f},{p['base_z_max_m']:.3f}]m "
           f"tilt_peak={p['base_tilt_peak_deg']:.1f}deg")
     print(f"[plant-report] JSON: {args.json}")
+    for name in report.get('required_contracts', []):
+        print(f"[plant-report] {name}: {'PASS' if report[name]['pass'] else 'FAIL'} {report[name].get('failures', [])}")
+    if not report.get('extended_checks_pass', True):
+        return 1
     if args.require_idle_smoothness and not idle["pass"]:
         return 1
     return 0

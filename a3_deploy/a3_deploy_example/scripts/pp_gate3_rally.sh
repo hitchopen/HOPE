@@ -355,6 +355,13 @@ gate3_cleanup() {
     echo "[g3r] flight evidence incomplete (rc=$drain_rc); cleaning up failed run"
     python3 "$SCRIPT_DIR/pp_gate3_drain_flights.py" --finalize-report /tmp/pp_rally_report.json
   fi
+  if [ -n "${PP_PLANNER_PID_FILE:-}" ] && [ -n "${PLANNER_OWNED_PID:-}" ]; then
+    local planner_alive=false planner_state=""
+    planner_state="$(awk '{print $3}' "/proc/$PLANNER_OWNED_PID/stat" 2>/dev/null)"
+    if kill -0 "$PLANNER_OWNED_PID" 2>/dev/null && [ -n "$planner_state" ] && [ "$planner_state" != "Z" ]; then planner_alive=true; fi
+    printf '{"pid":%s,"alive":%s}\n' "$PLANNER_OWNED_PID" "$planner_alive" > "$PP_PLANNER_PID_FILE.monitor-complete.tmp"
+    mv -- "$PP_PLANNER_PID_FILE.monitor-complete.tmp" "$PP_PLANNER_PID_FILE.monitor-complete.json"
+  fi
   if [ "${PP_MANAGED_RUN:-0}" = "1" ]; then
     # Only process groups recorded by this run; never pkill another session.
     if [ -f "$PP_CHILD_PIDS_FILE" ]; then
@@ -579,6 +586,11 @@ setsid bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; source $WS/install
   $QUESTION_FIXTURE_ARGS \
   -p debug_csv_path:=$PLANNER_DEBUG_CSV \
   -p debug_session_id:=${PP_GATE3_SCENARIO}_gate3" >/tmp/pp_planner.log 2>&1 &
+  PLANNER_OWNED_PID=$!
+  if [ -n "${PP_PLANNER_PID_FILE:-}" ]; then
+    printf '%s\n' "$PLANNER_OWNED_PID" > "$PP_PLANNER_PID_FILE.tmp"
+    mv -- "$PP_PLANNER_PID_FILE.tmp" "$PP_PLANNER_PID_FILE"
+  fi
   if [ -n "${PP_CHILD_PIDS_FILE:-}" ]; then printf '%s\n' "$!" >> "$PP_CHILD_PIDS_FILE"; fi
 
 echo "[g3r] 1 kHz MuJoCo contact edges + 250 Hz loss-detectable landing telemetry"
@@ -626,6 +638,10 @@ timeout 5 bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; ros2 topic hz /
 timeout 5 bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; ros2 topic hz /UCB_P1/pose 2>&1 | head -2" | tail -1
 timeout 5 bash -c "source /opt/ros/jazzy/setup.bash 2>/dev/null; source '$SIM_INSTALL/share/mujoco_sim_msgs/local_setup.bash' 2>/dev/null; ros2 topic hz /sim/gate3/ball_state 2>&1 | head -2" | tail -1
 
+if ! kill -0 "$PLANNER_OWNED_PID" 2>/dev/null; then
+  echo "[g3r] INFRASTRUCTURE FAIL: this run's Planner exited; see pp_planner.log"
+  exit 2
+fi
 echo "[g3r] prewarm ros2 pub discovery (straggler-reset-in-MOTION trap)"
 RESET_PREWARM_OK=0
 : >/tmp/pp_reset_prewarm.log
@@ -846,10 +862,14 @@ esac
 if [ "$REPORT_MODE" = "__invalid__" ]; then
   REPORT_RC=2
 else
+  FIXED_HOME_REPORT_ARGS=()
+  if [ "${PP_GATE3_PROFILE:-}" = "stationary_fixed_home_v1" ]; then
+    FIXED_HOME_REPORT_ARGS+=(--policy-inspection "$PP_FIXED_HOME_INSPECTION")
+  fi
   python3 "$GEAR/scripts/pp_rally_report.py" \
     /tmp/pp_obs.csv /tmp/pp_rally_report.json \
     --mode "$REPORT_MODE" --runner-log /tmp/pp_runner.log --runner-cwd "$DIST" \
-    --runner-trace /tmp/pp_runner_trace.csv
+    --runner-trace /tmp/pp_runner_trace.csv "${FIXED_HOME_REPORT_ARGS[@]}"
   REPORT_RC=$?
 fi
 if [ "$REPORT_RC" -eq 2 ]; then

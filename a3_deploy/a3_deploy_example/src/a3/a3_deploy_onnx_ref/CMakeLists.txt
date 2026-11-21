@@ -1180,3 +1180,12 @@ set_target_properties(
              CXX_STANDARD 20
              CXX_STANDARD_REQUIRED ON
              CXX_EXTENSIONS OFF)
+
+# Bounded native model19000 verification: same production policy/state code, no RobotIO initialization.
+add_executable(model19000_native_parity EXCLUDE_FROM_ALL
+  ${PROJECT_SOURCE_DIR}/models/model_19000_native_v2/native_parity.cpp)
+target_compile_definitions(model19000_native_parity PRIVATE HOPE_VERIFY_FULL_POLICY=1)
+target_include_directories(model19000_native_parity PRIVATE ${EXE_INCLUDES})
+target_link_libraries(model19000_native_parity PRIVATE yaml-cpp onnxruntime::onnxruntime ${EXE_LIBS})
+set_target_properties(model19000_native_parity PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${GS_RUNTIME_OUTPUT_DIR}" CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)

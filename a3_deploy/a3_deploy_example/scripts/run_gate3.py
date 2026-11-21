@@ -141,6 +141,8 @@ def parser():
     p.add_argument("--output", help="new result directory; generated automatically by default")
     p.add_argument("--runtime", help="one-time environment config override")
     p.add_argument("--check", action="store_true", help="load the actual Runner policy, print resolved run; do not start simulation")
+    p.add_argument("--integration-preflight", action="store_true",
+                   help="unscored standard 26-ball reference sequence; never a certification run")
     p.add_argument("--dry-run", action="store_true", help="alias for --check")
     p.add_argument("--configure", action="store_true", help="save installed environment paths once")
     p.add_argument("--runner-dist")
@@ -178,6 +180,21 @@ def wait_for_engine(process, out, started, *, cleanup_grace_s=10.0):
             return process.wait(timeout=1)
         except subprocess.TimeoutExpired:
             pass
+        planner_pid = out / "planner.pid"
+        monitor_done = out / 'planner.pid.monitor-complete.json'
+        monitoring_complete = monitor_done.exists() and json.loads(monitor_done.read_text()).get('alive') is True
+        if planner_pid.exists() and not monitoring_complete:
+            try:
+                pid = int(planner_pid.read_text().strip())
+                state = Path(f"/proc/{pid}/stat").read_text().rsplit(')', 1)[1].split()[0]
+                if state == 'Z':
+                    raise ProcessLookupError('Planner is a zombie')
+                os.kill(pid, 0)
+            except (OSError, ValueError) as exc:
+                write_json(out / 'infrastructure_failure.json', {
+                    'component': 'planner', 'reason': 'owned Planner exited during run', 'detail': str(exc)})
+                stop_engine_preserving_flights(process, out)
+                return 2
         try:
             drain = json.loads((out / "pp_gate3_drain_report.json").read_text())
         except (OSError, ValueError):
@@ -193,6 +210,22 @@ def wait_for_engine(process, out, started, *, cleanup_grace_s=10.0):
             print(f"Gate3 running/cleaning up ({int(time.time() - started)}s); "
                   f"{out / 'console.log'}", flush=True)
             next_notice = time.monotonic() + 30.0
+
+
+def stop_engine_preserving_flights(process, out):
+    """Let the managed shell stop new launches and drain before owned teardown."""
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    try:
+        # The shell trap invokes pp_gate3_drain_flights (stop-launches marker),
+        # retaining the separately scoped simulator/recorder until resolution.
+        process.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        write_json(out / 'cleanup_failure.json', {
+            'reason': 'managed flight drain/cleanup exceeded 30s after Planner failure'})
+        stop_owned_processes(process, out)
 
 
 def archive_results(out, started, source_dir=Path("/tmp")):
@@ -270,6 +303,14 @@ def execute(args):
     scene_path = scene_path.resolve()
     scene = yaml.safe_load(scene_path.read_text())
     scene_env = scene_environment(scene, args.balls)
+    if args.integration_preflight:
+        if args.balls is not None:
+            raise ValueError('--integration-preflight cannot override --balls')
+        standard = (CONFIG / 'scenarios/fixed-home.yaml').resolve()
+        if scene_path != standard or scene['balls'] != 26:
+            raise ValueError('--integration-preflight requires the standard fixed-home.yaml 26-ball sequence')
+        # Use the supported scene verbatim, including six clean shots, rapid
+        # cycle, initial idle and final tail. Do not override count or limits.
     out = resolve_path(args.output, Path.cwd()) if args.output else GEAR / "gate3/runs" / dt.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     out.mkdir(parents=True, exist_ok=False)
     policy = out / "policy"
@@ -290,6 +331,11 @@ def execute(args):
         physics_path = Path(cfg["hope_ws"]) / "src/hope_planner_cpp/config/ball_physics_ppq004_20261020.yaml"
         physics = yaml.safe_load(physics_path.read_text())
         physics["hope_planner"]["ros__parameters"].update(support["hope_planner"]["ros__parameters"])
+        # A new, isolated simulation session uses the documented Planner default
+        # identity namespace (Schema2Packer starts at 0). The reference scorer joins
+        # wire flight IDs 1..N to physical shot IDs 1..N. Hardware's persistent IDs
+        # are a different contract and must never be opened/reset/deleted by Gate3.
+        physics['hope_planner']['ros__parameters']['wire_identity_state_file'] = ''
         profile_path = out / "fixed_home_ppq004.yaml"
         profile_path.write_text(yaml.safe_dump(physics))
         scene_env.update({
@@ -317,8 +363,10 @@ def execute(args):
         "PP_MANAGED_RUN": "1", "PP_CHILD_PIDS_FILE": str(out / "child_pids.txt"),
         "A3_IOX_ROUDI_PID_FILE": str(out / "roudi.pid"),
         "PP_DRAIN_REPORT_JSON": str(out / "pp_gate3_drain_report.json"),
+        "PP_PLANNER_PID_FILE": str(out / "planner.pid"),
     })
     receipt = {"status": "prepared", "evidence_scope": "simulator_truth", "output": str(out),
+               "evaluation_kind": "integration_preflight_not_certification" if args.integration_preflight else "formal_gate3",
                "runtime": cfg, "policy": inspection, "scene": scene,
                "resolved_scene_environment": scene_env,
                "policy_sha256": digest(policy / "exported/policy.onnx"),
@@ -326,7 +374,8 @@ def execute(args):
                "runner_sha256": digest(dist / "a3_deploy_onnx_ref_pingpong"),
                "scene_sha256": digest(out / "scene.yaml")}
     write_json(out / "run.json", receipt)
-    print(f"Gate3: {inspection['policy_abi']}, {scene_env['PP_SERVES']} balls, scene={scene_path.name}", flush=True)
+    label = 'Integration preflight (not certification)' if args.integration_preflight else 'Gate3'
+    print(f"{label}: {inspection['policy_abi']}, {scene_env['PP_SERVES']} balls, scene={scene_path.name}", flush=True)
     print(f"Results: {out}", flush=True)
     if args.check or args.dry_run:
         print("POLICY_CHECK_PASS (no simulation or transport started)")
@@ -373,7 +422,14 @@ def execute(args):
         finally:
             # Include diagnostics on failed setup/early falls as well as success.
             archive_errors = archive_results(out, started)
+        monitor_done = out / 'planner.pid.monitor-complete.json'
+        if monitor_done.exists() and json.loads(monitor_done.read_text()).get('alive') is not True:
+            receipt['runtime_error'] = 'Planner did not remain alive through flight draining'
+            rc = 2
         rc = finish_run(out, receipt, rc, started, archive_errors)
+        if args.integration_preflight:
+            receipt['certification_pass'] = False
+            write_json(out / 'run.json', receipt)
         print(f"Gate3 exited {rc}; logs and reports: {out}")
         return rc
 

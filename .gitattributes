@@ -8,6 +8,9 @@ agibot/mocap_sticker_shell_v3/motive_asset/source/A3.motive -text whitespace=bla
 # Generated documents. Review rendered output instead of binary internals.
 *.pdf binary
 
+# The PPQ004 stationary task checks the byte hash of this profile.
+configs/ball_physics_ppq004_training.yaml text eol=lf
+
 # Distributable PyTorch model assets. Store binary payloads in Git LFS.
 *.pt filter=lfs diff=lfs merge=lfs -text
 
@@ -24,3 +27,10 @@ a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_serve025_edg
 # Annotated bundles retain the original CRLF table followed by generated LF segments.
 a3_deploy/a3_deploy_example/assets/a3_runtime/serve/archive/*.csv -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 a3_deploy/a3_deploy_example/assets/a3_runtime/serve/motions/a3p_op3_serve025_v2*_model14600.csv -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+
+# Small original GRU diagnostic videos and actor use ordinary Git, like model21800.
+a3_deploy/a3_deploy_example/models/model_29999/policy/exported/actor.onnx binary
+a3_deploy/a3_deploy_example/models/model_29999/*.zip binary
+docs/assets/gru-formal-2b8c09938a/*.mp4 binary linguist-generated=true
+# Archived per-ball CSV evidence keeps its original CRLF bytes and hashes.
+docs/evaluations/gru-formal-2b8c09938a/model_*/per-ball.csv -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
