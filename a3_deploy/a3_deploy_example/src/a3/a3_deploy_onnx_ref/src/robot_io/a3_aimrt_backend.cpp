@@ -506,6 +506,13 @@ bool A3AimrtBackend::RegisterPubSub_() {
           [this](const std::shared_ptr<const std_msgs::msg::Float64MultiArray>& msg) {
             if (msg && locomotion_input_cb_) locomotion_input_cb_(msg->data);
           })) throw std::runtime_error("subscribe teleop input failed");
+      auto dock_pub = ch.GetPublisher("/hope/runner/dock_state_flat");
+      if (!aimrt::channel::RegisterPublishType<std_msgs::msg::Float64MultiArray>(dock_pub))
+        throw std::runtime_error("register dock state publish failed");
+      auto dock_proxy = std::make_shared<aimrt::channel::PublisherProxy<std_msgs::msg::Float64MultiArray>>(dock_pub);
+      dock_state_publish_fn_ = [dock_proxy](const std::vector<double>& values) {
+        std_msgs::msg::Float64MultiArray message; message.data = values; dock_proxy->Publish(message);
+      };
     }
 
     // ---- Subscribers ----
@@ -863,6 +870,11 @@ bool A3AimrtBackend::PublishLocomotionState(const std::vector<double>& values) {
   std::lock_guard<std::mutex> lock(runner_state_publish_mutex_);
   if (!started_.load(std::memory_order_acquire) || !locomotion_state_publish_fn_) return false;
   locomotion_state_publish_fn_(values); return true;
+}
+bool A3AimrtBackend::PublishDockState(const std::vector<double>& values) {
+  std::lock_guard<std::mutex> lock(runner_state_publish_mutex_);
+  if (!started_.load(std::memory_order_acquire) || !dock_state_publish_fn_) return false;
+  dock_state_publish_fn_(values); return true;
 }
 
 void A3AimrtBackend::OnSyncState_(const RobotState& state) {

@@ -110,6 +110,12 @@ static_peer_list_contains() {
 }
 
 parse_common() {
+  AUTO_DOCK=off
+  if [[ $# == 10 || $# == 15 ]]; then
+    AUTO_DOCK="${@: -1}"
+    set -- "${@:1:$#-1}"
+  fi
+  [[ "$AUTO_DOCK" == off || "$AUTO_DOCK" == on ]] || return 1
   [[ "$#" == 6 || "$#" == 8 || "$#" == 9 || "$#" == 14 ]] || return 1
   SESSION_ID="$1"
   LAPTOP_WIFI_IP="$2"
@@ -977,6 +983,13 @@ preflight_mdu() {
   local -a validation_args=(--validate-serve-timeline "$validation_csv"
     --validate-serve-stand --policy-dir "$MDU_DEPLOY/policy")
   [[ "$FIELD_MODE" != KERNEL ]] || validation_args+=(--kernel-mode)
+  if [[ "$AUTO_DOCK" == on ]]; then
+    [[ -s "$MDU_DEPLOY/dock/dock.yaml" ]] || die PREFLIGHT DOCK_CONFIG_MISSING
+    [[ -s "$MDU_DEPLOY/teleop_humanlike/policy.onnx" ]] || die PREFLIGHT DOCK_TELEOP_ASSET_MISSING
+    grep -aFq -- '--auto-dock' "$MDU_DEPLOY/a3_deploy_onnx_ref_pingpong" || \
+      die PREFLIGHT DOCK_RUNNER_UPDATE_REQUIRED
+    validation_args+=(--auto-dock --dock-config "$MDU_DEPLOY/dock/dock.yaml")
+  fi
   local validation_output
   validation_output="$(
     set +u
@@ -1436,6 +1449,12 @@ run_runner() {
       sha256sum "$PWD/teleop_humanlike/$teleop_asset" >> "$session_dir/artifact_sha256.txt"
     done
     field_runner_args+=(--teleop-policy-dir "$PWD/teleop_humanlike")
+  fi
+  if [[ "$AUTO_DOCK" == on ]]; then
+    [[ -s "$PWD/dock/dock.yaml" ]] || die RUNNER DOCK_CONFIG_MISSING
+    [[ -d "$PWD/teleop_humanlike" ]] || die RUNNER DOCK_TELEOP_ASSET_MISSING
+    sha256sum "$PWD/dock/dock.yaml" >> "$session_dir/artifact_sha256.txt"
+    field_runner_args+=(--auto-dock --dock-config "$PWD/dock/dock.yaml")
   fi
   printf 'mode=%s\ncsv_sha256=%s\ngripper_profile=%s\n' "$FIELD_MODE" "$SERVE_CSV_SHA" "$GRIPPER_PROFILE" > "$session_dir/field_selection.txt"
   if [[ "${#serve_runner_args[@]}" -gt 0 ]]; then

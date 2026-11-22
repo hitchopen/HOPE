@@ -68,6 +68,8 @@ aimrt:
                 durability: volatile
             - topic_name: "/hope/runner/teleop_state_flat"
               qos: *runner_control_qos
+            - topic_name: "/hope/runner/dock_state_flat"
+              qos: *runner_control_qos
             - topic_name: "/hope/runner/mocap_safety_flat"
               qos: *runner_control_qos
             - topic_name: "/hope/runner/operator_challenge_flat"
@@ -111,6 +113,8 @@ aimrt:
     # Body-drive state+command stay iceoryx. Runner state is telemetry over ROS2.
     pub_topics_options:
       - topic_name: "/hope/runner/teleop_state_flat"
+        enable_backends: [ros2]
+      - topic_name: "/hope/runner/dock_state_flat"
         enable_backends: [ros2]
       - topic_name: "/hope/runner/session_home_flat"
         enable_backends: [ros2]

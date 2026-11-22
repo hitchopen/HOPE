@@ -81,6 +81,7 @@ The current proxy action codes are (wire code 6 remains keyboard-only
 | 10 | `OPEN_GRIPPER` |
 | 12 | `CONFIRM_GRIP_SECURE` |
 | 13 | `ENTER_TELEOP` |
+| 14 | `ENTER_DOCK` |
 
 State schema 2 contains exactly 21 doubles:
 
@@ -114,6 +115,7 @@ actions include:
 /hope/runner/enter_motion
 /hope/runner/emergency_passive
 /hope/runner/enter_teleop
+/hope/runner/enter_dock
 /hope/runner/prepare_serve
 /hope/runner/confirm_ball_loaded
 /hope/runner/confirm_grip_secure
@@ -126,6 +128,8 @@ actions include:
 All services use `std_srvs/Trigger`. The proxy generates a request id, sends
 one fixed action, then waits for a Runner state whose `last_action_id` matches.
 It never optimistically changes displayed state.
+
+`run_mode` value 7 is `DOCK`. Dock does not extend the 21-field state. Its telemetry is `/hope/runner/dock_state_flat`, relayed unchanged to `/hope/runner/dock_state_hdu_flat`. Schema 1 is 15 doubles: schema, boot, phase, attempt, world-frame error x/y/yaw, distance, elapsed seconds, result, reason, target x/y/yaw, and pose age. `ENTER_DOCK` is accepted from `PD_STAND` when Auto-dock is loaded, the base pose is fresh, and the start is within `dock.yaml`. `ENTER_PD_STAND` during `DOCK` is `DOCK_STOP_REQUESTED` and settles back to Stand.
 
 Client topic publishing, parameter access, wildcard services, shell, argv,
 paths, PIDs, signals, arbitrary role strings, remote Runner quit, and generic

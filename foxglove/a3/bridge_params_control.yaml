@@ -39,6 +39,7 @@
       - "^/hope/runner/enter_pd_stand$"
       - "^/hope/runner/enter_motion$"
       - "^/hope/runner/enter_teleop$"
+      - "^/hope/runner/enter_dock$"
       - "^/hope/runner/emergency_passive$"
       - "^/hope/runner/prepare_serve$"
       - "^/hope/runner/confirm_ball_loaded$"

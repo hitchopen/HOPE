@@ -1,0 +1,98 @@
+# Hardware-in-the-loop Runner. There is no iceoryx plugin, so this process
+# cannot reach the robot HAL. Joint commands exist only as ROS 2 topics and
+# must be aimed at the MuJoCo plant on an isolated domain.
+#
+#   /body_drive/*_joint_command   runner -> plant
+#   /body_drive/*_joint_state     plant -> runner
+#   /body_drive/pelvis_imu/data   plant -> runner
+#   /body_drive/torso_imu/data    plant -> runner
+#   /a3/base_pose_flat            simulated pelvis
+#   /hope/runner/control_request_flat
+#   /hope/runner/state_flat
+#   /hope/runner/dock_state_flat
+aimrt:
+  plugin:
+    plugins:
+      - name: ros2_plugin
+        path: libaimrt_ros2_plugin.so
+        options:
+          node_name: a3_deploy_onnx_ref_pingpong
+          executor_type: MultiThreaded
+          executor_thread_num: 2
+
+  log:
+    core_lvl: INFO
+    backends:
+      - type: console
+      - type: rotate_file
+        options:
+          path: /tmp/a3_deploy_logs
+          filename: a3_deploy_hil.log
+          max_file_size_m: 32
+          max_file_num: 4
+
+  executor:
+    executors:
+      - name: aimrt_callback_pool
+        type: asio_thread
+        options:
+          thread_num: 2
+
+  channel:
+    backends:
+      - type: ros2
+        options:
+          pub_topics_options:
+            - topic_name: "/body_drive/waist_joint_command"
+              qos: &hil_qos
+                history: keep_last
+                depth: 10
+                reliability: reliable
+                durability: volatile
+            - topic_name: "/body_drive/leg_joint_command"
+              qos: *hil_qos
+            - topic_name: "/body_drive/arm_joint_command"
+              qos: *hil_qos
+            - topic_name: "/body_drive/neck_joint_command"
+              qos: *hil_qos
+            - topic_name: "/hope/runner/state_flat"
+              qos: *hil_qos
+            - topic_name: "/hope/runner/dock_state_flat"
+              qos: *hil_qos
+            - topic_name: "/hope/runner/teleop_state_flat"
+              qos: *hil_qos
+            - topic_name: "/hope/runner/session_home_flat"
+              qos: *hil_qos
+            - topic_name: "/hope/runner/mocap_safety_flat"
+              qos: *hil_qos
+          sub_topics_options:
+            - topic_name: "/body_drive/waist_joint_state"
+              use_serialized: false
+              qos: *hil_qos
+            - topic_name: "/body_drive/leg_joint_state"
+              use_serialized: false
+              qos: *hil_qos
+            - topic_name: "/body_drive/arm_joint_state"
+              use_serialized: false
+              qos: *hil_qos
+            - topic_name: "/body_drive/neck_joint_state"
+              use_serialized: false
+              qos: *hil_qos
+            - topic_name: "/body_drive/pelvis_imu/data"
+              use_serialized: false
+              qos: *hil_qos
+            - topic_name: "/body_drive/torso_imu/data"
+              use_serialized: false
+              qos: *hil_qos
+            - topic_name: "/a3/base_pose_flat"
+              use_serialized: false
+              qos: *hil_qos
+            - topic_name: "/hope/runner/control_request_flat"
+              use_serialized: false
+              qos: *hil_qos
+    pub_topics_options:
+      - topic_name: "(.*)"
+        enable_backends: [ros2]
+    sub_topics_options:
+      - topic_name: "(.*)"
+        enable_backends: [ros2]
