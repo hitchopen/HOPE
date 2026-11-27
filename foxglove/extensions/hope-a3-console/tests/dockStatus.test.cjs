@@ -19,9 +19,10 @@ test('Reposition opens from Stand, Walk stand or Teleop with a fresh base pose a
   assert.equal(reason(), undefined);
   assert.equal(reason({ mode: 'WALK_STAND' }), undefined);
   assert.equal(reason({ mode: 'TELEOP' }), undefined);
+  assert.equal(reason({ mode: 'MOTION' }), undefined);
   assert.match(reason({ telemetryFresh: false }), /no Reposition loaded/);
   assert.match(reason({ mode: 'DOCK' }), /Stand stops it/);
-  for (const mode of ['PASSIVE', 'MOTION', 'SERVE']) {
+  for (const mode of ['PASSIVE', 'SERVE']) {
     assert.match(reason({ mode }), /Select Stand or Teleop/);
   }
   assert.match(reason({ baseFresh: false }), /base pose/);

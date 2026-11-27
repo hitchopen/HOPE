@@ -40,6 +40,9 @@ function panelHarness(profile = 'linux', lifecycleState = 'STOPPED', lifecycleBu
     operator_profile: profile, gripper_profile: 'legacy',
     pants_profile: 'v2', mocap_source: 'none', vrpn_ip: '', vrpn_port: '3883', vrpn_units: 'mm',
   };
+  const keyboard = require('./shortcutHarness.cjs')();
+  keyboard.remove();
+  let shortcutCleanup;
   const react = {
     ...require('react'),
     useState(initial) {
@@ -63,7 +66,9 @@ function panelHarness(profile = 'linux', lifecycleState = 'STOPPED', lifecycleBu
     useRef: (current) => refs[refCursor++] ?? (refs[refCursor - 1] = { current: current === api.INITIAL_SNAPSHOT ? { ...current, lifecycleState, lifecycleBusy, lifecycleConfig: { ...config }, ...extraSnapshot } : current }),
     useMemo: (callback) => callback(),
     useCallback: (callback) => callback,
-    useEffect: () => {},
+    useEffect: (mount,deps) => {
+      if (!shortcutCleanup && deps?.includes(keyboard.panel)) shortcutCleanup=mount();
+    },
     useLayoutEffect: (callback) => { if (!layoutMounted) { layoutMounted = true; callback(); } },
   };
   function load(source, extra = '') {
@@ -74,7 +79,7 @@ function panelHarness(profile = 'linux', lifecycleState = 'STOPPED', lifecycleBu
     vm.runInNewContext(code, {
       exports, ArrayBuffer, DataView, TextEncoder, AbortController, setTimeout, clearTimeout,
       Date: class extends Date { static now() { return now; } },
-      window: { fetch:localFetch, setTimeout: () => 0, clearTimeout:()=>{}, confirm: () => { throw new Error('blocking confirmation interrupts heartbeat'); } },
+      window: { setInterval: () => 0, clearInterval: () => {}, fetch:localFetch, setTimeout: () => 0, clearTimeout:()=>{}, confirm: () => { throw new Error('blocking confirmation interrupts heartbeat'); } },
       require(name) {
         if (name.endsWith('.css')) return {};
         if (name === 'react') return react;
@@ -94,6 +99,7 @@ function panelHarness(profile = 'linux', lifecycleState = 'STOPPED', lifecycleBu
   api = load(fs.readFileSync(path.join(__dirname, '../src/HopeA3Console.tsx'), 'utf8'),
     '\nexport { HopeA3Console, TOPICS, CONFIG_FIELDS, EMPTY_CONFIG, INITIAL_SNAPSHOT, applyMessage, confirmationBlocked };');
   const context = {
+    panelElement: keyboard.panel,
     initialState,
     saveState(value) { savedStates.push(value); },
     watch() {},
@@ -106,7 +112,7 @@ function panelHarness(profile = 'linux', lifecycleState = 'STOPPED', lifecycleBu
     },
   };
   return {
-    api, calls, subscribed, savedStates, published, localRequests,
+    api, keyboard, calls, subscribed, savedStates, published, localRequests,
     setLocalOffline(value) { localOffline=value; },
     setRobotAccepted(value) { robotAccepted=value; },
     advance(ms) { now += ms; },
@@ -325,14 +331,26 @@ test('shared scalar decoder preserves finite signed floats and rejects invalid v
   }
 });
 
- test('policy list offers only 14200 Best and respects stopped/mocap gates', async () => {
+test('field picker includes FT48 137000 and gates 23700 on fresh installation and normal play', async () => {
   const best='14200 Best · Serve + receive';
   const harness=panelHarness('linux','STOPPED',false,{mode:'OPTITRACK', policy_model:'model14200best', policy_models_age_s:0, policy_models_config_revision:1, policy_models:{model14200best:{available:true,reason:''}}},0,[],{lifecycleConfigRevision:1},{language:'en'});
   const tree=harness.render();
   const selected=button(tree,best);
   assert.equal(selected.props.disabled,false);
   assert.equal(selected.props['aria-pressed'],true);
-  for (const name of ['14600','11999 · Receive only','12600 · Serve + receive','17400 · Serve + receive','12000 · Serve + receive','14200 · Serve + receive','13800 · Serve + receive']) assert.equal(button(tree,name),undefined);
+  const rows = elements(tree).filter(n => n.props?.role === 'option' && n.props?.className === 'c-pol');
+  assert.equal(rows.length, 13);
+  assert.equal(button(tree, "FT48 137000 · Receive only").props.disabled, true);
+  assert.equal(button(tree, "54000 · Receive only").props.disabled, true);
+  const mobile = '23700 Mobile · Receive only';
+  assert.equal(button(tree,mobile).props.disabled,true);
+  const field = {policy_model:'model14200best',policy_models_age_s:0,policy_models_config_revision:1,
+    policy_models:{model23700:{available:true,receive_only:true,reason:''}}};
+  const renderMobile = mode => panelHarness('linux','STOPPED',false,{...field,mode},0,[],{lifecycleConfigRevision:1},{language:'en'});
+  const ready = renderMobile('OPTITRACK');
+  button(ready.render(),mobile).props.onClick(); await Promise.resolve();
+  assert.match(JSON.stringify(ready.calls.at(-1).payload),/model23700/);
+  assert.equal(button(renderMobile('KERNEL').render(),mobile).props.disabled,true);
   selected.props.onClick();
   await Promise.resolve();
   assert.equal(harness.calls.length,1);
@@ -405,7 +423,7 @@ test('14200 Best shows the installed bundle and flags another selected model', (
   assert.match(text(render({policy_model:'model14200best',csv:{name:'v23-14200-best.csv',sha256:'14c75e8e2f17234e26d2498c7b75da9b2f2b8aad48f8e31659901c56fa856630',frames:468,hz:100}})),/Bundle best-v1/);
   assert.match(text(render({policy_model:'model14200best',csv:{name:'v23-14200-best.csv',sha256:'fa37dd8ffc89390163d30cda29ebea47c4e56db4317ceafcc4d33fcd971ff4c9',frames:468,hz:100}})),/Bundle earlier-staged/);
   assert.match(text(render({policy_model:'model14200best',csv:null})),/Bundle not identified/);
-  assert.match(text(render({policy_model:'model17400'})),/The robot has 17400 selected/);
+  assert.equal(elements(render({policy_model:'model17400'})).find(n=>n.key==='model17400' && n.props?.role==='option').props['aria-selected'],true);
   // installed but not selected: the catalog's own serve CSV identifies the bundle
   assert.match(text(render({policy_model:'model14600',policy_models:{model14200best:{available:true,reason:'',serve_csv:{name:'v23-14200-best.csv',sha256:'14c75e8e2f17234e26d2498c7b75da9b2f2b8aad48f8e31659901c56fa856630'}}}})),/Bundle best-v1/);
 });
@@ -532,6 +550,18 @@ test('Console shortcuts use the actual Init/Ready/Passive services and local int
     '/hope/runner/enter_pd_stand', '/hope/runner/enter_motion', '/hope/runner/emergency_passive',
   ]);
   assert.deepEqual(h.localRequests, ['STOP','READY','STOP']);
+});
+
+test('ArrowUp uses the rigid stand service without a button and rejects stale Runner state', async () => {
+  const h=serveHarness(); h.render(); serveFrame(h,{role:'RECEIVER',mode:'WALK_STAND'});
+  const tree=h.render();
+  assert.equal(elements(tree).some(n=>n.type==='button' && n.props['data-runner-shortcut']==='rigidStand'),false);
+  h.keyboard.down('ArrowUp'); h.keyboard.down('ArrowUp',{repeat:true}); h.keyboard.up('ArrowUp');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(h.calls.map(c=>c.service),['/hope/runner/enter_rigid_pd_stand']);
+  assert.deepEqual(h.localRequests,['STOP']);
+  h.advance(2000); h.keyboard.down('ArrowUp');
+  assert.equal(h.calls.length,1);
 });
 
 test('Ready shortcut respects Runner role/mode, stale state, fault and request busy gates', () => {
@@ -846,5 +876,146 @@ test('fresh Host pelvis cannot override missing Runner pelvis; bounded hold foll
     h.frame([{topic:h.api.TOPICS.mocapSafety,
       message:{data:[1,42,2279734720943415,2,1,fresh,0,0,held,25,0,1,1,0,0]}}]);
     assert.equal(ready().props.disabled,blocked);
+  }
+});
+
+test('D uses the Reposition button and respects missing pose, dock telemetry and busy mode', async () => {
+  const h = serveHarness(); h.render();
+  serveFrame(h, {mode:'WALK_STAND'});
+  const keyboard = consoleKeyboard(h);
+  const press = () => { keyboard.down('d'); keyboard.up('d'); };
+  const dock = [1,42,0,0,0,0,0,0,0,0,0,-0.5,-0.7625,0,0.01];
+  press();
+  h.frame([{topic:h.api.TOPICS.dockState, message:{data:dock}}]);
+  serveFrame(h, {mode:'WALK_STAND', pelvis:false}); press();
+  serveFrame(h, {mode:'DOCK'}); press();
+  assert.deepEqual(services(h), []);
+  serveFrame(h, {mode:'WALK_STAND'}); keyboard.down('d'); keyboard.down('d', {repeat:true});
+  await flush();
+  assert.deepEqual(services(h), ['/hope/runner/enter_dock']);
+});
+
+function dockFrame(h, phase, result, reason = 0, boot = 42) {
+  h.frame([{topic:h.api.TOPICS.dockState, message:{data:[
+    1,boot,phase,0,0,0,0,0,1,result,reason,-0.5,-0.7625,0,0.01
+  ]}}]);
+}
+
+async function beginReceiveDock(role = 'RECEIVER') {
+  const h = serveHarness(); h.render(); serveFrame(h,{mode:'MOTION',role});
+  dockFrame(h,5,2); // Previous walk already DONE.
+  const keyboard = consoleKeyboard(h);
+  keyboard.down('d'); keyboard.up('d'); await flush();
+  assert.deepEqual(services(h), ['/hope/runner/enter_pd_stand']);
+  h.advance(50); serveFrame(h,{mode:'WALK_STAND',role}); await flush();
+  assert.deepEqual(services(h), ['/hope/runner/enter_pd_stand','/hope/runner/enter_dock']);
+  h.advance(50); serveFrame(h,{mode:'DOCK',role}); await flush();
+  assert.equal(h.calls.length,2);
+  dockFrame(h,2,1); await flush();
+  return {h,keyboard};
+}
+
+test('D while receiving waits for the new walk and Stand, then sends Ready exactly once', async () => {
+  for (const role of ['RECEIVER','SERVER']) {
+    const {h} = await beginReceiveDock(role);
+    dockFrame(h,5,2); await flush();
+    assert.equal(h.calls.length,2);
+    allowRoleChange(h); h.advance(50); serveFrame(h,{mode:'WALK_STAND',role}); await flush();
+    if (role === 'SERVER') {
+      assert.equal(services(h).at(-1),'/hope/runner/set_receiver');
+      h.advance(50); serveFrame(h,{mode:'WALK_STAND',role:'RECEIVER'}); await flush();
+    }
+    assert.equal(services(h).at(-1),'/hope/runner/enter_motion');
+    dockFrame(h,5,2); serveFrame(h,{mode:'MOTION',role:'RECEIVER'}); await flush();
+    assert.deepEqual(h.localRequests,['STOP','READY']);
+    assert.equal(services(h).filter(s=>s==='/hope/runner/enter_motion').length,1);
+  }
+});
+
+test('a stopped, failed, disconnected or superseded receive walk cannot resume play', async () => {
+  for (const cancel of ['stand','failure','boot','pose','stale','seek','estop']) {
+    const {h,keyboard} = await beginReceiveDock();
+    if (cancel==='stand') { keyboard.down('i'); keyboard.up('i'); }
+    if (cancel==='failure') dockFrame(h,6,3,6);
+    if (cancel==='boot') serveFrame(h,{mode:'DOCK',boot:43});
+    if (cancel==='pose') serveFrame(h,{mode:'DOCK',pelvis:false});
+    if (cancel==='stale') { h.advance(2500); h.frame([]); }
+    if (cancel==='seek') h.frame([],true);
+    if (cancel==='estop') h.frame([{topic:h.api.TOPICS.estopLatched,message:{data:true}}]);
+    await flush();
+    dockFrame(h,5,2); serveFrame(h,{mode:'WALK_STAND',role:'RECEIVER'}); await flush();
+    assert.ok(!services(h).includes('/hope/runner/enter_motion'),cancel);
+  }
+});
+
+test('after docking into Walk Stand, R or S selects its role and starts only the requested stage', async () => {
+  for (const [key,before,after,roleService,playService] of [
+    ['r','SERVER','RECEIVER','set_receiver','enter_motion'],
+    ['s','RECEIVER','SERVER','set_server','prepare_serve'],
+  ]) {
+    const h=serveHarness(); h.render(); serveFrame(h,{mode:'WALK_STAND',role:before});
+    dockFrame(h,5,2); allowRoleChange(h);
+    const keyboard=consoleKeyboard(h); keyboard.down(key); keyboard.up(key); await flush();
+    assert.deepEqual(services(h),['/hope/runner/'+roleService]);
+    h.advance(50); serveFrame(h,{mode:'WALK_STAND',role:after}); await flush();
+    assert.deepEqual(services(h),['/hope/runner/'+roleService,'/hope/runner/'+playService]);
+  }
+});
+
+test('Restore automatic arms uses the same standing and walking button and service', async () => {
+  for (const mode of ['PD_STAND','WALK_STAND','TELEOP','DOCK','PASSIVE','MOTION']) {
+    const h=serveHarness(); h.render(); serveFrame(h,{mode});
+    h.frame([{topic:h.api.TOPICS.lifecycleState,message:{data:'RUNNING'}}]);
+    const controls=elements(h.render()).filter(n=>n.props?.['data-runner-shortcut']==='restoreArms');
+    assert.equal(controls.length,1,mode);
+    const button=controls[0];
+    if (['PD_STAND','WALK_STAND','TELEOP','DOCK'].includes(mode)) {
+      assert.equal(button.props.disabled,false,mode);
+      button.props.onClick({preventDefault(){}}); await flush();
+      assert.deepEqual(services(h),['/hope/runner/restore_stand_arms']);
+    } else {assert.equal(button.props.disabled,true,mode);}
+  }
+});
+
+test('R then D resumes Receive after split dock telemetry and an A restore during the walk', async () => {
+  const h=serveHarness(); h.render(); serveFrame(h,{mode:'MOTION',role:'RECEIVER'});
+  h.frame([{topic:h.api.TOPICS.lifecycleState,message:{data:'RUNNING'}}]);
+  dockFrame(h,5,2);
+  const keyboard=consoleKeyboard(h); keyboard.down('d'); keyboard.up('d'); await flush();
+  serveFrame(h,{mode:'PD_STAND',role:'RECEIVER'}); await flush();
+  dockFrame(h,2,1); dockFrame(h,5,2); await flush();
+  assert.equal(services(h).at(-1),'/hope/runner/enter_dock');
+  serveFrame(h,{mode:'DOCK',role:'RECEIVER'});
+  h.frame([{topic:h.api.TOPICS.lastAction,message:{data:'ENTER_DOCK'}}]);
+  const arms=elements(h.render()).find(n=>n.props?.['data-runner-shortcut']==='restoreArms');
+  assert.equal(arms.props.disabled,false);
+  arms.props.onClick({preventDefault(){}}); await flush();
+  assert.equal(services(h).at(-1),'/hope/runner/restore_stand_arms');
+  h.frame([{topic:h.api.TOPICS.lastAction,message:{data:'RESTORE_STAND_ARMS'}}]);
+  serveFrame(h,{mode:'WALK_STAND',role:'RECEIVER'}); await flush();
+  assert.equal(services(h).at(-1),'/hope/runner/enter_motion');
+  serveFrame(h,{mode:'PD_STAND',role:'RECEIVER'}); await flush();
+  serveFrame(h,{mode:'MOTION',role:'RECEIVER'}); await flush();
+  assert.deepEqual(h.localRequests,['STOP','READY']);
+  assert.equal(services(h).filter(s=>s==='/hope/runner/enter_motion').length,1);
+});
+
+test('23700 shows speed104 in the picker and the selected option only for its reported digest', () => {
+  const expected = '1b4adc3494d67d48cb548d0b5fc3b118df9079082f2135d49e5bc815480b821c';
+  const field = {mode:'OPTITRACK', policy_model:'model23700', policy_models_config_revision:1,
+    policy_models_age_s:1,policy_models:{model23700:{available:true,receive_only:true}}};
+  for (const [digest,age,available,showBest] of [[expected,0,true,true],['0'.repeat(64),0,true,false],
+      [undefined,0,true,false],[expected,5000,true,false],[expected,0,false,false]]) {
+    const now = Date.now();
+    const extra = {lifecycleConfigRevision:1,configRuntime:{applied:true,services:[],mocapProcesses:[],
+      revision:1,policyDigests:{model23700:digest}},lastReceived:{'/hope/lifecycle/config/status':now-age,
+      '/hope/lifecycle/state':now,'/hope/field/status':now}};
+    const tree = panelHarness('linux','RUNNING',false,{...field,policy_models:{model23700:{available,receive_only:true}}},0,[],extra,{language:'en'}).render();
+    const rows = elements(tree).filter(e=>e.props?.role==='option');
+    const selected = rows.find(e=>e.props['aria-selected']);
+    assert.ok(selected);
+    assert.equal(selected.props['aria-label'].includes('speed104'),showBest);
+    const current=elements(tree).find(e=>e.props?.className==='c-pick-cur');
+    assert.equal(current.props.title.includes('speed104'),showBest);
   }
 });

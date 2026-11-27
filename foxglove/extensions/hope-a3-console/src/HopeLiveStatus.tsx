@@ -8,7 +8,7 @@ import { ballStatusDisplay, freshValue, mocapStatusDisplay, poseDetails, StatusT
 import "./liveStatus.css";
 
 const topics = {
-  runner: "/hope/runner/mode", alive: "/hope/runner/alive",
+  session: "/hope/lifecycle/session_id", runner: "/hope/runner/mode", alive: "/hope/runner/alive",
   tfReady: "/hope/vendor/tf_ready", pose: "/hope/pelvis/pose", side: "/hope/lifecycle/config/table_side",
 } as const;
 
@@ -25,11 +25,14 @@ function HopeLiveStatus({context}: {context:PanelExtensionContext}) {
   const previewApplied = useRef("");
   const [keyError,setKeyError] = useState(false);
   const [now,setNow] = useState(Date.now());
+  const lastPose = useRef<{ detail: string; receivedAt: number }>();
   const [done,setDone] = useState<(() => void)>();
   const [ball,setBall] = useState<{state:BallPlayState;receivedAt:number}>();
   useEffect(() => {
+    values.current = {};
+    lastPose.current = undefined;
     context.onRender = (state,renderDone) => {
-      if (state.didSeek) values.current = {};
+      if (state.didSeek) { values.current = {}; lastPose.current = undefined; }
       const preview = state.variables?.get("hopeLocalPreview") as (BallYFilterDraft & {kernelMode:boolean}) | undefined;
       if (preview && typeof preview.enabled === "boolean" && typeof preview.min === "string" && typeof preview.max === "string" && typeof preview.kernelMode === "boolean") {
         const identity = JSON.stringify(preview);
@@ -42,6 +45,12 @@ function HopeLiveStatus({context}: {context:PanelExtensionContext}) {
       const receivedAt = Date.now();
       for (const event of state.currentFrame ?? []) {
         const message = event.message as {data?:unknown};
+        if (event.topic === topics.session && values.current[topics.session]?.value !== message.data) lastPose.current = undefined;
+        if (event.topic === topics.pose) {
+          const pose = event.message as {header?: {frame_id?:string}};
+          const detail = pose.header?.frame_id === "world" ? poseDetails(event.message,receivedAt,t) : undefined;
+          if (detail) lastPose.current = {detail,receivedAt};
+        }
         values.current[event.topic] = {value:event.topic===topics.pose?event.message:message.data,receivedAt};
       }
       setNow(receivedAt);setDone(() => renderDone);
@@ -72,6 +81,9 @@ function HopeLiveStatus({context}: {context:PanelExtensionContext}) {
   const runnerNames:Record<string,string>={PASSIVE:t("liveStatus.passive"),PD_STAND:t("liveStatus.stand"),MOTION:t("liveStatus.motion"),SERVE:t("liveStatus.serve"),TELEOP:t("liveStatus.teleop"),WALK_STAND:t("liveStatus.walkStand"),DOCK:t("liveStatus.dock")};
   const mocap=mocapStatusDisplay(values.current[topics.pose],values.current[topics.tfReady],now,t);
   const pose=poseDetails(freshValue(values.current[topics.pose],now),now,t);
+  const previous = lastPose.current;
+  const heldDetail = previous && now >= previous.receivedAt
+    ? t("telemetry.lastPoseSeconds",{seconds:Math.floor((now-previous.receivedAt)/1000)}) + " · " + previous.detail : undefined;
   const side=freshValue(values.current[topics.side],now,5000);
   return <main className="hope-live-status">
     <div className="hope-live-grid">
@@ -79,11 +91,11 @@ function HopeLiveStatus({context}: {context:PanelExtensionContext}) {
       <StatusCard label={t("liveStatus.robot")} title={runnerKnown?(runnerNames[runner as string]??String(runner)):t("liveStatus.noUpdate")}
         detail={runnerKnown?t("liveStatus.runnerLive"):t("liveStatus.waitRunner")} tone={runnerKnown?"neutral":"unavailable"} />
       <StatusCard label={t("liveStatus.mocap",{side:side==="P1"||side==="P2"?` · ${side}`:""})}
-        {...mocap} />
+        {...mocap} detail={mocap.tone === "unavailable" && heldDetail ? heldDetail : mocap.detail} />
     </div>
     <details className="hope-live-diagnostics">
       <summary>{t("liveStatus.details")}</summary>
-      <div>{pose??t("liveStatus.noPose")}</div>
+      <div>{pose??heldDetail??t("liveStatus.noPose")}</div>
       <div>{state?`${state.state} · ${state.reason} · ${state.forwarding?t("liveStatus.gateOn"):t("liveStatus.gateOff")}`:t("liveStatus.connectionHint")}</div>
       {!state && <label>{t("hopeA3Console.ballPairingFile")} <input type="file" onChange={event => {
         const file=event.target.files?.[0];event.target.value="";if(!file)return;

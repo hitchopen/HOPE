@@ -1,0 +1,972 @@
+{
+  "configById": {
+    "hope-a3-console.HOPE Live Telemetry!numbers": {},
+    "hope-a3-console.HOPE Live View Preview!top": {
+      "language": "zh"
+    },
+    "3D!top": {
+      "cameraState": {
+        "perspective": false,
+        "distance": 4.399999999999861,
+        "phi": 5.729832627056611e-05,
+        "thetaOffset": 0,
+        "targetOffset": [
+          0.5680060365113064,
+          -0.7745498490872176,
+          0.10000000000000003
+        ],
+        "target": [
+          1.15,
+          -0.7625,
+          0.25
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "fovy": 45,
+        "near": 0.05,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "followTf": "world",
+      "scene": {
+        "enableStats": false,
+        "transforms": {
+          "showLabel": false,
+          "lineWidth": 0,
+          "axisSize": 0,
+          "showLine": false
+        },
+        "meshUpAxis": "z_up"
+      },
+      "transforms": {
+        "robot/pelvis_link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/waist_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/waist_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/torso_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/torso_shell_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/imu_in_torso_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/head_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/head_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/std_head_stereo_camera_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_shoulder_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_shoulder_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_shoulder_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_elbow_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_wrist_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_wrist_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_wrist_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_hand_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_shoulder_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_shoulder_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_shoulder_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_elbow_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_wrist_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_wrist_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_wrist_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_hand_pingpang_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/pingpang_red_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/pingpang_black_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/imu_in_pelvis_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_hip_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_hip_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_hip_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_knee_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_knee_shell_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_ankle_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_ankle_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_hip_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_hip_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_hip_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_knee_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_knee_shell_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_ankle_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_ankle_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "world": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        }
+      },
+      "topics": {
+        "/hope/live/scene": {
+          "visible": true
+        },
+        "/hope/live/robot": {
+          "visible": true
+        },
+        "/hope/live/target": {
+          "visible": true
+        },
+        "/hope/live/frozen": {
+          "visible": true
+        },
+        "/hope/live/tf": {
+          "visible": false
+        },
+        "/tf": {
+          "visible": false
+        },
+        "/hope/planner/y_filter_markers": {
+          "visible": false
+        }
+      },
+      "layers": {
+        "hope-local-y-filter": {
+          "instanceId": "hope-local-y-filter",
+          "layerId": "foxglove.Urdf",
+          "visible": false,
+          "label": "本地预览 · 左 -0.554359 / 右 -1.3 m · 非生效回执",
+          "sourceType": "url",
+          "framePrefix": "",
+          "displayMode": "visual",
+          "order": 3,
+          "url": "data:text/xml;charset=utf-8,%3C%3Fxml%20version%3D%221.0%22%3F%3E%3Crobot%20name%3D%22hope_local_y_filter_preview%22%3E%3Clink%20name%3D%22world%22%2F%3E%3Clink%20name%3D%22hope_preview_left%22%3E%3Cvisual%3E%3Cgeometry%3E%3Cbox%20size%3D%222.74%200.025%200.025%22%2F%3E%3C%2Fgeometry%3E%3Cmaterial%20name%3D%22hope_preview_left_color%22%3E%3Ccolor%20rgba%3D%221%200.65%200.12%201%22%2F%3E%3C%2Fmaterial%3E%3C%2Fvisual%3E%3C%2Flink%3E%3Cjoint%20name%3D%22world_to_hope_preview_left%22%20type%3D%22fixed%22%3E%3Cparent%20link%3D%22world%22%2F%3E%3Cchild%20link%3D%22hope_preview_left%22%2F%3E%3Corigin%20xyz%3D%221.37%20-0.554359%200.025%22%20rpy%3D%220%200%200%22%2F%3E%3C%2Fjoint%3E%3Clink%20name%3D%22hope_preview_right%22%3E%3Cvisual%3E%3Cgeometry%3E%3Cbox%20size%3D%222.74%200.025%200.025%22%2F%3E%3C%2Fgeometry%3E%3Cmaterial%20name%3D%22hope_preview_right_color%22%3E%3Ccolor%20rgba%3D%221%200.65%200.12%201%22%2F%3E%3C%2Fmaterial%3E%3C%2Fvisual%3E%3C%2Flink%3E%3Cjoint%20name%3D%22world_to_hope_preview_right%22%20type%3D%22fixed%22%3E%3Cparent%20link%3D%22world%22%2F%3E%3Cchild%20link%3D%22hope_preview_right%22%2F%3E%3Corigin%20xyz%3D%221.37%20-1.3%200.025%22%20rpy%3D%220%200%200%22%2F%3E%3C%2Fjoint%3E%3Clink%20name%3D%22hope_preview_lane%22%3E%3Cvisual%3E%3Cgeometry%3E%3Cbox%20size%3D%222.74%200.745641%200.004%22%2F%3E%3C%2Fgeometry%3E%3Cmaterial%20name%3D%22hope_preview_lane_color%22%3E%3Ccolor%20rgba%3D%220.15%200.9%200.55%200.16%22%2F%3E%3C%2Fmaterial%3E%3C%2Fvisual%3E%3C%2Flink%3E%3Cjoint%20name%3D%22world_to_hope_preview_lane%22%20type%3D%22fixed%22%3E%3Cparent%20link%3D%22world%22%2F%3E%3Cchild%20link%3D%22hope_preview_lane%22%2F%3E%3Corigin%20xyz%3D%221.37%20-0.9271795%200.006%22%20rpy%3D%220%200%200%22%2F%3E%3C%2Fjoint%3E%3C%2Frobot%3E"
+        }
+      },
+      "publish": {
+        "type": "point",
+        "poseTopic": "/move_base_simple/goal",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "synchronize": false,
+      "imageMode": {},
+      "title": "俯视"
+    },
+    "hope-a3-console.HOPE Live View Preview!side": {
+      "language": "zh"
+    },
+    "3D!side": {
+      "cameraState": {
+        "perspective": true,
+        "distance": 4.764542936287256,
+        "phi": 90.00000000000007,
+        "thetaOffset": 0,
+        "targetOffset": [
+          0.5150243278579665,
+          -0.7625000000000005,
+          0.43486736825747896
+        ],
+        "target": [
+          1.15,
+          -0.7625,
+          0.25
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "fovy": 45,
+        "near": 0.05,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "followTf": "world",
+      "scene": {
+        "enableStats": false,
+        "transforms": {
+          "showLabel": false,
+          "lineWidth": 0,
+          "axisSize": 0,
+          "showLine": false
+        },
+        "meshUpAxis": "z_up"
+      },
+      "transforms": {
+        "robot/pelvis_link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/waist_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/waist_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/torso_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/torso_shell_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/imu_in_torso_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/head_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/head_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/std_head_stereo_camera_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_shoulder_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_shoulder_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_shoulder_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_elbow_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_wrist_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_wrist_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_wrist_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_hand_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_shoulder_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_shoulder_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_shoulder_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_elbow_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_wrist_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_wrist_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_wrist_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_hand_pingpang_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/pingpang_red_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/pingpang_black_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/imu_in_pelvis_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_hip_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_hip_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_hip_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_knee_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_knee_shell_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_ankle_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_ankle_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_hip_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_hip_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_hip_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_knee_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_knee_shell_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_ankle_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_ankle_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "world": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        }
+      },
+      "topics": {
+        "/hope/live/scene": {
+          "visible": true
+        },
+        "/hope/live/robot": {
+          "visible": true
+        },
+        "/hope/live/target": {
+          "visible": true
+        },
+        "/hope/live/frozen": {
+          "visible": true
+        },
+        "/hope/live/tf": {
+          "visible": false
+        },
+        "/tf": {
+          "visible": false
+        },
+        "/hope/planner/y_filter_markers": {
+          "visible": false
+        }
+      },
+      "layers": {
+        "hope-local-y-filter": {
+          "instanceId": "hope-local-y-filter",
+          "layerId": "foxglove.Urdf",
+          "visible": false,
+          "label": "本地预览 · 左 -0.554359 / 右 -1.3 m · 非生效回执",
+          "sourceType": "url",
+          "framePrefix": "",
+          "displayMode": "visual",
+          "order": 3,
+          "url": "data:text/xml;charset=utf-8,%3C%3Fxml%20version%3D%221.0%22%3F%3E%3Crobot%20name%3D%22hope_local_y_filter_preview%22%3E%3Clink%20name%3D%22world%22%2F%3E%3Clink%20name%3D%22hope_preview_left%22%3E%3Cvisual%3E%3Cgeometry%3E%3Cbox%20size%3D%222.74%200.025%200.025%22%2F%3E%3C%2Fgeometry%3E%3Cmaterial%20name%3D%22hope_preview_left_color%22%3E%3Ccolor%20rgba%3D%221%200.65%200.12%201%22%2F%3E%3C%2Fmaterial%3E%3C%2Fvisual%3E%3C%2Flink%3E%3Cjoint%20name%3D%22world_to_hope_preview_left%22%20type%3D%22fixed%22%3E%3Cparent%20link%3D%22world%22%2F%3E%3Cchild%20link%3D%22hope_preview_left%22%2F%3E%3Corigin%20xyz%3D%221.37%20-0.554359%200.025%22%20rpy%3D%220%200%200%22%2F%3E%3C%2Fjoint%3E%3Clink%20name%3D%22hope_preview_right%22%3E%3Cvisual%3E%3Cgeometry%3E%3Cbox%20size%3D%222.74%200.025%200.025%22%2F%3E%3C%2Fgeometry%3E%3Cmaterial%20name%3D%22hope_preview_right_color%22%3E%3Ccolor%20rgba%3D%221%200.65%200.12%201%22%2F%3E%3C%2Fmaterial%3E%3C%2Fvisual%3E%3C%2Flink%3E%3Cjoint%20name%3D%22world_to_hope_preview_right%22%20type%3D%22fixed%22%3E%3Cparent%20link%3D%22world%22%2F%3E%3Cchild%20link%3D%22hope_preview_right%22%2F%3E%3Corigin%20xyz%3D%221.37%20-1.3%200.025%22%20rpy%3D%220%200%200%22%2F%3E%3C%2Fjoint%3E%3Clink%20name%3D%22hope_preview_lane%22%3E%3Cvisual%3E%3Cgeometry%3E%3Cbox%20size%3D%222.74%200.745641%200.004%22%2F%3E%3C%2Fgeometry%3E%3Cmaterial%20name%3D%22hope_preview_lane_color%22%3E%3Ccolor%20rgba%3D%220.15%200.9%200.55%200.16%22%2F%3E%3C%2Fmaterial%3E%3C%2Fvisual%3E%3C%2Flink%3E%3Cjoint%20name%3D%22world_to_hope_preview_lane%22%20type%3D%22fixed%22%3E%3Cparent%20link%3D%22world%22%2F%3E%3Cchild%20link%3D%22hope_preview_lane%22%2F%3E%3Corigin%20xyz%3D%221.37%20-0.9271795%200.006%22%20rpy%3D%220%200%200%22%2F%3E%3C%2Fjoint%3E%3C%2Frobot%3E"
+        }
+      },
+      "publish": {
+        "type": "point",
+        "poseTopic": "/move_base_simple/goal",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "synchronize": false,
+      "imageMode": {},
+      "title": "侧视"
+    },
+    "hope-a3-console.HOPE Live View Preview!shoulder": {
+      "language": "zh"
+    },
+    "3D!shoulder": {
+      "cameraState": {
+        "perspective": true,
+        "distance": 1.6701609357697471,
+        "phi": 77.35537190083117,
+        "thetaOffset": 52.5041322314111,
+        "targetOffset": [
+          -1.2077297138736276,
+          -1.1335331438062206,
+          0.39999999999999997
+        ],
+        "target": [
+          1.15,
+          -0.7625,
+          0.25
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "fovy": 45,
+        "near": 0.05,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "followTf": "world",
+      "scene": {
+        "enableStats": false,
+        "transforms": {
+          "showLabel": false,
+          "lineWidth": 0,
+          "axisSize": 0,
+          "showLine": false
+        },
+        "meshUpAxis": "z_up"
+      },
+      "transforms": {
+        "robot/pelvis_link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/waist_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/waist_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/torso_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/torso_shell_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/imu_in_torso_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/head_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/head_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/std_head_stereo_camera_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_shoulder_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_shoulder_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_shoulder_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_elbow_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_wrist_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_wrist_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_wrist_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_hand_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_shoulder_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_shoulder_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_shoulder_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_elbow_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_wrist_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_wrist_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_wrist_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_hand_pingpang_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/pingpang_red_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/pingpang_black_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/imu_in_pelvis_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_hip_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_hip_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_hip_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_knee_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_knee_shell_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_ankle_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/left_ankle_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_hip_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_hip_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_hip_yaw_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_knee_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_knee_shell_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_ankle_pitch_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "robot/right_ankle_roll_Link": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        },
+        "world": {
+          "visible": false,
+          "showLine": false,
+          "showLabel": false
+        }
+      },
+      "topics": {
+        "/hope/live/scene": {
+          "visible": true
+        },
+        "/hope/live/robot": {
+          "visible": true
+        },
+        "/hope/live/target": {
+          "visible": true
+        },
+        "/hope/live/frozen": {
+          "visible": true
+        },
+        "/hope/live/tf": {
+          "visible": false
+        },
+        "/tf": {
+          "visible": false
+        },
+        "/hope/planner/y_filter_markers": {
+          "visible": false
+        }
+      },
+      "layers": {
+        "hope-local-y-filter": {
+          "instanceId": "hope-local-y-filter",
+          "layerId": "foxglove.Urdf",
+          "visible": false,
+          "label": "本地预览 · 左 -0.554359 / 右 -1.3 m · 非生效回执",
+          "sourceType": "url",
+          "framePrefix": "",
+          "displayMode": "visual",
+          "order": 3,
+          "url": "data:text/xml;charset=utf-8,%3C%3Fxml%20version%3D%221.0%22%3F%3E%3Crobot%20name%3D%22hope_local_y_filter_preview%22%3E%3Clink%20name%3D%22world%22%2F%3E%3Clink%20name%3D%22hope_preview_left%22%3E%3Cvisual%3E%3Cgeometry%3E%3Cbox%20size%3D%222.74%200.025%200.025%22%2F%3E%3C%2Fgeometry%3E%3Cmaterial%20name%3D%22hope_preview_left_color%22%3E%3Ccolor%20rgba%3D%221%200.65%200.12%201%22%2F%3E%3C%2Fmaterial%3E%3C%2Fvisual%3E%3C%2Flink%3E%3Cjoint%20name%3D%22world_to_hope_preview_left%22%20type%3D%22fixed%22%3E%3Cparent%20link%3D%22world%22%2F%3E%3Cchild%20link%3D%22hope_preview_left%22%2F%3E%3Corigin%20xyz%3D%221.37%20-0.554359%200.025%22%20rpy%3D%220%200%200%22%2F%3E%3C%2Fjoint%3E%3Clink%20name%3D%22hope_preview_right%22%3E%3Cvisual%3E%3Cgeometry%3E%3Cbox%20size%3D%222.74%200.025%200.025%22%2F%3E%3C%2Fgeometry%3E%3Cmaterial%20name%3D%22hope_preview_right_color%22%3E%3Ccolor%20rgba%3D%221%200.65%200.12%201%22%2F%3E%3C%2Fmaterial%3E%3C%2Fvisual%3E%3C%2Flink%3E%3Cjoint%20name%3D%22world_to_hope_preview_right%22%20type%3D%22fixed%22%3E%3Cparent%20link%3D%22world%22%2F%3E%3Cchild%20link%3D%22hope_preview_right%22%2F%3E%3Corigin%20xyz%3D%221.37%20-1.3%200.025%22%20rpy%3D%220%200%200%22%2F%3E%3C%2Fjoint%3E%3Clink%20name%3D%22hope_preview_lane%22%3E%3Cvisual%3E%3Cgeometry%3E%3Cbox%20size%3D%222.74%200.745641%200.004%22%2F%3E%3C%2Fgeometry%3E%3Cmaterial%20name%3D%22hope_preview_lane_color%22%3E%3Ccolor%20rgba%3D%220.15%200.9%200.55%200.16%22%2F%3E%3C%2Fmaterial%3E%3C%2Fvisual%3E%3C%2Flink%3E%3Cjoint%20name%3D%22world_to_hope_preview_lane%22%20type%3D%22fixed%22%3E%3Cparent%20link%3D%22world%22%2F%3E%3Cchild%20link%3D%22hope_preview_lane%22%2F%3E%3Corigin%20xyz%3D%221.37%20-0.9271795%200.006%22%20rpy%3D%220%200%200%22%2F%3E%3C%2Fjoint%3E%3C%2Frobot%3E"
+        }
+      },
+      "publish": {
+        "type": "point",
+        "poseTopic": "/move_base_simple/goal",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "synchronize": false,
+      "imageMode": {},
+      "title": "越肩"
+    },
+    "hope-a3-console.HOPE A3 Console!operator": {
+      "language": "zh",
+      "liveStatusOwnsPreview": true
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1,
+    "messageOrder": "receiveTime"
+  },
+  "layout": {
+    "direction": "row",
+    "first": {
+      "direction": "column",
+      "first": "hope-a3-console.HOPE Live Telemetry!numbers",
+      "second": {
+        "direction": "column",
+        "first": {
+          "direction": "row",
+          "first": {
+            "direction": "column",
+            "first": "hope-a3-console.HOPE Live View Preview!top",
+            "second": "3D!top",
+            "splitPercentage": 0
+          },
+          "second": {
+            "direction": "column",
+            "first": "hope-a3-console.HOPE Live View Preview!side",
+            "second": "3D!side",
+            "splitPercentage": 0
+          },
+          "splitPercentage": 50.099933377748165
+        },
+        "second": {
+          "direction": "column",
+          "first": "hope-a3-console.HOPE Live View Preview!shoulder",
+          "second": "3D!shoulder",
+          "splitPercentage": 0
+        },
+        "splitPercentage": 50
+      },
+      "splitPercentage": 11.5
+    },
+    "second": "hope-a3-console.HOPE A3 Console!operator",
+    "splitPercentage": 60.13621794871795
+  }
+}

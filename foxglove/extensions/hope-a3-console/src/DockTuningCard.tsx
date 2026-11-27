@@ -17,15 +17,12 @@ export function DockTuningCard({ context, echo, boot, blocked, embedded = false 
   blocked?: string;
 }): ReactElement {
   const t = useI18n();
-  const [draft, setDraft] = useState<DockTuning | undefined>();
-  const [edited, setEdited] = useState(false);
+  const [edits, setEdits] = useState<Partial<DockTuning>>({});
+  const edited = Object.keys(edits).length > 0;
+  const draft = echo == undefined ? undefined : { ...echo.values, ...edits };
   const [sent, setSent] = useState<{ seq: number; at: number } | undefined>();
   const [, tick] = useState(0);
   const advertised = useRef(false);
-  const echoKey = echo == undefined ? "" : JSON.stringify(echo.values);
-  useEffect(() => {
-    if (!edited && echoKey !== "") { setDraft(JSON.parse(echoKey) as DockTuning); }
-  }, [echoKey, edited]);
   useEffect(() => {
     if (sent == undefined) { return; }
     const timer = window.setInterval(() => { tick((n) => n + 1); }, 250);
@@ -46,16 +43,16 @@ export function DockTuningCard({ context, echo, boot, blocked, embedded = false 
     : echo == undefined || boot == undefined ? t("dockTuning.noTelemetry") : blocked;
 
   const apply = () => {
-    if (draft == undefined || !valid || boot == undefined || disabledReason != undefined) { return; }
+    if (echo == undefined || !valid || boot == undefined || disabledReason != undefined) { return; }
     try {
       if (!advertised.current) {
         context.advertise?.(DOCK_CONFIG_TOPIC, "std_msgs/Float64MultiArray", { datatypes: FLOAT64_ARRAY_DATATYPES });
         advertised.current = true;
       }
       const seq = Date.now();
-      context.publish?.(DOCK_CONFIG_TOPIC, { layout: { dim: [], data_offset: 0 }, data: encodeDockTuning(boot, seq, draft) });
+      context.publish?.(DOCK_CONFIG_TOPIC, { layout: { dim: [], data_offset: 0 }, data: encodeDockTuning(boot, seq, echo, edits) });
       setSent({ seq, at: Date.now() });
-      setEdited(false);
+      setEdits({});
     } catch {
       advertised.current = false;
       setSent({ seq: -1, at: 0 });
@@ -68,9 +65,8 @@ export function DockTuningCard({ context, echo, boot, blocked, embedded = false 
   const summary = echo == undefined ? "—"
     : `(${echo.values.targetX.toFixed(2)}, ${echo.values.targetY.toFixed(2)}, ${echo.values.targetYawDeg.toFixed(0)}°) · ±${echo.values.tolCm.toFixed(0)} cm`;
 
-  // Built into the Walk stand card only the target position is tunable; every
-  // other limit keeps the Runner's current value (sent back unchanged).
-  const shown = embedded ? DOCK_TUNING_FIELDS.filter(({ key }) => key === "targetX" || key === "targetY")
+  const shown = embedded ? DOCK_TUNING_FIELDS.filter(({ key }) =>
+    ["targetX", "targetY", "tolCm", "tolYawDeg", "forward", "backward", "lateral", "yawRateDeg"].includes(key))
     : DOCK_TUNING_FIELDS;
   const fields = (
     <div className="plane-mode-controls dock-tuning-grid">
@@ -79,12 +75,12 @@ export function DockTuningCard({ context, echo, boot, blocked, embedded = false 
           {t(`dockTuning.field.${key}`)}
           <input type="number" min={min} max={max} step={step}
             aria-label={t(`dockTuning.field.${key}`)}
-            value={draft?.[key] ?? ""} disabled={draft == undefined || waiting}
+            value={Number.isFinite(draft?.[key]) ? draft?.[key] : ""} disabled={draft == undefined || waiting}
             onChange={(event) => {
-              const value = Number(event.target.value);
-              setDraft((current) => current == undefined ? current : { ...current, [key]: value });
-              setEdited(true);
+              const value = event.currentTarget.valueAsNumber;
+              setEdits((current) => ({ ...current, [key]: value }));
             }} />
+          <span className="c-hint">{t("dockTuning.range", { min, max })}</span>
         </label>
       ))}
     </div>
@@ -95,13 +91,16 @@ export function DockTuningCard({ context, echo, boot, blocked, embedded = false 
         disabled={!valid || waiting || disabledReason != undefined || !edited}
         onClick={apply}>{t("dockTuning.apply")}</button>
       <button type="button" className="c-ghost" disabled={!edited || echo == undefined}
-        onClick={() => { setDraft(echo?.values); setEdited(false); }}>{t("dockTuning.revert")}</button>
+        onClick={() => { setEdits({}); }}>{t("dockTuning.revert")}</button>
       <span className="c-hint">{disabledReason ?? (draft != undefined && !valid ? t("dockTuning.outOfRange") : status ?? t("dockTuning.hint"))}</span>
     </div>
   );
-  // Inside the Walk stand dropdown: target x / y fields and Apply only.
   if (embedded) {
-    return <div className="dock-tuning-inline">{fields}{actions}</div>;
+    return <div className="dock-tuning-inline">{fields}
+      {echo != undefined && <div className="c-hint">{t("dockTuning.doneTolerance", {
+        cm: echo.values.tolCm, deg: echo.values.tolYawDeg,
+      })}</div>}
+      {actions}</div>;
   }
   return (
     <details className="c-card c-tune">

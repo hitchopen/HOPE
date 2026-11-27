@@ -71,7 +71,7 @@ test('forecast advisory is display-only and cannot change forwarding', () => {
 test('only explicit local buttons initialize the classifier', () => {
   const { localIntentForAction } = require('./loadSource.cjs')('ballPlayState');
   for (const key of ['prepareServe','readyToServe']) assert.equal(localIntentForAction(key),'SERVE');
-  for (const key of ['stand','killAllAndCollect','passive','estop']) assert.equal(localIntentForAction(key),'STOP');
+  for (const key of ['stand','rigidStand','killAllAndCollect','passive','estop']) assert.equal(localIntentForAction(key),'STOP');
   assert.equal(localIntentForAction('ready'),'READY');
   for (const key of ['FAULT','ABORTED','PD_STAND','MOTION','STOPPED','RUNNING','COMPLETE','setReceiver'])
     assert.equal(localIntentForAction(key),undefined);

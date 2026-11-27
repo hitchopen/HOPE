@@ -68,7 +68,7 @@ export type LocalBallIntent = "READY" | "SERVE" | "STOP";
 export function localIntentForAction(key: string): LocalBallIntent | undefined {
   if (key === "ready") return "READY";
   if (key === "prepareServe" || key === "readyToServe") return "SERVE";
-  if (["stand", "killAllAndCollect", "passive", "estop"].includes(key)) return "STOP";
+  if (["stand", "rigidStand", "killAllAndCollect", "passive", "estop"].includes(key)) return "STOP";
   return undefined;
 }
 

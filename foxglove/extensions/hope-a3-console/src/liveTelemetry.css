@@ -35,6 +35,28 @@
   color: #a54219;
   font-weight: 600;
 }
+.hope-mocap-pose {
+  color: #50657c;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.hope-held-pose {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #50657c;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.hope-held-pose::before {
+  content: "";
+  width: 3px;
+  height: 9px;
+  border-inline: 2px solid currentColor;
+  box-sizing: content-box;
+}
 .hope-live-state-strip .shot {
   margin-left: auto;
   white-space: nowrap;

@@ -16,7 +16,7 @@ function loadSource(name, extra = '') {
   vm.runInNewContext(ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
   }).outputText, {
-    exports, ArrayBuffer, DataView, Error, encodeURIComponent, setTimeout, clearTimeout, AbortController,
+    exports, crypto: require("node:crypto").webcrypto, performance, ArrayBuffer, DataView, Error, encodeURIComponent, setTimeout, clearTimeout, AbortController,
     require: name => name.endsWith('.css') ? {} : name.startsWith('./') ? loadSource(name.slice(2)) : require(name),
   }, { filename: file });
   return exports;

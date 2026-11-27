@@ -17,7 +17,7 @@ case "$mode" in
     ;;
   *) echo 'Usage: open_field.command [view|commission HDU-IP]' >&2; exit 2 ;;
 esac
-socket_dir=$(mktemp -d)
+socket_dir=$(mktemp -d /tmp/hope-field.XXXXXXXX)
 socket="$socket_dir/control"
 cleanup() {
   ssh -S "$socket" -O exit "$guest" >/dev/null 2>&1 || true

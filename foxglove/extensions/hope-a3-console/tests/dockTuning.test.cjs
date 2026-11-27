@@ -21,7 +21,7 @@ test('schema 2 dock state decodes for both status and tuning', () => {
 test('encode converts units and validation follows the Runner envelope', () => {
   const values = { ...decodeDockTuning(schema2).values, targetX: -0.45, tolCm: 8 };
   assert.equal(dockTuningValid(values), true);
-  const wire = encodeDockTuning(77, 9, values);
+  const wire = encodeDockTuning(77, 9, decodeDockTuning(schema2), { targetX: -0.45, tolCm: 8 });
   assert.equal(wire.length, 13);
   assert.deepEqual([...wire.slice(0, 5)], [1, 77, 9, -0.45, -0.7625]);
   assert.ok(Math.abs(wire[6] - 0.08) < 1e-12);
@@ -29,4 +29,11 @@ test('encode converts units and validation follows the Runner envelope', () => {
   for (const bad of [{ tolCm: 1 }, { forward: 0.5 }, { maxStart: 4 }, { targetY: Number.NaN }]) {
     assert.equal(dockTuningValid({ ...values, ...bad }), false);
   }
+});
+
+test('speed-only tuning preserves all other live configuration at wire precision', () => {
+  const echo = decodeDockTuning(schema2);
+  const wire = encodeDockTuning(77, 10, echo, { forward: 0.27, lateral: 0.13 });
+  assert.deepEqual(Array.from(wire), [1, 77, 10, ...schema2.slice(11, 14),
+    schema2[17], schema2[18], 0.27, 0.1, 0.13, schema2[22], 1.5]);
 });

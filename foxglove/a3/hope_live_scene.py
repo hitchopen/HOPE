@@ -7,12 +7,14 @@ import argparse
 import json
 import logging
 from logging.handlers import RotatingFileHandler
+import os
 from pathlib import Path
 import queue
 import re
 import signal
 import subprocess
 import sys
+from tempfile import NamedTemporaryFile
 import threading
 import time
 import urllib.request
@@ -30,6 +32,81 @@ from tf2_msgs.msg import TFMessage
 from hope_display_publishers import display_publisher
 from hope_live_scene_core import LiveSceneState
 from hope_live_scene_geometry import RobotGeometry, SceneMarkerUpdates, clear, marker, point, scene_markers
+
+
+class DisplayPoseCache:
+    """Remember only the measured inputs needed to draw a held robot."""
+    def __init__(self, path, identity, geometry):
+        self.path = path
+        self.identity = identity
+        self.geometry = geometry
+        self.q = None
+        self.base = None
+        self.pose_stamp = None
+        self.reference = False
+        self.saved_stamp = None
+        self.next_save = 0.
+        self.matrices = self.restore()
+
+    def restore(self):
+        if self.path is None:
+            return None
+        try:
+            frame = json.loads(self.path.read_text())
+            if frame['identity'] != self.identity:
+                return None
+            base = np.asarray(frame['base'], dtype=float)
+            q = frame['q']
+            if (base.shape != (4, 4) or not np.isfinite(base).all()
+                    or not all(np.isfinite(v) for v in q.values())):
+                return None
+            matrices = self.geometry.fk(q, base)
+            self.q, self.base = q, base
+            self.reference = frame.get('reference', False)
+            return matrices
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            return None
+
+    def remember(self, sample):
+        self.matrices = sample['matrices']
+        self.q, self.base = sample['raw']['q'], sample['base']
+        self.pose_stamp, self.reference = sample['timestamp_s'], False
+        self.save_if_due()
+
+    def follow_base(self, stamp, base):
+        if self.q is None:
+            self.q = {name: 0. for name, _, _, _, _, kind in self.geometry.joints
+                      if kind in ('continuous', 'revolute')}
+            self.reference = True
+        self.matrices = self.geometry.fk(self.q, base)
+        self.pose_stamp, self.base = stamp, base
+        self.save_if_due()
+
+    def save_if_due(self):
+        if time.monotonic() >= self.next_save:
+            self.save()
+
+    def save(self):
+        self.next_save = time.monotonic() + 1.
+        if self.path is None or self.pose_stamp is None:
+            return
+        stamp = self.pose_stamp
+        if self.saved_stamp == stamp:
+            return
+        frame = dict(identity=self.identity, timestamp_s=stamp,
+                     base=self.base.tolist(), q=self.q, reference=self.reference)
+        temp = None
+        try:
+            with NamedTemporaryFile(mode='w', dir=self.path.parent, delete=False) as f:
+                temp = Path(f.name)
+                json.dump(frame, f, allow_nan=False)
+            temp.replace(self.path)
+            self.saved_stamp = stamp
+        except (OSError, ValueError) as exc:
+            logging.getLogger(__name__).warning('Could not cache 3D robot pose: %s', exc)
+        finally:
+            if temp is not None:
+                temp.unlink(missing_ok=True)
 
 
 class AssetHandler(SimpleHTTPRequestHandler):
@@ -69,8 +146,10 @@ class LiveScene(Node):
         self.bases = deque(maxlen=500)
         self.robot_samples = deque(maxlen=200)
         self.joint_process = None
+        self.body_process = None
+        self.swing_metadata = None
+        self.session_changed_s = 0.
         self.last_robot_key = None
-        self.robot_needs_clear = False
         self.scene_updates = SceneMarkerUpdates()
         self.runner_mode = None
         self.runner_received_s = None
@@ -79,7 +158,13 @@ class LiveScene(Node):
         self.last_scene_publish = 0.
         self.last_robot_publish = 0.
         self.last_status_logged = None
-        self.robot_visible = False
+        self.display_mode = None
+        self.live_recovery_started = None
+        runtime = os.environ.get('XDG_RUNTIME_DIR')
+        identity = [args.robot_identity, args.display_side, args.joint_host, args.joint_jump,
+                    args.mocap_source, str(self.geometry.urdf.resolve())]
+        cache_path = Path(runtime)/'hope-live-scene-pose-v1.json' if runtime and args.robot_identity and args.display_side else None
+        self.display_pose = DisplayPoseCache(cache_path, identity, self.geometry)
         logdir = Path(args.log_dir)
         logdir.mkdir(parents=True, exist_ok=True)
         self.audit = logging.getLogger('hope.live.scene.audit')
@@ -92,7 +177,10 @@ class LiveScene(Node):
             self.create_subscription(PoseArray, '/poses/planner_full', self.ball, qos),
             self.create_subscription(String, '/hope/runner/mode', self.runner,
                 QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)),
-            self.create_subscription(Float64MultiArray, '/a3/base_pose_laptop_flat', self.base, qos),
+            # Keep the newest pelvis sample available even when rendering meshes takes a full frame.
+            # The timestamped deque retains the processed history used to pair joints and pelvis.
+            self.create_subscription(Float64MultiArray, '/a3/base_pose_laptop_flat', self.base,
+                QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)),
             self.create_subscription(Float64MultiArray, '/racket/command_flat', self.command, qos),
             self.create_subscription(Float64MultiArray, '/hope/planner/hit_plane', self.plane,
                 QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE, durability=DurabilityPolicy.TRANSIENT_LOCAL)),
@@ -108,6 +196,8 @@ class LiveScene(Node):
         threading.Thread(target=self.http.serve_forever, daemon=True).start()
         threading.Thread(target=self.poll_status, daemon=True).start()
         threading.Thread(target=self.read_joints, daemon=True).start()
+        if args.body_feedback:
+            threading.Thread(target=self.read_body_joints, daemon=True).start()
         self.create_timer(1/20, self.render)
         self.create_timer(1/args.telemetry_hz, self.telemetry)
         self.get_logger().info('Read-only live scene ready; only /hope/live/* publishers; no control clients')
@@ -127,6 +217,42 @@ class LiveScene(Node):
                 pass
             self.stop.wait(.2)
 
+    def read_body_joints(self):
+        command = ['ssh', '-T', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
+                   '-o', 'ConnectTimeout=5', '-o', 'ServerAliveInterval=3',
+                   '-o', 'ServerAliveCountMax=2']
+        if self.args.joint_jump:
+            command += ['-J', self.args.joint_jump]
+        command += [self.args.joint_host, 'exec ~/.local/share/hope-foxglove/body-feedback-v1/read-feedback']
+        while not self.stop.is_set():
+            try:
+                with subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                      text=True, stderr=subprocess.DEVNULL) as reader:
+                    self.body_process = reader
+                    try:
+                        for line in reader.stdout:
+                            if self.stop.is_set():
+                                break
+                            try:
+                                value = json.loads(line)
+                                if not isinstance(value, dict) or value.get('source') != 'body_drive':
+                                    continue
+                                value['session_id'] = self.state.session_id
+                                self.messages.put_nowait(('body', time.time(), value))
+                            except (ValueError, queue.Full):
+                                continue
+                    finally:
+                        reader.stdin.close()
+                        try:
+                            reader.wait(timeout=3)
+                        except subprocess.TimeoutExpired:
+                            reader.kill()
+            except OSError as exc:
+                self.get_logger().warning('Body feedback reader: ' + str(exc))
+            finally:
+                self.body_process = None
+            self.stop.wait(2)
+
     def read_joints(self):
         helper = Path(__file__).with_name('hope_live_joint_stream.py')
         while not self.stop.is_set():
@@ -137,6 +263,9 @@ class LiveScene(Node):
             try:
                 command = [sys.executable, str(helper), '--session', session,
                            '--host', self.args.joint_host]
+                if self.args.body_feedback:
+                    # The trace supplies optional policy handedness only.
+                    command += ['--poll-hz', '5']
                 if self.args.joint_jump:
                     command += ['--jump', self.args.joint_jump]
                 self.joint_process = subprocess.Popen(command,
@@ -145,7 +274,7 @@ class LiveScene(Node):
                     if self.stop.is_set() or self.state.session_id != session:
                         break
                     try:
-                        self.messages.put_nowait(('joint', time.time(), json.loads(line)))
+                        self.messages.put_nowait(('swing' if self.args.body_feedback else 'joint', time.time(), json.loads(line)))
                     except (ValueError, queue.Full):
                         pass
             finally:
@@ -203,8 +332,10 @@ class LiveScene(Node):
                 self.state.status(value, receipt)
                 if previous_session != (self.state.session_id, self.state.producer):
                     self.robot_samples.clear()
+                    self.live_recovery_started = None
+                    self.swing_metadata = None
+                    self.session_changed_s = receipt
                     self.last_robot_key = None
-                    self.robot_needs_clear = True
                 state_key = json.dumps(value, sort_keys=True)
                 if state_key != self.last_status_logged:
                     self.record('play_state', value)
@@ -214,6 +345,11 @@ class LiveScene(Node):
                 continue
             stamp = value.get('source_timestamp_s', 0)
             if not 0 <= now-stamp <= .35:
+                continue
+            if kind == 'swing':
+                self.swing_metadata = stamp, value.get('swing_sign')
+                continue
+            if kind == 'body' and stamp < self.session_changed_s:
                 continue
             if self.robot_samples and stamp <= self.robot_samples[-1]['timestamp_s']:
                 continue
@@ -254,18 +390,45 @@ class LiveScene(Node):
             self.last_scene_publish = now
         if robot:
             robot_key = (self.state.session_id, self.state.producer, robot['timestamp_s'])
-            if publish_scene and robot_key != self.last_robot_key:
+            if (publish_scene or self.display_mode != 'live') and robot_key != self.last_robot_key:
                 self.pubs['tf'].publish(self.geometry.transforms(robot['timestamp_s'], robot['matrices']))
                 self.last_robot_key = robot_key
-        refresh_robot = robot is not None and now-self.last_robot_publish >= .4
-        if self.robot_needs_clear or bool(robot) != self.robot_visible or refresh_robot:
-            markers = self.geometry.robot(now).markers if robot else []
-            if self.robot_needs_clear or (self.robot_visible and not robot):
-                markers = [clear()]+markers
-            if markers:
-                self.pubs['robot'].publish(MarkerArray(markers=markers))
-            self.last_robot_publish, self.robot_visible = now, bool(robot)
-            self.robot_needs_clear = False
+                self.display_pose.remember(robot)
+        base = self.current_base(now)
+        base_changed = False
+        if robot:
+            mode = 'live'
+        elif base is not None:
+            stamp, matrix = base
+            base_changed = stamp != self.display_pose.pose_stamp or self.display_mode != 'mocap'
+            if base_changed:
+                self.display_pose.follow_base(stamp, matrix)
+            mode = 'mocap'
+        elif self.display_pose.matrices is not None:
+            mode = 'held'
+        else:
+            mode = 'empty'
+        # Drop to muted geometry immediately on stale inputs. Only restore
+        # full colour after sustained live data, so isolated frames cannot flash.
+        if mode == 'live':
+            if self.live_recovery_started is None:
+                self.live_recovery_started = now
+            if now - self.live_recovery_started < .5:
+                mode = 'recovering'
+                base_changed = True
+        else:
+            self.live_recovery_started = None
+        if mode != self.display_mode or base_changed or (mode != 'empty' and now-self.last_robot_publish >= .4):
+            if mode in ('mocap', 'held', 'recovering'):
+                if mode == 'held' and self.display_mode != mode:
+                    self.display_pose.save()
+                markers = self.geometry.robot(now, self.display_pose.matrices)
+            elif mode == 'live':
+                markers = self.geometry.robot(now)
+            else:
+                markers = MarkerArray(markers=[clear()])
+            self.pubs['robot'].publish(markers)
+            self.last_robot_publish, self.display_mode = now, mode
         target = self.state.target
         # Trace writes arrive after their acquisition time. Give those samples
         # time to arrive, then choose the last actual measurement BEFORE strike.
@@ -308,11 +471,19 @@ class LiveScene(Node):
     def telemetry(self):
         now = time.time()
         snapshot = self.state.snapshot(now)
+        snapshot['display_pose_held'] = self.display_mode == 'held'
+        snapshot['display_mocap_body'] = self.display_mode == 'mocap'
+        snapshot['display_joints_reference'] = self.display_pose.reference
         runner_age = now-self.runner_received_s if self.runner_received_s is not None else None
         runner_fresh = runner_age is not None and 0 <= runner_age < 1.
         snapshot.update(runner_mode=self.runner_mode if runner_fresh else None,
             runner_age_ms=runner_age*1000 if runner_age is not None and runner_age >= 0 else None)
         base = self.current_base(now)
+        if base is None and self.bases and self.bases[-1][0] >= self.session_changed_s:
+            stamp, matrix = self.bases[-1]
+            snapshot.update(last_pose_age_s=max(0., now-stamp),
+                last_robot_xyz=matrix[:3, 3].tolist(),
+                last_robot_rpy_deg=Rotation.from_matrix(matrix[:3, :3]).as_euler('xyz', degrees=True).tolist())
         if base:
             stamp, matrix = base
             snapshot.update(base_available=True, base_age_ms=(now-stamp)*1000,
@@ -324,7 +495,11 @@ class LiveScene(Node):
             snapshot.update(robot_available=True, robot_age_ms=(now-r['timestamp_s'])*1000,
                 robot_xyz=r['base'][:3, 3].tolist(), robot_rpy_deg=Rotation.from_matrix(r['base'][:3, :3]).as_euler('xyz', degrees=True).tolist(),
                 racket_xyz=r['racket_xyz'], racket_speed=float(np.linalg.norm(r['velocity'])) if r['velocity'] is not None else None,
+                joint_source=r['raw'].get('source', 'runner_trace'),
+                joint_group_skew_ms=r['raw'].get('group_skew_ms'),
                 policy_swing_sign=r['raw'].get('swing_sign'))
+            if self.swing_metadata and 0 <= now-self.swing_metadata[0] < .25:
+                snapshot['policy_swing_sign'] = self.swing_metadata[1]
         self.pubs['telemetry'].publish(String(data=json.dumps(snapshot, separators=(',', ':'), allow_nan=False)))
 
 
@@ -334,6 +509,10 @@ def main():
     parser.add_argument('--mesh-port', type=int, default=8769)
     parser.add_argument('--joint-host', default='hope-newrobot-mdu')
     parser.add_argument('--joint-jump')
+    parser.add_argument('--body-feedback', action='store_true')
+    parser.add_argument('--robot-identity', default='')
+    parser.add_argument('--display-side', default='')
+    parser.add_argument('--mocap-source', default='')
     parser.add_argument('--log-dir', required=True)
     parser.add_argument('--scene-hz', type=float, default=20.0)
     parser.add_argument('--telemetry-hz', type=float, default=5.0)
@@ -343,7 +522,10 @@ def main():
     def interrupted(_signal, _frame):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, interrupted)
-    rclpy.init()
+    # Keep DDS available for the last display packet on an orderly service stop.
+    from rclpy.signals import SignalHandlerOptions
+    signal.signal(signal.SIGINT, interrupted)
+    rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
     node = LiveScene(args)
     try:
         rclpy.spin(node)
@@ -351,8 +533,13 @@ def main():
         pass
     finally:
         node.stop.set()
+        node.display_pose.save()
+        if node.display_pose.matrices is not None and rclpy.ok():
+            node.pubs['robot'].publish(node.geometry.robot(time.time(), node.display_pose.matrices))
         if node.joint_process and node.joint_process.poll() is None:
             node.joint_process.terminate()
+        if node.body_process and node.body_process.poll() is None:
+            node.body_process.terminate()
         node.http.shutdown()
         node.destroy_node()
         rclpy.shutdown()

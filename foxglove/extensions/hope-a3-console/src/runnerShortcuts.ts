@@ -1,9 +1,12 @@
-export type RunnerShortcut = "stand" | "ready" | "serve" | "passive";
+import { KeyboardWalk, WALK_KEYS } from "./keyboardWalk";
+export type RunnerShortcut = "stand" | "ready" | "serve" | "dock" | "restoreArms" | "passive";
 
 export const RUNNER_SHORTCUT_KEYS: Record<RunnerShortcut, string> = {
   stand: "I",
   ready: "R",
   serve: "S",
+  dock: "D",
+  restoreArms: "A",
   passive: "ArrowLeft+ArrowRight",
 };
 
@@ -11,7 +14,7 @@ type ConsoleOwners = { panels: Set<HTMLElement>; active?: HTMLElement };
 const consoleOwners = new WeakMap<Document, ConsoleOwners>();
 
 /** Listen at the window's document: disabled action buttons lose DOM focus. */
-export function bindRunnerShortcuts(panel: HTMLElement): () => void {
+export function bindRunnerShortcuts(panel: HTMLElement, requestRigidStand: () => void, walk?: KeyboardWalk): () => void {
   const doc = panel.ownerDocument;
   const view = doc.defaultView;
   const owners: ConsoleOwners = consoleOwners.get(doc) ?? { panels: new Set<HTMLElement>() };
@@ -19,7 +22,7 @@ export function bindRunnerShortcuts(panel: HTMLElement): () => void {
   owners.panels.add(panel);
   const held = new Set<string>();
   let passiveLatched = false;
-  const clear = () => { held.clear(); passiveLatched = false; };
+  const clear = () => { walk?.stop(); held.clear(); passiveLatched = false; };
   const ownsKeyboard = () => {
     const visible = Array.from(owners.panels)
       .filter((candidate) => candidate.isConnected && candidate.getClientRects().length > 0);
@@ -30,11 +33,14 @@ export function bindRunnerShortcuts(panel: HTMLElement): () => void {
     if (event.composedPath().includes(panel)) { owners.active = panel; }
   };
   const keyFor = (event: KeyboardEvent): string => {
-    if (["KeyI", "KeyR", "KeyS"].includes(event.code)) { return event.code; }
-    if (event.key === "ArrowLeft" || event.key === "ArrowRight") { return event.key; }
-    if (!event.code && /^[irs]$/i.test(event.key)) { return `Key${event.key.toUpperCase()}`; }
+    if (event.code.startsWith("Numpad")) { return WALK_KEYS.includes(event.code) ? event.code : ""; }
+    if (["KeyI", "KeyR", "KeyS", "KeyD", "KeyA"].includes(event.code)) { return event.code; }
+    if (event.key === "ArrowUp" || event.key === "ArrowLeft" || event.key === "ArrowRight") { return event.key; }
+    if (!event.code && /^[irsda]$/i.test(event.key)) { return `Key${event.key.toUpperCase()}`; }
     return "";
   };
+  const dialogOpen = () => Array.from(doc.querySelectorAll("[role='dialog'], [role='alertdialog'], [aria-modal='true']"))
+    .some((dialog) => dialog.getClientRects().length > 0);
   const onKeyDown = (event: KeyboardEvent) => {
     // Multiple Console panels must never send the same key to two robots.
     if (!ownsKeyboard()) { clear(); return; }
@@ -49,20 +55,25 @@ export function bindRunnerShortcuts(panel: HTMLElement): () => void {
     const composing = event.isComposing || event.keyCode === 229;
     if (event.defaultPrevented || composing ||
         event.ctrlKey || event.metaKey || event.altKey || editing || doc.hidden ||
-        Array.from(doc.querySelectorAll("[role='dialog'], [role='alertdialog'], [aria-modal='true']"))
-          .some((dialog) => dialog.getClientRects().length > 0)) {
+        dialogOpen()) {
       clear();
       return;
     }
     const key = keyFor(event);
+    if (event.shiftKey && (walk?.active || WALK_KEYS.includes(key))) { clear(); return; }
     if (!key) { return; }
     event.preventDefault();
     event.stopPropagation();
     if (event.repeat || held.has(key)) { return; }
     held.add(key);
+    if (WALK_KEYS.includes(key)) { walk?.down(key); return; }
+    walk?.stop();
+    if (key === "ArrowUp") { requestRigidStand(); return; }
     let action: RunnerShortcut;
     if (key === "KeyI") { action = "stand"; }
     else if (key === "KeyR") { action = "ready"; }
+    else if (key === "KeyA") { action = "restoreArms"; }
+    else if (key === "KeyD") { action = "dock"; }
     else if (key === "KeyS") { action = "serve"; }
     else {
       if (passiveLatched || !held.has("ArrowLeft") || !held.has("ArrowRight")) { return; }
@@ -77,9 +88,17 @@ export function bindRunnerShortcuts(panel: HTMLElement): () => void {
     if (buttons.length === 1) { buttons[0]?.click(); }
   };
   const onKeyUp = (event: KeyboardEvent) => {
-    held.delete(keyFor(event));
+    const key = keyFor(event);
+    held.delete(key);
+    walk?.up(key);
     if (!held.has("ArrowLeft") && !held.has("ArrowRight")) { passiveLatched = false; }
   };
+  walk?.advertise();
+  const timer = walk && view?.setInterval(() => {
+    if (!walk.active) { return; }
+    if (!ownsKeyboard() || doc.hidden || !doc.hasFocus() || dialogOpen()) { clear(); return; }
+    walk.tick();
+  }, 50);
   const capture = { capture: true };
   doc.addEventListener("keydown", onKeyDown, capture);
   doc.addEventListener("pointerdown", onInteraction, capture);
@@ -89,6 +108,8 @@ export function bindRunnerShortcuts(panel: HTMLElement): () => void {
   view?.addEventListener("blur", clear);
   return () => {
     clear();
+    if (timer != undefined) { view?.clearInterval(timer); }
+    walk?.close();
     owners.panels.delete(panel);
     if (owners.active === panel) { owners.active = undefined; }
     if (owners.panels.size === 0) { consoleOwners.delete(doc); }

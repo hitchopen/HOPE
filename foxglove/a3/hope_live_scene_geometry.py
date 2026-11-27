@@ -183,18 +183,33 @@ class RobotGeometry:
                 raise ValueError('disconnected URDF')
         return out
 
-    def robot(self, now):
+    def robot(self, now, held_matrices=None):
         # Stable IDs refresh the TTL without disposing/reloading every mesh.
         ms = []
         for i, v in enumerate(self.visuals):
             m = marker('robot', i, Marker.MESH_RESOURCE, now, color=v['color'])
-            m.header.frame_id = 'hope_live_robot/'+v['link']
-            m.header.stamp.sec = m.header.stamp.nanosec = 0
-            m.frame_locked = True
             m.mesh_resource = v['url']
-            pose(m, v['origin'])
-            m.lifetime.sec, m.lifetime.nanosec = 1, 0
+            if held_matrices is None:
+                m.header.frame_id = 'hope_live_robot/'+v['link']
+                m.header.stamp.sec = m.header.stamp.nanosec = 0
+                m.frame_locked = True
+                pose(m, v['origin'])
+                m.lifetime.sec, m.lifetime.nanosec = 1, 0
+            else:
+                # Bake the measured base and every visual origin into world. A
+                # held mesh needs no live TF, even after the publisher exits.
+                # Preserve the contrast between shells, joints and paddle.
+                r, g, b = v['color'][:3]
+                shade = .2126*r + .7152*g + .0722*b
+                m.color.r = .30 + .37*shade
+                m.color.g = .39 + .37*shade
+                m.color.b = .48 + .34*shade
+                pose(m, held_matrices[v['link']] @ v['origin'])
+                m.lifetime.nanosec = 0
             ms.append(m)
+        # Remove the persistent world-space text emitted by earlier releases.
+        old_label = Marker(ns='robot_status', id=0, action=Marker.DELETE)
+        ms.append(old_label)
         return MarkerArray(markers=ms)
 
     def transforms(self, now, matrices):

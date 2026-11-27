@@ -36,6 +36,8 @@ import { PLANE_MODE_LABELS, PLANE_MODE_SERVICE, PlaneMode, PlaneModeState, decod
 import { PlayerPosition, decodePlayerPosition, selectedPlayerAvailable } from "./playerPositions";
 import { MocapRecovery, StartCheckId, StartEvidence, mocapRecoveryText, startBlockReason, startChecks, mocapConnectionView } from "./mocapRecovery";
 import { reconcileRobotTarget, robotConnectionUrl, confirmRobotConnection } from "./robotConnection";
+import { KeyboardWalk } from "./keyboardWalk";
+import { sessionFingerprint } from "./operatorHeartbeat";
 import { bindRunnerShortcuts, RUNNER_SHORTCUT_KEYS, RunnerShortcut } from "./runnerShortcuts";
 import { decodeTeleopState, teleopEntryReason, xboxInputFresh } from "./teleopStatus";
 import { timeCalibrationControls } from "./timeCalibration";
@@ -139,6 +141,8 @@ const SERVICES = {
   stand: "/hope/runner/enter_pd_stand",
   ready: "/hope/runner/enter_motion",
   teleop: "/hope/runner/enter_teleop",
+  rigidStand: "/hope/runner/enter_rigid_pd_stand",
+  restoreArms: "/hope/runner/restore_stand_arms",
   walkStand: "/hope/runner/enter_walk_stand",
   dock: "/hope/runner/enter_dock",
   prepareServe: "/hope/runner/prepare_serve",
@@ -155,7 +159,7 @@ const SERVICES = {
 type ServiceKey = keyof typeof SERVICES;
 type TopicName = (typeof TOPICS)[keyof typeof TOPICS];
 
-type PolicyModel = "model400" | "model14600" | "model11999" | "model12600" | "model17400" | "model12000" | "model13800" | "modelfusion" | "model13800astra" | "model14200" | "model14200fusion" | "model14200best" | "model15200body" | "model19000" | "model26500";
+type PolicyModel = "model137000" | "model54000" | "model400center3" | "model400" | "model14600" | "model11999" | "model12600" | "model17400" | "model12000" | "model13800" | "modelfusion" | "model13800astra" | "model14200" | "model14200fusion" | "model14200best" | "model15200body" | "model19000" | "model26500" | "model23700";
 type FieldStatus = {
   mocap_recovery?: MocapRecovery;
   player_positions?: { P1: boolean; P2: boolean; players_x_m?: Record<string, number> };
@@ -230,6 +234,7 @@ type XboxPreview = {
   device: string;
   enabled: boolean;
   lt: boolean;
+  keyboard_walk?: string;
   lt_value?: number;
   buttons?: string[];
   lb?: boolean;
@@ -764,7 +769,7 @@ function ProcessPill({ name, topic, value, optional = false }: {
   );
 }
 
-const SHORTCUT_HINT: Record<RunnerShortcut, string> = { stand: "I", ready: "R", serve: "S", passive: "← →" };
+const SHORTCUT_HINT: Record<RunnerShortcut, string> = { stand: "I", ready: "R", serve: "S", dock: "D", restoreArms: "A", passive: "← →" };
 
 type NodeId = "passive" | "stand" | "receive" | "raise" | "serve" | "reposition";
 // State-graph geometry in SVG viewBox units; nodes are positioned in % of the same box.
@@ -924,19 +929,20 @@ function CsvTimeline({ csv, kernelMode }: { csv: FieldStatus["csv"]; kernelMode:
 type PolicyRow = { model: PolicyModel; name: string; label?: LocalText; note?: LocalText; serve: boolean;
   /** Kept in the catalog but not shown in the dropdown. */
   hidden?: boolean };
-// 2.0.0-beta.2: the operator list carries only the deployed 14200 Best bundle
-// (origin/codex/ball-models-field-runtime-20261016, models/foxglove_policies/model14200best).
-// Kernel mode runs the same 14200 Best (the robot backend's MOCAP_MODELS exempts model14600 and model14200best).
-// Only 14200 Best is shown (operator request 2026-11-18: "不要把代码删掉 只是不显示出来"). The other models stay in
-// the catalog with hidden: true; remove that flag to show one again.
 const POLICY_ROWS: PolicyRow[] = [
+  { model: "model137000", name: "FT48 137000", label: msg("hopeA3Console.model137000"), serve: false },
+  { model: "model54000", name: "54000", label: msg("hopeA3Console.model54000"), serve: false },
+  { model: "model23700", name: "23700 Mobile", label: msg("hopeA3Console.model23700"), serve: false },
+  { model: "model400center3", name: "400 Center3", label: msg("hopeA3Console.model400center3"), serve: true },
+  { model: "model400", name: "400", label: msg("hopeA3Console.model400ServeReceive"), serve: true },
   { model: "model14200best", name: "14200 Best", label: msg("hopeA3Console.model14200bestServeReceive"), serve: true },
-  // Separate option, 2.0.0-beta.6: explicit-GRU receiver (no matched serve CSV), OptiTrack receive only.
-  { model: "model19000", name: "19000 GRU", label: msg("hopeA3Console.model19000ReceiveOnly"), note: msg("hopeA3Console.model19000Note"), serve: false, hidden: true },
-  // Separate option, 2.0.0-beta.7: feed-forward receiver (no matched serve CSV), OptiTrack receive only.
-  { model: "model26500", name: "26500", label: msg("hopeA3Console.model26500ReceiveOnly"), note: msg("hopeA3Console.model26500Note"), serve: false, hidden: true },
-  // model400 (center3 strike-stance, origin/codex/model400-foxglove-20261118): serve + receive.
-  { model: "model400", name: "400", label: msg("hopeA3Console.model400ServeReceive"), serve: true, hidden: true },
+  { model: "model14200", name: "14200", label: msg("hopeA3Console.model14200ServeReceive"), serve: true },
+  { model: "model13800astra", name: "13800 Astra", label: msg("hopeA3Console.astraV23ServeReceive"), serve: true },
+  { model: "model13800", name: "13800", label: msg("hopeA3Console.13800V2313800ServeReceive"), serve: true },
+  { model: "model12000", name: "12000", label: msg("hopeA3Console.12000V2312000ServeReceive"), serve: true },
+  { model: "model17400", name: "17400", label: msg("hopeA3Console.17400V2317400ServeReceive"), serve: true },
+  { model: "model12600", name: "12600", label: msg("hopeA3Console.12600V2312600ServeReceive"), serve: true },
+  { model: "model14600", name: "14600", label: msg("hopeA3Console.14600ServeReceive"), serve: true },
 ];
 const VISIBLE_POLICY_ROWS: PolicyRow[] = POLICY_ROWS.filter((row) => row.hidden !== true);
 const OFFERED_MODELS: ReadonlySet<PolicyModel> = new Set<PolicyModel>(VISIBLE_POLICY_ROWS.map((row) => row.model));
@@ -946,7 +952,7 @@ const POLICY_NAMES: Partial<Record<PolicyModel, string>> = {
   model14600: "14600", model11999: "11999", model12600: "12600", model17400: "17400", model12000: "12000",
   model13800: "13800", modelfusion: "Fusion", model13800astra: "13800 Astra", model14200: "14200",
   model14200fusion: "14200 Fusion", model15200body: "15200 BODY", model14200best: "14200 Best", model19000: "19000 GRU", model26500: "26500",
-  model400: "400",
+  model137000: "FT48 137000", model54000: "54000", model23700: "23700 Mobile", model400center3: "400 Center3", model400: "400",
 };
 // Hashes from model14200best/manifest.json; the matched serve CSV identifies which bundle is installed.
 const BEST_14200_VARIANTS = [
@@ -1098,6 +1104,8 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const [noticeLog, setNoticeLog] = useState<{ id: number; at: number; text: LocalText }[]>([]);
   // Any robot command other than a role change supersedes a pending role-switch follow-up.
   const actionEpoch = useRef(0);
+  const dockReturn = useRef<AbortController>();
+  const [returnPending, setReturnPending] = useState(false);
   const roleSwitchInFlight = useRef(false);
   const [roleSwitchFor, setRoleSwitchFor] = useState<"ready" | "prepareServe">();
   const snapshotWaiters = useRef(new Set<() => void>());
@@ -1136,6 +1144,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           context.saveState(savedPanel.current);
           setNotice(msg("connection.confirmedInPlace", { ip }));
         }, (ip) => {
+          dockReturn.current?.abort();
           setPendingTarget(ip);
           setNotice(msg("hopeA3Console.opening8766WaitingForTheNewRobotControls", {ip}));
         }, (url) => { window.open(url, "_blank", "noopener,noreferrer"); });
@@ -1175,6 +1184,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
           incomingHost !== latest.current.lifecycleConfig.hdu_wifi_ip)) {
         confirmationRef.current = undefined;
         setConfirmation(undefined);
+        dockReturn.current?.abort();
         latest.current = INITIAL_SNAPSHOT;
         setConfigTouched(false);
         setConfigDraft(EMPTY_CONFIG);
@@ -1202,6 +1212,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     context.watch("currentFrame");
     context.subscribe(Object.values(TOPICS).map((topic) => ({ topic })));
     return () => {
+      dockReturn.current?.abort();
       context.onRender = undefined;
       context.unsubscribeAll();
     };
@@ -1235,13 +1246,15 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
 
   // Resolves true only when the service explicitly accepted the request.
   const invoke = useCallback(
-    async (key: ServiceKey): Promise<boolean> => {
+    async (key: ServiceKey, cycle?: AbortController): Promise<boolean> => {
+      if (cycle != undefined && (cycle.signal.aborted || dockReturn.current !== cycle)) { return false; }
+      if (cycle == undefined && key !== "restoreArms") { dockReturn.current?.abort(); }
       if (busy[key] === true || inFlightServices.current.has(key)) { return false; }
       if (["ready", "prepareServe", "readyToServe"].includes(key) && !playPelvisReady(latest.current, Date.now())) {
         setNotice(msg("mocapSafety.readyNeedsPelvis"));
         return false;
       }
-      if (key !== "setServer" && key !== "setReceiver") { actionEpoch.current += 1; }
+      if (key !== "setServer" && key !== "setReceiver" && key !== "restoreArms") { actionEpoch.current += 1; }
       // Local button intent and the existing robot request are independent.
       // Neither rejection nor acknowledgement from A3 changes the classifier.
       applyLocalButton(key);
@@ -1638,11 +1651,111 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   // 2 s: Wi-Fi bursts must not toggle Reposition between enabled and disabled.
   const dockFresh = isFresh(snapshot, TOPICS.dockState, now, 2_000);
   const dockState = dockFresh ? snapshot.dockState : undefined;
-  const dockBlocked = dockRepositionReason({ runnerFresh: runnerFresh &&
-    isFresh(snapshot, TOPICS.runnerMode, now, 1_000) &&
-    isFresh(snapshot, TOPICS.runnerFault, now, 1_000), runnerFault: snapshot.runnerFault !== false,
-    mode: snapshot.runnerMode, telemetryFresh: dockFresh, baseFresh,
-    serving: snapshot.serving === true, pending: busy.dock === true, estop: estopAsserted }, t);
+  function repositionBlocked(s: Snapshot, at: number): string | undefined {
+    const fromReceive = s.runnerMode === "MOTION";
+    if (fromReceive && (!playPelvisReady(s, at) || !s.lifecycleSession || s.runnerBoot == undefined)) {
+      return t("mocapSafety.readyNeedsPelvis");
+    }
+    return dockRepositionReason({
+      runnerFresh: s.runnerAlive === true && [TOPICS.runnerAlive, TOPICS.runnerMode, TOPICS.runnerFault]
+        .every(topic => isFresh(s, topic, at, 1_000)),
+      runnerFault: s.runnerFault !== false, mode: s.runnerMode,
+      telemetryFresh: isFresh(s, TOPICS.dockState, at, 2_000) && s.dockState != undefined && s.dockState[1] === s.runnerBoot,
+      baseFresh: s.baseFresh === true && isFresh(s, TOPICS.baseFresh, at, 1_000),
+      serving: s.serving === true, pending: inFlightServices.current.has("dock"),
+      estop: s.estopLatched === true || (xboxInputFresh(s.lastReceived[TOPICS.xboxPreview], s.xboxPreview?.source_wall_ms, at)
+        && s.xboxPreview?.estop_requested === true),
+    }, t);
+  }
+  const dockBlocked = returnPending ? t("console2.returnToReceive") : repositionBlocked(snapshot, now);
+
+  async function requestReposition(): Promise<void> {
+    const start = latest.current;
+    if (dockReturn.current || pendingTargetRef.current || start.field?.mode === "KERNEL" ||
+        repositionBlocked(start, Date.now()) != undefined) { return; }
+    if (start.runnerMode !== "MOTION") { await invoke("dock"); return; }
+
+    const cycle = new AbortController();
+    dockReturn.current = cycle;
+    setReturnPending(true);
+    // Monitor the same Runner throughout, including while service acknowledgements are in flight.
+    const safe = () => {
+      const s = latest.current, at = Date.now();
+      return !cycle.signal.aborted && !pendingTargetRef.current && s.runnerBoot === start.runnerBoot &&
+        s.lifecycleSession === start.lifecycleSession && s.lifecycleConfig.hdu_wifi_ip === start.lifecycleConfig.hdu_wifi_ip &&
+        s.field?.mode !== "KERNEL" && s.runnerAlive === true && s.runnerFault === false &&
+        s.estopLatched !== true && !(xboxInputFresh(s.lastReceived[TOPICS.xboxPreview], s.xboxPreview?.source_wall_ms, at) &&
+          s.xboxPreview?.estop_requested === true) && s.serving !== true && s.baseFresh === true &&
+        s.dockState?.[1] === start.runnerBoot && playPelvisReady(s, at) &&
+        (!s.mocapSafety?.operatorRequired || (s.mocapSafety.uiFresh === true && s.mocapSafety.computerFresh === true)) &&
+        ["MOTION", "PD_STAND", "WALK_STAND", "DOCK"].includes(s.runnerMode ?? "") &&
+        [TOPICS.runnerAlive, TOPICS.runnerMode, TOPICS.runnerBoot, TOPICS.runnerFault, TOPICS.localRole, TOPICS.baseFresh]
+          .every(topic => isFresh(s, topic, at, 1_000)) && isFresh(s, TOPICS.dockState, at, 2_000);
+    };
+    const guard = () => { if (!safe()) { cycle.abort(); } };
+    const watchers = snapshotWaiters.current;
+    watchers.add(guard);
+    const watchdog = window.setInterval(guard, 200);
+    // Subscribe before sending so a fast mode transition can precede its service reply.
+    const step = async (key: ServiceKey, acceptedState: (s: Snapshot) => boolean, deadline: number) => {
+      if (!safe()) { return false; }
+      let finish!: (ok: boolean) => void;
+      const observed = new Promise<boolean>(resolve => { finish = resolve; });
+      const check = () => { if (safe() && acceptedState(latest.current)) { finish(true); } };
+      const cancel = () => finish(false);
+      watchers.add(check);
+      cycle.signal.addEventListener("abort", cancel);
+      const timeout = window.setTimeout(cancel, deadline);
+      try {
+        return await invoke(key, cycle) && await observed && safe();
+      } finally {
+        watchers.delete(check);
+        cycle.signal.removeEventListener("abort", cancel);
+        window.clearTimeout(timeout);
+      }
+    };
+    let requestedReady = false;
+    try {
+      if (!await step("stand", s => isStanding(s.runnerMode), 5_000)) { return; }
+      if (!isStanding(latest.current.runnerMode) || repositionBlocked(latest.current, Date.now()) != undefined) { return; }
+      let sawDockMode = false;
+      let sawRunningResult = false;
+      let sawDockAction = false;
+      let leftDock = false;
+      const doneInStand = (s: Snapshot) => sawDockMode && sawRunningResult && s.dockState?.[2] === 5 &&
+        s.dockState[9] === 2 && s.dockState[10] === 0 && s.runnerMode === "WALK_STAND";
+      const completed = (s: Snapshot) => {
+        // Mode and dock progress arrive on independent topics and can cross at either edge.
+        if (s.runnerMode === "DOCK") { sawDockMode = true; }
+        if (s.dockState?.[9] === 1 && s.dockState !== start.dockState) { sawRunningResult = true; }
+        if (s.runnerMode === "DOCK" && s.lastAction === "ENTER_DOCK") { sawDockAction = true; }
+        if ((sawDockAction && s.lastAction !== "ENTER_DOCK" && s.lastAction !== "RESTORE_STAND_ARMS") || s.runnerMode === "MOTION" ||
+            (sawRunningResult && s.dockState?.[9] === 3) ||
+            (leftDock && s.runnerMode === "DOCK")) {
+          cycle.abort();
+          return false;
+        }
+        if (sawDockMode && s.runnerMode === "WALK_STAND") { leftDock = true; }
+        return doneInStand(s);
+      };
+      if (!await step("dock", completed, 60_000) || !doneInStand(latest.current)) { return; }
+      if (latest.current.localRole !== "RECEIVER") {
+        if (latest.current.roleChangeAllowed !== true ||
+            !await step("setReceiver", s => s.localRole === "RECEIVER", 2_000)) { return; }
+      }
+      if (safe() && doneInStand(latest.current) && !actionGates(latest.current, Date.now()).readyBlocked) {
+        requestedReady = await step("ready", s => s.runnerMode === "MOTION" && s.localRole === "RECEIVER", 8_000);
+      }
+    } finally {
+      window.clearInterval(watchdog);
+      watchers.delete(guard);
+      if (dockReturn.current === cycle) {
+        dockReturn.current = undefined;
+        setReturnPending(false);
+        if (!requestedReady && !cycle.signal.aborted) { setNotice(msg("console2.returnIncomplete")); }
+      }
+    }
+  }
   const xboxVelocity = xboxFresh ? snapshot.xboxPreview?.velocity : undefined;
   const velocityText = (values: number[] | undefined) => values == undefined
     ? "vx — · vy — · yaw —"
@@ -1794,6 +1907,35 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   }, [tab, lifecycleFresh, snapshot.lifecycleState]);
   const activeTab: ConsoleTab = tab ?? (lifecycleState === "RUNNING" ? "play" : "setup");
   const switching = Boolean(pendingTarget);
+  const rigidStandShortcut = useRef<() => void>(() => {});
+  rigidStandShortcut.current = () => {
+    const current = latest.current;
+    if (pendingTargetRef.current || estopAsserted || current.estopLatched === true ||
+        actionGates(current, Date.now()).standBlocked || inFlightServices.current.has("stand") ||
+        current.runnerMode === "SERVE" || current.serving === true) return;
+    void invoke("rigidStand");
+  };
+  useEffect(() => {
+    const walk = new KeyboardWalk(context, () => {
+      const s = latest.current;
+      const now = Date.now();
+      const boot = s.runnerBoot;
+      if (pendingTargetRef.current || dockReturn.current || inFlightServices.current.size > 0 ||
+          !context.callService || !boot || !s.lifecycleSession || s.lifecycleState !== "RUNNING" ||
+          s.lifecycleBusy !== false || s.runnerAlive !== true || s.runnerFault !== false ||
+          s.estopLatched !== false || s.xboxPreview?.estop_requested || !s.xboxPreview?.keyboard_walk ||
+          s.xboxPreview.lt || s.xboxPreview.action_pending ||
+          !xboxInputFresh(s.lastReceived[TOPICS.xboxPreview], s.xboxPreview.source_wall_ms, now) ||
+          ![TOPICS.runnerBoot, TOPICS.runnerAlive, TOPICS.runnerFault, TOPICS.runnerMode, TOPICS.teleopState,
+            TOPICS.lifecycleSession, TOPICS.lifecycleState, TOPICS.lifecycleBusy, TOPICS.estopLatched]
+            .every(topic => isFresh(s, topic, now, 1200)) ||
+          s.teleopState?.[1] !== boot || s.teleopState[2] !== 1 || s.teleopState[3] !== 2 ||
+          (s.runnerMode !== "WALK_STAND" && s.runnerMode !== "TELEOP")) { return undefined; }
+      return { boot, fingerprint: sessionFingerprint(s.lifecycleSession), standing: s.runnerMode === "WALK_STAND" };
+    });
+    return bindRunnerShortcuts(context.panelElement, () => rigidStandShortcut.current(), walk);
+  }, [context, context.panelElement]);
+
   const openTab = (next: ConsoleTab, card?: string) => {
     setTab(next);
     if (card != undefined) {
@@ -1873,7 +2015,13 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const bestCatalog = field?.policy_models?.model14200best;
   const bestVariant = bestCatalog?.available === true || field?.policy_model === "model14200best"
     ? best14200Variant(bestCatalog?.serve_csv?.sha256 ?? undefined, field?.policy_model === "model14200best" ? field.csv : undefined) : undefined;
-  const policyName = field?.policy_model ? POLICY_NAMES[field.policy_model] ?? field.policy_model : "—";
+  const speed104 = runtimeFresh && fieldFresh && field?.policy_models?.model23700?.available === true &&
+    field.policy_models_config_revision === snapshot.configRuntime?.revision &&
+    snapshot.configRuntime?.policyDigests?.model23700 === "1b4adc3494d67d48cb548d0b5fc3b118df9079082f2135d49e5bc815480b821c";
+  const speed104Name = "23700 Best · speed104";
+  const displayPolicyRows = speed104 ? VISIBLE_POLICY_ROWS.map(row => row.model === "model23700"
+    ? { ...row, name: speed104Name, label: msg("hopeA3Console.model23700Best") } : row) : VISIBLE_POLICY_ROWS;
+  const policyName = field?.policy_model === "model23700" && speed104 ? speed104Name : field?.policy_model ? POLICY_NAMES[field.policy_model] ?? field.policy_model : "—";
   const roleLabel = snapshot.localRole === "SERVER" ? t("console2.roleServer")
     : snapshot.localRole === "RECEIVER" ? t("console2.roleReceiver") : snapshot.localRole ?? t("hopeA3Console.unassigned");
   const connectionTone: Tone = hduFresh && snapshot.hduActive === true ? "ok" : lifecycleFresh ? "warn" : "bad";
@@ -2253,7 +2401,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
       headerChips.push({ ...swing, open: openDiag });
     }
   }
-  const selectedPolicyLabel = field?.policy_model === "model400" ? t("hopeA3Console.model400ServeReceive") : field?.policy_model === "model26500" ? t("hopeA3Console.model26500ReceiveOnly") : field?.policy_model === "model19000" ? t("hopeA3Console.model19000ReceiveOnly") : field?.policy_model === "model15200body" ? t("hopeA3Console.model15200bodyServeReceive") : field?.policy_model === "model14200" ? t("hopeA3Console.model14200ServeReceive") : field?.policy_model === "model14200fusion" ? t("hopeA3Console.model14200fusionServeReceive") : field?.policy_model === "model14200best" ? t("hopeA3Console.model14200bestServeReceive") : field?.policy_model === "model13800astra" ? t("hopeA3Console.astraV23ServeReceive") : field?.policy_model === "modelfusion" ? t("hopeA3Console.fusionV23ServeReceive") : field?.policy_model === "model13800" ? t("hopeA3Console.13800V2313800ServeReceive") : field?.policy_model === "model12000" ? t("hopeA3Console.12000V2312000ServeReceive") : field?.policy_model === "model17400" ? (field.policy_models?.model17400?.receive_only === true ? t("hopeA3Console.17400ReceiveOnly") : t("hopeA3Console.17400V2317400ServeReceive")) : field?.policy_model === "model12600" ? t("hopeA3Console.12600V2312600ServeReceive") : field?.policy_model === "model11999" ? t("hopeA3Console.11999ReceiveOnly") : field?.policy_model === "model14600" ? t("hopeA3Console.14600ServeReceive") : t("hopeA3Console.noPolicySelected");
+  const selectedPolicyLabel = field?.policy_model === "model23700" ? t(speed104 ? "hopeA3Console.model23700Best" : "hopeA3Console.model23700") : field?.policy_model === "model400center3" ? t("hopeA3Console.model400center3") : field?.policy_model === "model400" ? t("hopeA3Console.model400ServeReceive") : field?.policy_model === "model26500" ? t("hopeA3Console.model26500ReceiveOnly") : field?.policy_model === "model19000" ? t("hopeA3Console.model19000ReceiveOnly") : field?.policy_model === "model15200body" ? t("hopeA3Console.model15200bodyServeReceive") : field?.policy_model === "model14200" ? t("hopeA3Console.model14200ServeReceive") : field?.policy_model === "model14200fusion" ? t("hopeA3Console.model14200fusionServeReceive") : field?.policy_model === "model14200best" ? t("hopeA3Console.model14200bestServeReceive") : field?.policy_model === "model13800astra" ? t("hopeA3Console.astraV23ServeReceive") : field?.policy_model === "modelfusion" ? t("hopeA3Console.fusionV23ServeReceive") : field?.policy_model === "model13800" ? t("hopeA3Console.13800V2313800ServeReceive") : field?.policy_model === "model12000" ? t("hopeA3Console.12000V2312000ServeReceive") : field?.policy_model === "model17400" ? (field.policy_models?.model17400?.receive_only === true ? t("hopeA3Console.17400ReceiveOnly") : t("hopeA3Console.17400V2317400ServeReceive")) : field?.policy_model === "model12600" ? t("hopeA3Console.12600V2312600ServeReceive") : field?.policy_model === "model11999" ? t("hopeA3Console.11999ReceiveOnly") : field?.policy_model === "model14600" ? t("hopeA3Console.14600ServeReceive") : t("hopeA3Console.noPolicySelected");
 
   const csvStatus = field?.csv;
   const csvName = field?.csv?.name ?? t("hopeA3Console.a3pOp3Serve025V23Branch110Model14600CsvDefault");
@@ -2345,7 +2493,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
   const policyNote = (row: PolicyRow, reason: string): string =>
     reason !== "" && assetEditable && !(kernelMode && !KERNEL_MODELS.has(row.model)) ? reason
       : row.note != undefined ? t.text(row.note) : "";
-  const selectedPolicyRow = POLICY_ROWS.find((row) => row.model === field?.policy_model);
+  const selectedPolicyRow = displayPolicyRows.find((row) => row.model === field?.policy_model);
   const localBallLive = currentBallPlayState(localBall?.state, localBall?.receivedAt, now) != undefined;
   // Local control pairing ("本机控制授权") is a connection setting: top of Setup, not inside System health.
   const pairingCard = (
@@ -2391,7 +2539,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     </span>
   );
   const policyQuery = policyFilter.trim().toLowerCase();
-  const policyRows = VISIBLE_POLICY_ROWS
+  const policyRows = displayPolicyRows
     .map((row, index) => ({ row, index, view: policyRowView(row) }))
     .filter(({ row, view }) => policyQuery === "" ||
       `${row.name} ${row.model} ${view.note}`.toLowerCase().includes(policyQuery))
@@ -2714,16 +2862,16 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
     const repositionReason = offlineReason
       ?? (!dockFresh ? t("console2.reasonNoReposition")
         : snapshot.serving === true ? t("console2.reasonServing")
-          : !["PD_STAND", "WALK_STAND", "TELEOP"].includes(snapshot.runnerMode ?? "") ? t("console2.reasonStandFirst")
+          : !["PD_STAND", "WALK_STAND", "TELEOP", "MOTION"].includes(snapshot.runnerMode ?? "") ? t("console2.reasonStandFirst")
             : !baseFresh ? t("console2.reasonWaitMocap") : undefined);
     graphNodes.push({ id: "reposition",
       label: dockActive ? t("console2.nodeRepositionNow") : t("console2.reposition"),
       sub: dockActive ? `${dockPhaseName(dockState) ?? "…"} · ${(dockState?.[7] ?? 0).toFixed(2)} m`
-        : t("console2.subReposition"),
+        : returnPending || snapshot.runnerMode === "MOTION" ? t("console2.returnToReceive") : t("console2.subReposition"),
       kernelMode, current: currentNode === "reposition",
       disabled: dockActive || dockBlocked != undefined, busy: busy.dock === true,
-      reason: dockActive ? undefined : repositionReason ?? dockBlocked,
-      onClick: () => { void invoke("dock"); } });
+      reason: dockActive ? undefined : repositionReason ?? dockBlocked, shortcut: "dock",
+      onClick: () => { void requestReposition(); } });
   }
   const nodeOpen = Object.fromEntries(graphNodes.map((node) => [node.id, !node.disabled && !node.busy])) as Record<NodeId, boolean>;
   const edgeFrom: NodeId | undefined = currentNode ?? (teleopActive ? "stand" : undefined);
@@ -2882,24 +3030,31 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         : runnerFresh ? snapshot.runnerMode ?? "—" : "—";
   const dockTuningEcho = decodeDockTuning(dockState);
   // One dropdown like Hit tuning: Walk stand status + Reposition in the summary,
-  // Reposition status and target x / y in the body.
+  // Reposition status, target and speed limits in the body.
   const walkStandBar = (
     <details className={`c-card c-tune ${walkStandActive || dockActive ? "c-tele-on" : ""}`}>
       <summary title={t("console2.walkStandHint")}>
         <span className={`c-dot c-${walkStandActive || dockActive ? "ok" : "idle"}`} />
         <b>{t("console2.walkStand")}</b>
         <span className="c-tune-vals">
-          <span>{walkStatusText}</span>
+          <span>{returnPending ? t("console2.returnToReceive") : walkStatusText}</span>
           {!kernelMode && <span>{dockTuningEcho == undefined ? "x — · y —"
             : `x ${dockTuningEcho.values.targetX.toFixed(2)} · y ${dockTuningEcho.values.targetY.toFixed(2)}`}</span>}
         </span>
-        {!kernelMode && (dockActive ? (
+        {!kernelMode && <button type="button" className="c-btn c-sm" data-runner-shortcut="restoreArms"
+          title={t("console2.restoreArmsHelp")} aria-label={t("console2.restoreArmsHelp")}
+          disabled={!runnerFresh || !isFresh(snapshot, TOPICS.runnerMode, now, 1000) ||
+            !isFresh(snapshot, TOPICS.runnerFault, now, 1000) || snapshot.runnerFault !== false ||
+            !["PD_STAND", "WALK_STAND", "TELEOP", "DOCK"].includes(snapshot.runnerMode ?? "") || lifecycleState !== "RUNNING" ||
+            lifecycleBusy || estopAsserted || !!pendingTarget || busy.restoreArms === true}
+          onClick={(event) => { event.preventDefault(); void invoke("restoreArms"); }}>{t("console2.restoreArms")} <kbd>{RUNNER_SHORTCUT_KEYS.restoreArms}</kbd></button>}
+        {!kernelMode && (dockActive || returnPending ? (
           <button type="button" className="c-btn c-sm" disabled={busy.stand === true}
             onClick={(event) => { event.preventDefault(); void invoke("stand"); }}>{t("console2.repositionStop")}</button>
         ) : (
           <button type="button" className="c-btn c-sm" title={dockBlocked ?? undefined}
             disabled={dockBlocked != undefined || pendingTarget !== ""}
-            onClick={(event) => { event.preventDefault(); void invoke("dock"); }}>{t("console2.reposition")}</button>
+            onClick={(event) => { event.preventDefault(); void requestReposition(); }}>{t("console2.reposition")}</button>
         ))}
       </summary>
       <div className="c-tune-body">
@@ -2909,7 +3064,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
         {!kernelMode && <div className="c-hint" title={dockBlocked ?? undefined}>
           {`${t("console2.reposition")}: ${dockFresh || dockActive ? formatDockStatus(dockState, t)
             : dockBlocked ?? formatDockStatus(undefined, t)}`}</div>}
-        {!kernelMode && <DockTuningCard embedded context={context} echo={dockTuningEcho}
+        {!kernelMode && <DockTuningCard key={dockState?.[1] ?? "offline"} embedded context={context} echo={dockTuningEcho}
           boot={dockState?.[1]} blocked={dockActive ? t("dockTuning.busy") : undefined} />}
       </div>
     </details>
@@ -3222,7 +3377,13 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
             )}
             {tuneCard}
             {walkStandBar}
-            {teleopActive ? telePanel : teleBar}
+            {xboxFresh && snapshot.xboxPreview?.keyboard_walk && snapshot.xboxPreview.keyboard_walk !== "idle" ? (
+              <div className="c-card c-tele c-tele-on" role="status">
+                <b>{t("console2.keyboardWalk")}</b>
+                <span>{snapshot.xboxPreview.keyboard_walk === "moving"
+                  ? velocityText(teleop?.slice(6, 9)) : t("console2.keyboardHandoff")}</span>
+              </div>
+            ) : teleopActive ? telePanel : teleBar}
           </section>
         </fieldset>
       </div>
@@ -3261,9 +3422,7 @@ function HopeA3Console({ context }: { context: PanelExtensionContext }): ReactEl
 export function initHopeA3Console(context: PanelExtensionContext): () => void {
   const root = createRoot(context.panelElement);
   root.render(<HopeA3Console context={context} />);
-  const removeShortcuts = bindRunnerShortcuts(context.panelElement);
   return () => {
-    removeShortcuts();
     root.unmount();
   };
 }

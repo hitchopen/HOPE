@@ -10,7 +10,7 @@ export type DockTuning = {
   forward: number; backward: number; lateral: number; yawRateDeg: number;
   maxStart: number;
 };
-export type DockTuningEcho = { values: DockTuning; seq: number; result: number };
+export type DockTuningEcho = { values: DockTuning; wireValues: number[]; seq: number; result: number };
 
 export const DOCK_TUNING_FIELDS: { key: keyof DockTuning; min: number; max: number; step: number }[] = [
   { key: "targetX", min: -5, max: 5, step: 0.01 },
@@ -34,6 +34,7 @@ export function decodeDockTuning(state: number[] | undefined): DockTuningEcho | 
   const v = (i: number) => state[i] ?? 0;
   return {
     seq: v(15), result: v(16),
+    wireValues: [...state.slice(11, 14), ...state.slice(17, 24)],
     values: {
       targetX: round(v(11), 3), targetY: round(v(12), 4), targetYawDeg: round(v(13) / DEG, 1),
       tolCm: round(v(17) * 100, 1), tolYawDeg: round(v(18) / DEG, 1),
@@ -49,10 +50,16 @@ export function dockTuningValid(values: DockTuning): boolean {
 }
 
 /** Wire schema 1: [1, boot, seq, x, y, yaw rad, tol m, tol rad, fwd, back, lat, yaw rad/s, start m]. */
-export function encodeDockTuning(boot: number, seq: number, values: DockTuning): number[] {
-  return [1, boot, seq, values.targetX, values.targetY, values.targetYawDeg * DEG,
-    values.tolCm / 100, values.tolYawDeg * DEG, values.forward, values.backward,
-    values.lateral, values.yawRateDeg * DEG, values.maxStart];
+export function encodeDockTuning(boot: number, seq: number, echo: DockTuningEcho, edits: Partial<DockTuning>): number[] {
+  // Send untouched fields exactly as reported, including angles rounded for display.
+  const values = DOCK_TUNING_FIELDS.map(({ key }, index) => {
+    const value = edits[key];
+    if (value == undefined) { return echo.wireValues[index]!; }
+    if (key === "tolCm") { return value / 100; }
+    if (key === "targetYawDeg" || key === "tolYawDeg" || key === "yawRateDeg") { return value * DEG; }
+    return value;
+  });
+  return [1, boot, seq, ...values];
 }
 
 export const DOCK_TUNING_RESULTS = ["none", "applied", "invalid", "busy", "notSaved"] as const;

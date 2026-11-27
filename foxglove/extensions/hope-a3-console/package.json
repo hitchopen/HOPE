@@ -4,7 +4,7 @@
   "description": "Single-robot attended operator console for the HOPE Runner",
   "publisher": "hope-open",
   "homepage": "https://github.com/hitchopen/HOPE",
-  "version": "2.2.0-beta.10",
+  "version": "2.2.0-beta.10.field.14",
   "license": "Apache-2.0",
   "main": "./dist/extension.js",
   "keywords": [

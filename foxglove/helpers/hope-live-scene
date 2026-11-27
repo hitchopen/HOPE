@@ -20,6 +20,8 @@ exec "$HOPE_LIFECYCLE_ROOT/hope_ws/install/hope_bringup/lib/hope_bringup/with_fa
   --route-source-addresses --domain-id 232 --peer "$HOPE_LIFECYCLE_HDU_IP" --peer "$display_peer" -- \
   nice -n 10 python3 "$HOPE_LIFECYCLE_ROOT/foxglove/a3/hope_live_scene.py" \
   --root "$HOPE_LIFECYCLE_ROOT" \
-  --joint-host "agi@$HOPE_LIFECYCLE_MDU_IP" --joint-jump "agi@$HOPE_LIFECYCLE_HDU_IP" \
+  --body-feedback --joint-host "agi@$HOPE_LIFECYCLE_MDU_IP" --joint-jump "agi@$HOPE_LIFECYCLE_HDU_IP" \
+  --robot-identity "${HOPE_LIFECYCLE_MACHINE_ID:-}" --display-side "${HOPE_LIFECYCLE_TABLE_SIDE:-}" \
+  --mocap-source "${HOPE_LIFECYCLE_MOCAP_SOURCE:-}" \
   --scene-hz 20 --telemetry-hz 5 \
   --log-dir "$HOPE_LIFECYCLE_ROOT/real_logs/$HOPE_LIFECYCLE_SESSION_ID/laptop/live_scene"

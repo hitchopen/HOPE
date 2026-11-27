@@ -122,6 +122,9 @@ function LiveTelemetry({ context }: { context: PanelExtensionContext }) {
   const robot = value?.robot_available === true && liveSourceFresh(value.robot_age_ms);
   // Pelvis XYZ / RPY needs only mocap; racket values still need Runner joints.
   const pose = robot || (value?.base_available === true && liveSourceFresh(value.base_age_ms));
+  const heldPose = !pose && value?.last_robot_xyz != undefined && value.last_robot_rpy_deg != undefined &&
+    value.last_pose_age_s != undefined && Number.isFinite(value.last_pose_age_s);
+  const poseSuffix = heldPose ? " · " + t("telemetry.lastPoseSeconds", {seconds: Math.floor(value!.last_pose_age_s!)}) : "";
   const events = liveShotEvents(value);
   const cell = (label: string, number: string, tone = "") => (
     <div className={`hope-replay-cell ${tone}`}>
@@ -161,6 +164,16 @@ function LiveTelemetry({ context }: { context: PanelExtensionContext }) {
         {ballState?.serve_armed === true && <span>{t("telemetry.waitServe")}</span>}
         {ballState?.receive_armed === true && <span>{t("telemetry.waitReceive")}</span>}
         {ballState?.state === "INVALID" && <span className="reason">{ballState.reason}</span>}
+        {value?.display_mocap_body === true && (
+          <span className="hope-mocap-pose" title={t("telemetry.mocapBodyHint")}>
+            {value.display_joints_reference ? t("telemetry.referenceJoints") : t("telemetry.heldJoints")}
+          </span>
+        )}
+        {value?.display_pose_held === true && (
+          <span className="hope-held-pose" title={t("telemetry.heldPoseHint")}>
+            {t("telemetry.heldPose")}
+          </span>
+        )}
         <span className="shot">
           {value ? t("telemetry.shot", {shot: value.generation, state: value.frozen ? t("telemetry.frozen") : t("telemetry.pendingPlane")}) : t("telemetry.shotUnknown")}
         </span>
@@ -179,8 +192,8 @@ function LiveTelemetry({ context }: { context: PanelExtensionContext }) {
         </span>
       </div>
       <div className="hope-replay-grid">
-        {cell(t("telemetry.robotXYZ"), xyz(pose ? value?.robot_xyz : null))}
-        {cell(t("telemetry.robotRPY"), xyz(pose ? value?.robot_rpy_deg : null, 1))}
+        {cell(t("telemetry.robotXYZ") + poseSuffix, xyz(pose ? value?.robot_xyz : value?.last_robot_xyz))}
+        {cell(t("telemetry.robotRPY") + poseSuffix, xyz(pose ? value?.robot_rpy_deg : value?.last_robot_rpy_deg, 1))}
         {cell(t("telemetry.ballXYZ"), xyz(value?.ball_xyz))}
         {cell(t("telemetry.racketSpeed"), fmt(robot ? value.racket_speed : null, 2))}
         {cell(t("telemetry.targetXYZ"), xyz(value?.target_xyz), "target")}

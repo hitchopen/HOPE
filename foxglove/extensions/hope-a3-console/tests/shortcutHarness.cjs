@@ -2,10 +2,13 @@ const { bindRunnerShortcuts } = require('./loadSource.cjs')('runnerShortcuts');
 
 // Native event plumbing with buttons supplied by each test (including the
 // actual Console render/callbacks in operatorProfile.test.cjs).
-module.exports = function shortcutHarness(getButton = () => undefined, hasDialog = () => false, sharedDoc) {
+module.exports = function shortcutHarness(getButton = () => undefined, hasDialog = () => false, sharedDoc, requestRigidStand = () => {}, walk) {
   const doc = sharedDoc ?? new EventTarget();
   doc.defaultView ??= new EventTarget();
   doc.hidden = false;
+  doc.hasFocus = () => true;
+  doc.defaultView.setInterval ??= (fn) => { doc.timer = fn; return 1; };
+  doc.defaultView.clearInterval ??= () => { doc.timer = undefined; };
   doc.querySelectorAll = () => hasDialog() ? [{getClientRects:()=>[{}]}] : [];
   const panel = new EventTarget();
   panel.ownerDocument = doc;
@@ -15,10 +18,10 @@ module.exports = function shortcutHarness(getButton = () => undefined, hasDialog
     const result = getButton(selector.match(/data-runner-shortcut="(\w+)"/)?.[1]);
     return result == null ? [] : Array.isArray(result) ? result : [result];
   };
-  const remove = bindRunnerShortcuts(panel);
+  const remove = bindRunnerShortcuts(panel, requestRigidStand, walk);
   const event = (target, type, key, options = {}) => {
     const e = new Event(type, {cancelable:true});
-    const code = /^[irs]$/i.test(key) ? `Key${key.toUpperCase()}` : key;
+    const code = /^[irsd]$/i.test(key) ? `Key${key.toUpperCase()}` : key;
     Object.assign(e, {key, code, repeat:false, isComposing:false, keyCode:0,
       ctrlKey:false, metaKey:false, altKey:false, ...options});
     e.composedPath = () => options.path ?? [];

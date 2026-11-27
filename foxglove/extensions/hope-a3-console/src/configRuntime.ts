@@ -15,6 +15,7 @@ export function configForSave(draft: RuntimeConfigValues, saved: Partial<Runtime
 export type RuntimeConfigValues = Record<(typeof CONFIG_KEYS)[number], string>;
 export type ConfigRuntime = {
   robotIdentity?: RobotIdentity;
+  policyDigests?: Record<string, string>;
   hostConnection?: { hdu_ip: string; laptop_ip: string };
   revision: number;
   source: string;
@@ -42,11 +43,16 @@ export function decodeConfigRuntime(raw: unknown): ConfigRuntime | undefined {
     if (!CONFIG_KEYS.every((k) => typeof values[k] === "string") ||
       !["vrpn_world_frame_confirmed"].every((k) => values[k] === "true" || values[k] === "false")) { return undefined; }
     const services: ConfigRuntime["services"] = [];
+    let policyDigests: Record<string, string> | undefined;
     for (const rawService of s.services as unknown[]) {
       if (!rawService || typeof rawService !== "object") { return undefined; }
       const row = rawService as Record<string, unknown>;
       if (typeof row.service !== "string" || typeof row.matches !== "boolean" ||
           typeof row.expected_peers !== "string" || !(row.actual_peers === null || typeof row.actual_peers === "string")) { return undefined; }
+      if (row.service === "hope-lifecycle-supervisor.service" && row.matches && row.policy_digests != null && typeof row.policy_digests === "object") {
+        policyDigests = Object.fromEntries(Object.entries(row.policy_digests)
+          .filter((entry): entry is [string, string] => typeof entry[1] === "string" && /^[0-9a-f]{64}$/.test(entry[1])));
+      }
       services.push({ service: row.service, matches: row.matches, expected_peers: row.expected_peers,
         actual_peers: row.actual_peers, reason: typeof row.reason === "string" ? row.reason : "" });
     }
@@ -82,7 +88,7 @@ export function decodeConfigRuntime(raw: unknown): ConfigRuntime | undefined {
       robotConnectionUrl(hdu_ip); robotConnectionUrl(laptop_ip);
       hostConnection = { hdu_ip, laptop_ip };
     }
-    return { robotIdentity, hostConnection, revision: s.revision as number, source: s.source, config_sha256: s.config_sha256,
+    return { robotIdentity, hostConnection, policyDigests, revision: s.revision as number, source: s.source, config_sha256: s.config_sha256,
       values: values as RuntimeConfigValues, applied,
       hduApplied: s.hdu_applied === true && (s.revision as number) > 0 && services.length > 0 && services.every((row) => row.matches),
       state: s.state, reason: s.reason, services, mocapProcesses, laptopMissing };

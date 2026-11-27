@@ -9,7 +9,7 @@ function harness() {
   const h = shortcutHarness(action => ({
     matches: selector => selector === ':disabled' && disabled.has(action),
     click: () => calls.push(action),
-  }), () => dialog);
+  }), () => dialog, undefined, () => { if (!disabled.has("rigidStand")) calls.push("rigidStand"); });
   return {...h, calls, disabled, setDialog: value => {dialog=value;}};
 }
 
@@ -20,6 +20,20 @@ test('I/R/S map to the existing buttons, with uppercase and no-code fallback', (
   }
   assert.deepEqual(h.calls, ['stand','ready','stand','ready','serve','serve']);
   assert.equal(h.down('x').defaultPrevented, false);
+});
+
+test('D requests one dock per press and supports the no-code fallback', () => {
+  const h = harness();
+  h.down('d'); h.down('d', {repeat:true}); h.down('d'); h.up('d');
+  h.down('D', {code:''}); h.up('D');
+  assert.deepEqual(h.calls, ['dock','dock']);
+});
+
+test('ArrowUp requests rigid PD once and I still requests HumanLike', () => {
+  const h = harness();
+  h.down('ArrowUp'); h.down('ArrowUp', {repeat:true}); h.up('ArrowUp');
+  h.down('i'); h.disabled.add('rigidStand'); h.down('ArrowUp');
+  assert.deepEqual(h.calls, ['rigidStand', 'stand']);
 });
 
 test('Passive requires simultaneous arrows in either order, once until both release', () => {
@@ -47,8 +61,8 @@ test('held keys never repeat even without the browser repeat flag', () => {
 
 test('disabled buttons and robot-switch fieldsets never dispatch', () => {
   const h = harness();
-  for (const action of ['stand','ready','serve','passive']) h.disabled.add(action);
-  h.down('i'); h.down('s'); h.down('r'); h.down('ArrowLeft'); h.down('ArrowRight');
+  for (const action of ['stand','ready','serve','dock','passive']) h.disabled.add(action);
+  h.down('d'); h.down('i'); h.down('s'); h.down('r'); h.down('ArrowLeft'); h.down('ArrowRight');
   h.disabled.clear();
   h.down('r', {repeat:true});
   assert.deepEqual(h.calls, []);
@@ -64,7 +78,7 @@ test('editing, composition and modified shortcuts do not send commands', () => {
       .map(tag => ({path:[{nodeType:1,isContentEditable:false,matches:s=>s.split(', ').includes(tag)}]})),
   ]) {
     const h = harness();
-    for (const key of ['i','s','r','ArrowLeft','ArrowRight']) assert.equal(h.down(key, options).defaultPrevented, false);
+    for (const key of ['i','s','r','d','ArrowLeft','ArrowRight']) assert.equal(h.down(key, options).defaultPrevented, false);
     assert.deepEqual(h.calls, []);
   }
 });
@@ -73,7 +87,7 @@ test('modal dialogs and hidden documents suppress all shortcuts', () => {
   for (const mode of ['dialog','hidden']) {
     const h = harness();
     if (mode === 'dialog') h.setDialog(true); else h.doc.hidden=true;
-    h.down('i'); h.down('s'); h.down('r'); h.down('ArrowLeft'); h.down('ArrowRight');
+    h.down('d'); h.down('i'); h.down('s'); h.down('r'); h.down('ArrowLeft'); h.down('ArrowRight');
     assert.deepEqual(h.calls, []);
   }
 });
@@ -140,4 +154,12 @@ test('multiple Consoles route only to the selected visible panel', () => {
   a.panel.isConnected = false;
   a.down('s'); a.up('s'); assert.deepEqual(calls,['a','b','a']);
   a.remove(); b.remove();
+});
+
+test('A dispatches once to the enabled restore-arms button', () => {
+  const h = harness();
+  h.down('A', {code:'KeyA'}); h.down('A', {code:'KeyA',repeat:true}); h.up('A', {code:'KeyA'});
+  h.disabled.add('restoreArms');
+  h.down('a', {code:''});
+  assert.deepEqual(h.calls, ['restoreArms']);
 });

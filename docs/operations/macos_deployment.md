@@ -1,5 +1,7 @@
 # macOS development and operator setup
 
+For independent wired acquisition, recording and the field three-view Console on one Mac, follow the [Mac field operator guide](mac_field_operator.md).
+
 The Mac build includes both NatNet2ROS2 and VRPN2ROS2, selectable mocap capture,
 the field gripper catalogue, and checked Mac/Linux operator profiles. It does
 not change motion CSVs, Prepare/PD Stand timing, Planner admission or ELink scheduling.

@@ -8,6 +8,9 @@ export type LiveTelemetrySnapshot = {
   shot: number;
   runner_mode?: string | null;
   runner_age_ms?: number | null;
+  display_pose_held?: boolean;
+  display_mocap_body?: boolean;
+  display_joints_reference?: boolean;
   robot_available: boolean;
   robot_age_ms: number | null;
   /** Mocap pelvis pose only; present without a Runner. */
@@ -24,6 +27,9 @@ export type LiveTelemetrySnapshot = {
   } | null;
   robot_xyz: LiveVec | null;
   robot_rpy_deg: LiveVec | null;
+  last_pose_age_s?: number;
+  last_robot_xyz?: LiveVec;
+  last_robot_rpy_deg?: LiveVec;
   racket_xyz: LiveVec | null;
   racket_speed: number | null;
   ball_xyz: LiveVec | null;

@@ -44,7 +44,7 @@ export function dockRepositionReason({ runnerFresh, runnerFault, mode, telemetry
   if (!telemetryFresh) { return t("dockStatus.runnerHasNoRepositionLoaded"); }
   if (mode === "DOCK") { return t("dockStatus.repositionIsInProgressStandStopsIt"); }
   if (serving) { return t("dockStatus.finishOrAbortTheServeBeforeReposition"); }
-  if (mode !== "PD_STAND" && mode !== "WALK_STAND" && mode !== "TELEOP") { return t("dockStatus.selectStandBeforeReposition"); }
+  if (mode !== "PD_STAND" && mode !== "WALK_STAND" && mode !== "TELEOP" && mode !== "MOTION") { return t("dockStatus.selectStandBeforeReposition"); }
   if (!baseFresh) { return t("dockStatus.waitForAFreshBasePose"); }
   if (pending) { return t("dockStatus.modeRequestPending"); }
   return undefined;
