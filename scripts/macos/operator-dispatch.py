@@ -4,6 +4,7 @@ import sys
 if __name__ == "__main__" and sys.path:
     sys.path.pop(0)  # Do not import the sibling operator.py as Python's stdlib.
 
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -11,12 +12,13 @@ import pwd
 import re
 import shlex
 import stat
+import subprocess
 import tempfile
 
 CONFIG_PATH = Path("/etc/hope-mac-operator.json")
 ALLOWED_ACTIONS = frozenset({
     "preflight-laptop", "prepare-laptop", "start-laptop", "reconnect-laptop", "stop-laptop",
-    "stop-capture-laptop", "collect", "field-assets-laptop", "record-control", "ball-model-laptop",
+    "config-status-laptop", "operator-route", "stop-capture-laptop", "collect", "field-assets-laptop", "record-control", "ball-model-laptop",
 })
 
 
@@ -76,6 +78,13 @@ def dispatch(command, contract):
     if (len(args) < 2 or args[0] != contract["laptop_helper"] or
             args[1] not in ALLOWED_ACTIONS):
         raise ValueError("Only the configured HOPE Laptop helper and fixed actions are accepted")
+    if args[1] in {"operator-route", "config-status-laptop"} and len(args) != 2:
+        raise ValueError("This read-only action accepts no arguments")
+    if args[1] == "operator-route":
+        hdu = str(ipaddress.IPv4Address(Path("/etc/hope-mac-hdu").read_text().strip()))
+        route, = json.loads(subprocess.check_output(["ip", "-j", "-4", "route", "get", hdu]))
+        print(json.dumps({"hdu_ip": hdu, "laptop_ip": str(ipaddress.IPv4Address(route["prefsrc"]))}))
+        return
     # Never execute a path supplied by the remote command or external contract.
     helper = f"/home/{contract['laptop_user']}/.local/libexec/hope-lifecycle"
     os.execv(helper, [helper, *args[1:]])

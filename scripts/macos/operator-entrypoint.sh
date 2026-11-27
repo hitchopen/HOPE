@@ -8,6 +8,12 @@ set -euo pipefail
 operator_user="${HOPE_OPERATOR_USER:?missing HOPE_OPERATOR_USER}"
 operator_home="/home/$operator_user"
 operator_root="$operator_home/HOPE"
+python3 - <<'PYHDU' > /etc/hope-mac-hdu
+import ipaddress, json
+from pathlib import Path
+print(ipaddress.IPv4Address(json.loads(Path('/operator-config/operator.json').read_text())['hdu_ip']))
+PYHDU
+chmod 644 /etc/hope-mac-hdu
 operator_group=hope
 if ! getent group "$operator_group" >/dev/null; then
   groupadd "$operator_group"

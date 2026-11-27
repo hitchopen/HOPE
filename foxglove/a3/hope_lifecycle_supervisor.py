@@ -879,7 +879,7 @@ class LifecycleModule(MocapRecoveryMixin, RosComponent):
             if unchanged:
                 updated = current
             migrating = current.revision > 0 and any(getattr(current, key) != getattr(updated, key)
-                                                     for key in ("hdu_wifi_ip", "laptop_wifi_ip"))
+                                                     for key in ("hdu_wifi_ip", "laptop_wifi_ip", "operator_profile"))
             with self._lock:
                 if self._config is not current or self._busy or self._field_busy or self._state not in {"STOPPED", "CONFIG_ERROR"}:
                     raise ValueError("state changed while confirming configuration; retry")

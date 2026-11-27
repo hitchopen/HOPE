@@ -58,17 +58,33 @@ def validate_network_migration(current, updated, raw, *, observed=None, run=subp
             raise ValueError('Network migration requires one unambiguous live control connection')
     except (TypeError, KeyError, json.JSONDecodeError) as exc:
         raise ValueError('Fresh robot identity and control connection evidence are required') from exc
-    if updated.operator_profile != 'linux' or current.operator_profile != 'linux':
-        raise ValueError('This network repair requires the registered Linux operator')
-    pinned = os.environ.get('HOPE_LAPTOP_MACHINE_ID', '')
-    user = os.environ.get('HOPE_LAPTOP_USER', '')
-    if not re.fullmatch('[0-9a-f]{32}', pinned) or not re.fullmatch('[a-z_][a-z0-9_-]{0,31}', user):
-        raise ValueError('Register the operator machine identity before network migration')
-    result = run(['/usr/bin/ssh', '-T', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
-                  '-o', 'ConnectTimeout=3', user + '@' + updated.laptop_wifi_ip,
-                  '/usr/bin/cat', '/etc/machine-id'], text=True, capture_output=True, timeout=5, check=True)
-    if result.stdout.strip() != pinned:
-        raise ValueError('Connected computer differs from the registered operator; unchanged')
+    if updated.operator_profile == 'mac':
+        user = os.environ.get('HOPE_MAC_USER', 'operator')
+        helper = os.environ.get('HOPE_MAC_LIFECYCLE_HELPER', '/home/operator/.local/libexec/hope-lifecycle')
+        if (not re.fullmatch('[a-z_][a-z0-9_-]{0,31}', user) or user == 'root'
+                or not re.fullmatch('/[a-zA-Z0-9_./-]+', helper)
+                or any(part in {'', '.', '..'} for part in helper.split('/')[1:])):
+            raise ValueError('Invalid registered Mac operator contract')
+        # bind pins the guest host key under this fixed alias. A fresh SSH
+        # connection proves possession and the kernel reports its wired route.
+        response = run(['/usr/bin/ssh', '-T', '-S', 'none', '-o', 'BatchMode=yes',
+                        '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=3',
+                        user + '@hope-mac-operator', helper, 'operator-route'],
+                       text=True, capture_output=True, timeout=5, check=True)
+        if json.loads(response.stdout) != pair:
+            raise ValueError('Registered Mac operator route differs from the live control connection')
+    elif updated.operator_profile == 'linux':
+        pinned = os.environ.get('HOPE_LAPTOP_MACHINE_ID', '')
+        user = os.environ.get('HOPE_LAPTOP_USER', '')
+        if not re.fullmatch('[0-9a-f]{32}', pinned) or not re.fullmatch('[a-z_][a-z0-9_-]{0,31}', user):
+            raise ValueError('Register the operator machine identity before network migration')
+        result = run(['/usr/bin/ssh', '-T', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes',
+                      '-o', 'ConnectTimeout=3', user + '@' + updated.laptop_wifi_ip,
+                      '/usr/bin/cat', '/etc/machine-id'], text=True, capture_output=True, timeout=5, check=True)
+        if result.stdout.strip() != pinned:
+            raise ValueError('Connected computer differs from the registered operator; unchanged')
+    else:
+        raise ValueError('Unknown operator profile')
     # Refuse a connection/boot change during SSH verification.
     if observed is None and connection_identity() != actual:
         raise ValueError('Control connection changed during verification; retry')

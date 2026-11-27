@@ -58,3 +58,19 @@ def test_wrong_operator_identity_refused(migration):
     run.return_value.stdout = 'd' * 32
     with pytest.raises(ValueError, match='registered operator'):
         validate_network_migration(current, updated, json.dumps(proof), observed=IDENTITY, run=run)
+
+
+def test_mac_takeover_requires_authenticated_route_and_preserves_linux_return(migration):
+    current, linux, proof, run = migration
+    mac = replace(linux, operator_profile='mac')
+    run.return_value.stdout = json.dumps(IDENTITY['connection'])
+    validate_network_migration(current, mac, json.dumps(proof), observed=IDENTITY, run=run)
+    assert run.call_args.args[0][-3:] == ['operator@hope-mac-operator',
+                                          '/home/operator/.local/libexec/hope-lifecycle', 'operator-route']
+    run.return_value.stdout = json.dumps({**IDENTITY['connection'], 'laptop_ip': '192.168.100.2'})
+    with pytest.raises(ValueError, match='route differs'):
+        validate_network_migration(current, mac, json.dumps(proof), observed=IDENTITY, run=run)
+    run.return_value.stdout = 'c' * 32
+    validate_network_migration(replace(current, operator_profile='mac'), linux, json.dumps(proof),
+                               observed=IDENTITY, run=run)
+    assert 'user@192.168.100.89' in run.call_args.args[0]

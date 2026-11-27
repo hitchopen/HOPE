@@ -42,6 +42,23 @@ class MacOperatorDispatchTests(unittest.TestCase):
         helper = "/usr/local/libexec/hope-lifecycle"
         self.dispatch("operator", helper, [helper, "preflight-laptop"])
 
+    def test_config_status_accepts_only_the_fixed_action(self):
+        helper = "/home/operator/.local/libexec/hope-lifecycle"
+        self.dispatch("operator", helper, [helper, "config-status-laptop"])
+        for action in ("config-status-laptop", "operator-route"):
+            self.dispatch("operator", helper, [helper, action, "extra"], accepted=False)
+
+    def test_route_uses_local_registration_and_actual_kernel_source(self):
+        helper = "/home/operator/.local/libexec/hope-lifecycle"
+        with patch.object(dispatcher.pwd, "getpwuid", return_value=SimpleNamespace(pw_name="operator", pw_uid=1001)), \
+                patch.object(Path, "read_text", return_value="192.168.200.2"), \
+                patch.object(dispatcher.subprocess, "check_output", return_value='[{"prefsrc":"192.168.100.3"}]') as route, \
+                patch("builtins.print") as output:
+            dispatcher.dispatch(helper + " operator-route", {"laptop_user":"operator", "laptop_helper":helper})
+        route.assert_called_once_with(["ip", "-j", "-4", "route", "get", "192.168.200.2"])
+        self.assertEqual(json.loads(output.call_args.args[0]),
+                         {"hdu_ip":"192.168.200.2", "laptop_ip":"192.168.100.3"})
+
     def test_original_dongc1_contract_still_works(self):
         helper = "/home/dongc1/.local/libexec/hope-lifecycle"
         self.dispatch("dongc1", helper, [helper, "record-control"])
@@ -53,7 +70,7 @@ class MacOperatorDispatchTests(unittest.TestCase):
 
     def test_all_supported_laptop_actions_remain_available(self):
         helper = "/usr/local/libexec/hope-lifecycle"
-        for action in dispatcher.ALLOWED_ACTIONS:
+        for action in dispatcher.ALLOWED_ACTIONS - {"operator-route"}:
             with self.subTest(action=action):
                 self.dispatch("operator", helper, [helper, action])
 
