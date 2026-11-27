@@ -26,6 +26,26 @@ def read_receipt(path):
     return receipt
 
 
+def owns_display_listener(proc, processes):
+    # Only a verified display process owning the guest loopback listener
+    # satisfies field readback. An unrelated listener cannot mark it active.
+    try:
+        inodes = {row[9] for line in (proc/'net/tcp').read_text().splitlines()[1:]
+                  if len(row := line.split()) > 9 and row[1] == '0100007F:223F' and row[3] == '0A'}
+        sockets = {f'socket:[{inode}]' for inode in inodes}
+        for process in processes:
+            if process.get('kind') == 'display' and process.get('matches') and inodes:
+                for fd in (proc/str(process['pid'])/'fd').iterdir():
+                    try:
+                        if os.readlink(fd) in sockets:
+                            return True
+                    except FileNotFoundError:
+                        continue
+    except OSError:
+        pass
+    return False
+
+
 def probe(receipt, proc=Path('/proc'), run=subprocess.run):
     target = receipt.get('HOPE_LIFECYCLE_HDU_IP', '')
     allowed = {target, receipt.get('HOPE_LIFECYCLE_LAPTOP_IP', ''), '127.0.0.1'} - {''}
@@ -76,12 +96,16 @@ def probe(receipt, proc=Path('/proc'), run=subprocess.run):
                 result.update(matches=False, error=str(exc))
             elif not isinstance(exc, (FileNotFoundError, ProcessLookupError)):
                 errors.append(str(exc))
-    r = run(['systemctl', '--user', 'is-active', 'hope-host-bridge.service'], capture_output=True, text=True, timeout=2)
+    if os.environ.get('HOPE_FIELD_DISPLAY') == '1':
+        active = owns_display_listener(proc, processes)
+    else:
+        r = run(['systemctl', '--user', 'is-active', 'hope-host-bridge.service'], capture_output=True, text=True, timeout=2)
+        active = r.stdout.strip() == 'active'
     return {'receipt': receipt, 'processes': processes, 'errors': errors,
             'mocap_setup': {'source': 'laptop-runtime.env (current generated receiver receipt)',
                 'world_frame_confirmed': receipt.get('HOPE_VRPN_WORLD_FRAME_CONFIRMED') == 'true',
                 'packetizer_running': any(p['kind'] == 'packetizer' for p in processes)},
-            'display_active': r.stdout.strip() == 'active' and not errors}
+            'display_active': active and not errors}
 
 
 if __name__ == '__main__':

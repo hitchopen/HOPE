@@ -2,6 +2,10 @@
 # Local Foxglove endpoint: native ROS service/heartbeat bridge plus Host scene.
 set -eo pipefail
 source "$HOME/.config/hope-foxglove/laptop-runtime.env"
+if [[ -n "${HOPE_FIELD_HDU_IP:-}" ]]; then
+  [[ "$HOPE_LIFECYCLE_HDU_IP" == "$HOPE_FIELD_HDU_IP" &&
+     "$HOPE_LIFECYCLE_LAPTOP_IP" == "$HOPE_FIELD_LAPTOP_IP" ]] || exit 66
+fi
 source /opt/ros/jazzy/setup.bash
 source "$HOPE_LIFECYCLE_ROOT/hope_ws/install/local_setup.bash"
 set -u

@@ -107,6 +107,7 @@ class RobotGeometry:
         self.urdf = Path(root)/'hope_training/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/assets/agibot_a3/urdf/model.urdf'
         if not self.urdf.is_file():
             self.urdf = Path(root)/'a3_deploy/a3_deploy_example/assets/a3_runtime/robots/A3PingPong-with-gripper/urdf/model.urdf'
+        self.urdf = self.urdf.resolve()
         tree = ET.parse(self.urdf).getroot()
         self.joints = []
         for j in tree.findall('joint'):

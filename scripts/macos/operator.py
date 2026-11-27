@@ -45,6 +45,11 @@ def validate_config(config):
         raise ValueError("Invalid Docker container name")
     if type(config["ssh_port"]) is not int or not 1024 <= config["ssh_port"] <= 65535:
         raise ValueError("ssh_port must be an integer between 1024 and 65535")
+    mode = config.get("network_mode", "desktop")
+    if mode not in {"desktop", "field-vm"}:
+        raise ValueError("network_mode must be desktop or field-vm")
+    if mode == "field-vm" and config["ssh_port"] in {8766, 8767, 8768, 8769}:
+        raise ValueError("ssh_port conflicts with Foxglove or local display ports")
     root = Path(config["root"]).expanduser()
     if not root.is_absolute() or not (root / "foxglove/helpers/hope-lifecycle").is_file():
         raise ValueError("root must be the absolute Mac path to this HOPE checkout")
@@ -127,10 +132,17 @@ def verify_container_contract(config, info):
              and mounts.get("/work", {}).get("Source") == str(Path(config["root"]).resolve())
              and mounts.get("/operator-config", {}).get("Source") == str(CONFIG.resolve())
              and mounts.get(expected_home, {}).get("Name") == "hope-macos-operator-home")
-    ports = info.get("HostConfig", {}).get("PortBindings", {}).get("2222/tcp")
-    valid = valid and ports == [{"HostIp": "127.0.0.1", "HostPort": str(config["ssh_port"])}]
-    status_ports = info.get("HostConfig", {}).get("PortBindings", {}).get("8768/tcp")
-    valid = valid and status_ports == [{"HostIp": "127.0.0.1", "HostPort": "8768"}]
+    host = info.get("HostConfig", {})
+    bindings = host.get("PortBindings") or {}
+    if config.get("network_mode") == "field-vm":
+        valid = (valid and host.get("NetworkMode") == "host" and not bindings
+                 and env.get("HOPE_FIELD_SSH_PORT") == str(config["ssh_port"])
+                 and env.get("HOPE_FIELD_LAPTOP_IP") == config["mac_ip"]
+                 and env.get("HOPE_FIELD_HDU_IP") == config["hdu_ip"])
+    else:
+        valid = (valid and host.get("NetworkMode") != "host" and not env.get("HOPE_FIELD_SSH_PORT")
+                 and bindings == {"2222/tcp": [{"HostIp": "127.0.0.1", "HostPort": str(config["ssh_port"])}],
+                                  "8768/tcp": [{"HostIp": "127.0.0.1", "HostPort": "8768"}]})
     if not valid:
         raise RuntimeError("Existing Mac container has an old/different account, helper, checkout or port. "
                            "It was not changed. While STOPPED, select Linux, stop/remove only the named "
@@ -141,6 +153,16 @@ def up(config, *, scheduled=False):
     disabled = CONFIG / "disabled"
     if scheduled and disabled.exists():
         return
+    networking = ["-p", f"127.0.0.1:{config['ssh_port']}:2222", "-p", "127.0.0.1:8768:8768"]
+    if config.get("network_mode") == "field-vm":
+        if not sys.platform.startswith("linux"):
+            raise RuntimeError("Run field-vm mode inside the Mac's bridged Linux guest")
+        route, = json.loads(run(["ip", "-j", "-4", "route", "get", config["hdu_ip"]],
+                                capture_output=True, text=True).stdout)
+        if route.get("prefsrc") != config["mac_ip"]:
+            raise RuntimeError("The guest route to the HDU differs from operator.json mac_ip")
+        networking = ["--network", "host", "-e", f"HOPE_FIELD_SSH_PORT={config['ssh_port']}",
+                      "-e", f"HOPE_FIELD_LAPTOP_IP={config['mac_ip']}", "-e", f"HOPE_FIELD_HDU_IP={config['hdu_ip']}"]
     info = container_info(config)
     if info is not None:
         verify_container_contract(config, info)
@@ -155,8 +177,7 @@ def up(config, *, scheduled=False):
         run(["docker", "run", "-d", "--init", "--restart", "unless-stopped", "--name", name,
              "-e", f"HOPE_OPERATOR_USER={config['laptop_user']}",
              "-e", f"HOPE_OPERATOR_HELPER={config['laptop_helper']}",
-             "--platform", "linux/arm64", "-p", f"127.0.0.1:{config['ssh_port']}:2222",
-             "-p", "127.0.0.1:8768:8768",
+             "--platform", "linux/arm64", *networking,
              "--mount", f"type=bind,src={config['root']},dst=/work",
              "--mount", f"type=bind,src={CONFIG},dst=/operator-config,readonly",
              "--mount", "type=volume,src=hope-macos-arm64,dst=/opt/hope",

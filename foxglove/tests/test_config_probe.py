@@ -113,3 +113,20 @@ def test_launch_wrappers_are_not_mistaken_for_ros_consumers(receipt,tmp_path,arg
     proc(tmp_path,'/placeholder',{})
     (tmp_path/'100/cmdline').write_bytes(b'\0'.join(x.encode() for x in argv))
     assert probe(receipt,tmp_path,Mock(return_value=SimpleNamespace(stdout='active\n')))['processes']==[]
+
+
+def test_field_display_must_own_listening_socket(receipt, tmp_path, monkeypatch):
+    monkeypatch.setenv('HOPE_FIELD_DISPLAY', '1')
+    proc(tmp_path, '/opt/ros/jazzy/lib/foxglove_bridge/foxglove_bridge',
+         dict(ROS_STATIC_PEERS=receipt['HOPE_LIFECYCLE_HDU_IP']))
+    pid = next(tmp_path.glob('[0-9]*'))
+    (pid/'fd').mkdir()
+    (pid/'fd/5').symlink_to('socket:[3333]')
+    (tmp_path/'net').mkdir()
+    tcp = tmp_path/'net/tcp'
+    tcp.write_text('header\n0: 0100007F:223F 00000000:0000 0A 0 0 0 1000 0 4444\n')
+    assert not probe(receipt, tmp_path)['display_active']
+    tcp.write_text(tcp.read_text().replace('4444','3333'))
+    assert probe(receipt, tmp_path)['display_active']
+    tcp.write_text(tcp.read_text().replace('0100007F','00000000'))
+    assert not probe(receipt, tmp_path)['display_active']

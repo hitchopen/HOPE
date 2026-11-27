@@ -1021,6 +1021,8 @@ preflight_mdu() {
 }
 
 refresh_laptop_display() {
+  # The field VM watcher reloads the atomic receipt and owns both children.
+  [[ "${HOPE_FIELD_DISPLAY:-}" != 1 ]] || return 0
   # These optional Host services read the same runtime receipt at startup.
   # Refresh them when reconnect writes a new robot/session; do not gate mocap
   # on visualization being installed or on a Linux user service manager.

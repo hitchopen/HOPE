@@ -37,7 +37,15 @@ fi
 passwd -d "$operator_user" >/dev/null
 mkdir -p /run/sshd "$operator_home/.ssh" "$operator_home/.config/hope-foxglove" \
   "$operator_home/.local/libexec" "$operator_home/.local/state/hope-sim2real" \
-  "$operator_root/hope_ws" /work/real_logs /work/artifacts/macos_setup/operator-calibration /operator-state/hostkeys
+  "$operator_root/hope_ws" /operator-state/hostkeys
+for output_dir in /work/real_logs /work/artifacts/macos_setup/operator-calibration; do
+  if [[ ! -d "$output_dir" ]]; then
+    install -d -m 0750 -o "$operator_user" -g "$operator_group" "$output_dir"
+  fi
+  runuser -u "$operator_user" -- test -w "$output_dir" || {
+    echo "Grant the container operator write access to $output_dir" >&2; exit 1;
+  }
+done
 for path in /work/* /work/.[!.]*; do
   [[ -e "$path" || -L "$path" ]] || continue
   name="$(basename "$path")"
@@ -59,7 +67,11 @@ ln -sfn /work/foxglove/helpers/hope-lifecycle "$operator_home/.local/libexec/hop
   printf 'export HOPE_ROBOT_USER=agi\n'
   printf 'export HOPE_LAPTOP_RUNTIME=direct\n'
   # Reachable only through Docker's host-loopback port mapping, never via HDU.
-  printf 'export HOPE_BALL_STATUS_BIND=0.0.0.0\n'
+  if [[ -n "${HOPE_FIELD_SSH_PORT:-}" ]]; then
+    printf 'export HOPE_BALL_STATUS_BIND=127.0.0.1\nexport HOPE_FIELD_DISPLAY=1\n'
+  else
+    printf 'export HOPE_BALL_STATUS_BIND=0.0.0.0\n'
+  fi
   printf 'export HOPE_LAPTOP_SHARE=/work/foxglove/laptop\n'
 } > "$operator_home/.config/hope-foxglove/lifecycle.env"
 install -m 600 /operator-config/client_key "$operator_home/.ssh/id_ed25519"
@@ -75,9 +87,12 @@ if [[ ! -f /operator-state/hostkeys/ssh_host_ed25519_key ]]; then
 fi
 {
   printf 'AllowUsers %s\n' "$operator_user"
+  if [[ -n "${HOPE_FIELD_SSH_PORT:-}" ]]; then
+    printf 'Port %s\nListenAddress 127.0.0.1\n' "$HOPE_FIELD_SSH_PORT"
+  else
+    printf 'Port 2222\nListenAddress 0.0.0.0\n'
+  fi
   cat <<'EOF'
-Port 2222
-ListenAddress 0.0.0.0
 HostKey /operator-state/hostkeys/ssh_host_ed25519_key
 PasswordAuthentication no
 KbdInteractiveAuthentication no
@@ -91,4 +106,7 @@ AuthorizedKeysFile .ssh/authorized_keys
 PidFile /run/hope-sshd.pid
 EOF
 } > /run/hope-sshd.conf
+if [[ -n "${HOPE_FIELD_SSH_PORT:-}" ]]; then
+  runuser -u "$operator_user" -- /usr/bin/python3 /work/scripts/macos/field-display.py &
+fi
 exec /usr/sbin/sshd -D -e -f /run/hope-sshd.conf

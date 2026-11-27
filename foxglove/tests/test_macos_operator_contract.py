@@ -182,6 +182,22 @@ useradd() { printf '%s\\n' "$@"; }
             with self.subTest(change=change), self.assertRaisesRegex(RuntimeError, "was not changed"):
                 operator.verify_container_contract(cfg, info)
 
+    def test_field_vm_requires_host_network_and_matching_private_services(self):
+        cfg = dict(config(), network_mode="field-vm")
+        info = container(cfg)
+        info["Config"]["Env"].extend([f"HOPE_FIELD_SSH_PORT={cfg['ssh_port']}",
+                                      f"HOPE_FIELD_HDU_IP={cfg['hdu_ip']}",
+                                      f"HOPE_FIELD_LAPTOP_IP={cfg['mac_ip']}"])
+        info["HostConfig"] = {"NetworkMode":"host", "PortBindings":None}
+        operator.verify_container_contract(cfg, info)
+        with self.assertRaises(RuntimeError):
+            operator.verify_container_contract(config(), info)
+        with self.assertRaises(RuntimeError):
+            operator.verify_container_contract(dict(cfg, mac_ip="192.168.8.150"), info)
+        info["HostConfig"]["NetworkMode"] = "bridge"
+        with self.assertRaises(RuntimeError):
+            operator.verify_container_contract(cfg, info)
+
     def test_up_never_replaces_mismatched_container(self):
         cfg = config()
         info = container(cfg)

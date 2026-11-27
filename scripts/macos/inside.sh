@@ -83,6 +83,9 @@ case "$operation" in
       /work/foxglove/tests/test_lifecycle_core.py \
       /work/foxglove/tests/test_macos_build_entry.py \
       /work/foxglove/tests/test_macos_operator_contract.py \
+      /work/foxglove/tests/test_macos_field_display.py \
+      /work/foxglove/tests/test_connection_identity.py \
+      /work/foxglove/tests/test_config_probe.py \
       /work/foxglove/tests/test_macos_operator_dispatch.py \
       /work/foxglove/tests/test_operator_profiles.py \
       /work/foxglove/tests/test_mocap_setup.py \
