@@ -304,7 +304,7 @@ if changing_operator:
         value=ParameterValue(type=4, string_value=json.dumps(proof))))
 client=node.create_client(SetParameters,'/hope/lifecycle/apply_config')
 if not client.wait_for_service(timeout_sec=5):raise RuntimeError('configuration service unavailable')
-future=client.call_async(request);rclpy.spin_until_future_complete(node,future,timeout_sec=10)
+future=client.call_async(request);rclpy.spin_until_future_complete(node,future,timeout_sec=65)
 result=future.result()
 if result is None or not result.results or not all(x.successful for x in result.results):raise RuntimeError(str(result))
 print(result);node.destroy_node();rclpy.shutdown()

@@ -91,11 +91,20 @@ class OperatorProfileTests(unittest.TestCase):
                  patch.object(dispatcher.os, "fstat", return_value=SimpleNamespace(
                      st_uid=0, st_mode=stat.S_IFREG | 0o644)), \
                  patch.object(dispatcher.pwd, "getpwuid", return_value=SimpleNamespace(pw_name=user, pw_uid=1001)), \
-                 patch.object(dispatcher.os, "execv", side_effect=Dispatched) as execute:
+                 patch.object(dispatcher.os, "execv", side_effect=Dispatched) as execute, \
+                 patch.object(dispatcher.os, "execve", side_effect=Dispatched) as with_identity:
                 with self.assertRaises(Dispatched):
                     dispatcher.main()
                 local = f"/home/{user}/.local/libexec/hope-lifecycle"
-                execute.assert_called_once_with(local, [local, *command[1:]])
+                if command[:1] == ["/usr/bin/env"]:
+                    with_identity.assert_called_once()
+                    args = with_identity.call_args.args
+                    self.assertEqual(args[:2], (local, [local, *command[3:]]))
+                    self.assertEqual(args[2]["HOPE_LIFECYCLE_MACHINE_ID"], command[1].split("=", 1)[1])
+                    execute.assert_not_called()
+                else:
+                    execute.assert_called_once_with(local, [local, *command[1:]])
+                    with_identity.assert_not_called()
 
     def test_defaults_and_custom_mac_contract_preserve_linux_round_trip(self):
         cases = (
@@ -128,18 +137,20 @@ class OperatorProfileTests(unittest.TestCase):
                     ssh_calls = [argv for argv in calls if argv[0] == "/usr/bin/ssh"]
                     host_index = 1 + len(namespace["SSH_OPTIONS"])
                     laptop_calls = [argv for argv in ssh_calls if argv[host_index] != "agi@10.42.10.12"]
-                    self.assertEqual(len(laptop_calls), 7)
-                    self.assertEqual({argv[host_index + 2] for argv in laptop_calls},
-                                     {"preflight-laptop", "prepare-laptop", "stop-capture-laptop",
-                                      "collect", "record-control", "field-assets-laptop", "ball-model-laptop"})
+                    helper = mac_helper if profile == "mac" else linux_helper
+                    target = f"{mac_user}@hope-mac-operator" if profile == "mac" else f"{linux_user}@{address}"
+                    self.assertEqual(len(laptop_calls), 8)
+                    actions = []
                     for argv in laptop_calls:
-                        if profile == "linux":
-                            self.assertEqual(argv[host_index:host_index + 2],
-                                             [f"{linux_user}@{address}", linux_helper])
-                        else:
-                            self.assertEqual(argv[host_index:host_index + 2],
-                                             [f"{mac_user}@hope-mac-operator", mac_helper])
-                            self.assert_dispatched(argv[host_index + 1:], mac_user, mac_helper)
+                        self.assertEqual(argv[host_index], target)
+                        command = argv[host_index + 1:]
+                        offset = 2 if command[0] == "/usr/bin/env" else 0
+                        self.assertEqual(command[offset], helper)
+                        actions.append(command[offset + 1])
+                        if profile == "mac":
+                            self.assert_dispatched(command, mac_user, mac_helper)
+                    self.assertCountEqual(actions, ["preflight-laptop", "prepare-laptop", "reconnect-laptop",
+                        "stop-capture-laptop", "collect", "record-control", "field-assets-laptop", "ball-model-laptop"])
                     for argv in ssh_calls:
                         if argv[host_index] == "agi@10.42.10.12":
                             self.assertEqual(argv[host_index + 1], "/usr/local/libexec/hope-lifecycle")
@@ -159,7 +170,10 @@ class OperatorProfileTests(unittest.TestCase):
                 for argv in calls:
                     if any(a in argv for a in ("ball-model-hdu", "ball-model-laptop")):
                         continue
-                    self.assertEqual(argv[-3:], [mode, "DEFAULT", "new_20261015"])
+                    session_index = argv.index("model21800_20261018T050406Z")
+                    self.assertEqual(argv[session_index + 6:session_index + 9], [mode, "DEFAULT", "new_20261015"])
+                    if "reconnect-laptop" in argv:
+                        self.assertEqual(argv[session_index + 9:], ["none", "NONE", "3883", "mm", "v2", "false"])
 
     def test_kernel_mode_never_contacts_either_operator(self):
         namespace = backend_namespace({})
@@ -171,7 +185,8 @@ class OperatorProfileTests(unittest.TestCase):
                                      operator_profile=profile)
             backend.start(config, "model21800_20261018T050406Z", lambda event: None, "KERNEL")
             backend.kill_all_and_collect(config, "model21800_20261018T050406Z", lambda event: None, "KERNEL")
-        self.assertEqual(len(calls), 20)  # explicit mutating background phase
+        self.assertEqual(len(calls), 22)
+        self.assertEqual(sum("verify-vendor-mdu" in argv for argv in calls), 2)
         self.assertFalse(any("preflight-laptop" in argv or "collect" in argv for argv in calls))
 
     def test_invalid_mac_account_and_helper_fail_before_any_connection(self):
@@ -210,10 +225,14 @@ class OperatorProfileTests(unittest.TestCase):
                 "rcl_interfaces.srv": SimpleNamespace(SetParameters=SimpleNamespace(Request=SimpleNamespace)),
                 "rcl_interfaces.msg": SimpleNamespace(Parameter=SimpleNamespace, ParameterValue=SimpleNamespace),
             }
+            files = {"/etc/machine-id": "c" * 32, "/proc/sys/kernel/random/boot_id": "boot",
+                     "/var/lib/hope-lifecycle/config.json": json.dumps(config_to_document(config))}
             with patch.dict(sys.modules, modules), \
-                 patch.object(Path, "read_text", return_value=json.dumps(config_to_document(config))), patch("builtins.print"):
+                 patch.object(Path, "read_text", lambda path: files[str(path)]), patch("builtins.print"):
                 exec(compile(source, "select-operator", "exec"), {})
-            updated = apply_config_updates(config, parameters)
+            proofs = [json.loads(value) for name, value in parameters if name == "connection_identity"]
+            self.assertEqual(proofs, [{"machine_id":"c" * 32, "boot_id":"boot", "revision":config.revision}])
+            updated = apply_config_updates(config, [(k, v) for k, v in parameters if k != "connection_identity"])
             self.assertEqual((updated.operator_profile, updated.laptop_wifi_ip), (profile, "192.168.10.9"))
             self.assertEqual(updated.hdu_wifi_ip, config.hdu_wifi_ip)
             for key in ("gripper_profile", "pants_profile", "mocap_source", "vrpn_ip", "vrpn_port", "vrpn_units"):

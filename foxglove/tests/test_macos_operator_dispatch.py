@@ -59,6 +59,24 @@ class MacOperatorDispatchTests(unittest.TestCase):
         self.assertEqual(json.loads(output.call_args.args[0]),
                          {"hdu_ip":"192.168.200.2", "laptop_ip":"192.168.100.3"})
 
+    def test_hdu_reconnect_forwards_only_the_verified_machine_field(self):
+        helper = "/home/operator/.local/libexec/hope-lifecycle"
+        machine = "a" * 32
+        contract = {"laptop_user":"operator", "laptop_helper":helper}
+        command = ["/usr/bin/env", "HOPE_LIFECYCLE_MACHINE_ID=" + machine, helper, "reconnect-laptop", "session"]
+        with patch.object(dispatcher.pwd, "getpwuid", return_value=SimpleNamespace(pw_name="operator", pw_uid=1001)), \
+                patch.object(dispatcher.os, "execve", side_effect=Dispatched) as execute:
+            with self.assertRaises(Dispatched):
+                dispatcher.dispatch(shlex.join(command), contract)
+            args = execute.call_args.args
+            self.assertEqual(args[:2], (helper, [helper, "reconnect-laptop", "session"]))
+            self.assertEqual(args[2]["HOPE_LIFECYCLE_MACHINE_ID"], machine)
+            for replacement in (["OTHER=x", *command[2:]], [command[1], helper, "collect"],
+                                [command[1], "OTHER=x", *command[2:]], ["HOPE_LIFECYCLE_MACHINE_ID=bad", *command[2:]]):
+                with self.assertRaises(ValueError):
+                    dispatcher.dispatch(shlex.join(["/usr/bin/env", *replacement]), contract)
+            self.assertEqual(execute.call_count, 1)
+
     def test_original_dongc1_contract_still_works(self):
         helper = "/home/dongc1/.local/libexec/hope-lifecycle"
         self.dispatch("dongc1", helper, [helper, "record-control"])

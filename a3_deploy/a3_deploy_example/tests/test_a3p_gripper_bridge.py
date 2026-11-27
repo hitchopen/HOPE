@@ -34,19 +34,18 @@ def test_packaged_runner_loads_vendor_ros_only_for_gripper_bridge() -> None:
     assert "aimdk.protocol_pb2" not in build_script
 
 
-def test_packaged_runner_uses_single_build4_full31_serve_timeline() -> None:
+def test_packaged_runner_uses_single_v23_default_serve_timeline() -> None:
     build_script = (A3_ROOT / "scripts" / "build_a3_deploy_pkg.sh").read_text()
-    filename = (
-        "a3p_op3_serve025_smooth_center_v14.csv"
-    )
+    filename = "a3p_op3_serve025_v23_branch110_model14600.csv"
     motion_root = A3_ROOT / "assets/a3_runtime/serve/motions"
     path = motion_root / filename
-    assert path.is_file()
-    # Header + five PREAMBLE metadata rows + all 468 original 100 Hz FRAME rows.
-    assert len(path.read_text().splitlines()) == 474
-    assert filename in build_script
-    assert "SERVE_TIMELINE_ARGS=(" in build_script
-    assert f'"${{SCRIPT_DIR}}/motions/{filename}"' in build_script
+    rows = path.read_text().splitlines()
+    assert all(row.split(",", 2)[1] == "PREAMBLE" for row in rows[1:6])
+    assert all(row.split(",", 2)[1] == "FRAME" for row in rows[6:474])
+    assert rows[474].startswith("#HOPE_SERVE_SEGMENTS_V1,110,")
+    assert path.with_suffix(".recipe.json").is_file()
+    assert 'copy_into(serve_timeline, "motions")' in build_script
+    assert f'SERVE_TIMELINE_ARGS=(\n    --serve-timeline\n    "${{SCRIPT_DIR}}/motions/{filename}"\n  )' in build_script
     assert "unsupported packaged serve override" in build_script
     assert "use --serve-timeline PATH for a replacement CSV" in build_script
     assert "SERVE_TIMELINE_OVERRIDE=1" in build_script

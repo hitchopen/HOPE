@@ -75,6 +75,15 @@ def dispatch(command, contract):
     if account.pw_uid < 1000 or account.pw_name != contract["laptop_user"]:
         raise ValueError("SSH login does not match the configured operator account")
     args = shlex.split(command)
+    # The HDU attaches its machine ID to receiver reconnects. Decode only this
+    # exact envelope, then execute the same fixed helper as a plain request.
+    machine_id = None
+    if args[:1] == ["/usr/bin/env"]:
+        if (len(args) < 4 or args[2:4] != [contract["laptop_helper"], "reconnect-laptop"]
+                or not re.fullmatch(r"HOPE_LIFECYCLE_MACHINE_ID=[0-9a-f]{32}", args[1])):
+            raise ValueError("Invalid receiver identity envelope")
+        machine_id = args[1].split("=", 1)[1]
+        args = args[2:]
     if (len(args) < 2 or args[0] != contract["laptop_helper"] or
             args[1] not in ALLOWED_ACTIONS):
         raise ValueError("Only the configured HOPE Laptop helper and fixed actions are accepted")
@@ -87,7 +96,10 @@ def dispatch(command, contract):
         return
     # Never execute a path supplied by the remote command or external contract.
     helper = f"/home/{contract['laptop_user']}/.local/libexec/hope-lifecycle"
-    os.execv(helper, [helper, *args[1:]])
+    if machine_id is not None:
+        os.execve(helper, [helper, *args[1:]], {**os.environ, "HOPE_LIFECYCLE_MACHINE_ID": machine_id})
+    else:
+        os.execv(helper, [helper, *args[1:]])
 
 
 def main():
